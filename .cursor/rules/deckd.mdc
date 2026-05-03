@@ -1,0 +1,112 @@
+---
+description: Deckd — project-wide rules (stack, folder truth, style, anti-patterns)
+alwaysApply: true
+---
+
+# Deckd — project rules
+
+Deckd is a mobile card-game app built on Expo + React Native. The headline feature is **local "pass-the-phone" multiplayer with BLE-assisted device pairing** (private games, no accounts).
+
+## Stack — the ground truth
+
+- **Expo SDK 54**, React Native 0.81, React 19.1, **New Arch ON** (`app.json -> expo.newArchEnabled: true`).
+- **expo-router 6**, file-based. Root stack in `app/_layout.tsx`.
+- **TypeScript strict**. Never use `any` — use `unknown` + narrowing, or define the type.
+- **zustand 5** for global state. **MMKV** (via `lib/storage.ts`) for persistence. **expo-secure-store** for secrets only.
+- **Reanimated 4** + **Gesture Handler** for motion / drag.
+- **BLE via `react-native-ble-plx`** — **CENTRAL ONLY**. Peripheral / host advertising is **not implemented** and the library does not support it. See `.cursor/skills/ble-realtalk/SKILL.md` before touching BLE code.
+- **lucide-react-native** for icons. **`expo-image`** for remote images (not RN `Image`).
+- **EAS** for builds (`eas.json` — iOS profiles defined; Android profile is TBD).
+
+## Folder truth (match reality, not aspirations)
+
+```
+app/                    expo-router screens
+  _layout.tsx           root stack + GlobalNavBar overlay
+  (tabs)/               route group for the 4 non-game tabs
+  game/                 nested stack: gameboard + pass-phone
+components/             shared UI components (NOT src/components)
+lib/                    domain helpers: ble.ts, ble.web.ts, storage.ts, types.ts, assets.ts
+src/                    reserved — theme, stores, engine go here
+  lib/theme.ts          single source of design tokens
+  store/                zustand stores (gameStore, bleStore, profileStore)
+  engine/               pure game-logic modules (deck, rules) — framework-free
+hooks/                  reusable React hooks
+types/                  cross-cutting type declarations
+assets/                 images + fonts
+```
+
+The README and older code references `src/components/` and `src/lib/theme.ts` — those files **do not exist yet**. `src/` is reserved for theme + state + engine; UI components live in `components/`.
+
+## Path aliases (keep `tsconfig.json` + `babel.config.js` in sync)
+
+Declared: `@lib/*`, `@components/*`, `@hooks/*`, `@assets/*`.
+Planned (add when first used): `@theme`, `@store/*`, `@engine/*`.
+
+When adding a new alias:
+1. Add to `tsconfig.json -> compilerOptions.paths`.
+2. Add to `babel.config.js` via `babel-plugin-module-resolver`.
+3. `react-native-reanimated/plugin` **must remain the last babel plugin**.
+
+## Code style
+
+- Functional components, `PascalCase` names, `StyleSheet.create` blocks at the bottom of the file.
+- Hooks: `camelCase`, prefixed `use`.
+- **No magic color strings** in screens or components. Import from `@theme`. If `@theme` does not exist yet, still hoist colors to a `const colors = { ... }` at the top of the file rather than inlining hexes.
+- Types and interfaces live near their usage or in `lib/types.ts` if cross-screen.
+- Always handle `useSafeAreaInsets()` on screens that touch top or bottom edges.
+- Prefer composition over prop-drilling giant objects — push logic into stores / hooks.
+
+## State rules
+
+- Gameplay state (deck, hands, turn, players) lives in a zustand store under `src/store/gameStore.ts`. **Never mutate gameplay state from a component.**
+- Only persist what must survive a cold start. Decks/hands are ephemeral unless resumable games are a feature.
+- MMKV keys are lower-kebab-case, prefixed by domain (e.g. `game:active-id`, `profile:nickname`).
+- SecureStore is reserved for credentials / auth tokens — not used today.
+
+## BLE rules
+
+- All BLE access goes through `lib/ble.ts` / `getBLEService()`. Never `new BleManager()` elsewhere.
+- Every BLE screen must call `destroyBLEService()` (or at minimum `disconnect()` + `stopScanning()`) on unmount.
+- Every BLE callback must have `onError`. Never `.catch(() => {})` a BLE promise.
+- Web build resolves `lib/ble.web.ts` via Metro platform extensions. Do not import `react-native-ble-plx` at module top-level in files shared with web.
+- **Before writing any host/advertising code, read `.cursor/skills/ble-realtalk/SKILL.md`.**
+
+## Expo / native
+
+- Managed workflow. **Never hand-edit `ios/` or `android/`** — changes go through `app.json` plugins + `expo prebuild --clean`.
+- Permission strings in `app.json -> ios.infoPlist` / `android.permissions` must match any new native API used. Update atomically with the code change that needs them.
+- Assume physical-device testing for BLE, haptics, audio — Expo Go cannot run this app (we use a dev client).
+- Font loading must happen in `app/_layout.tsx` via `useFonts` + `expo-splash-screen`. All 5 Plus Jakarta Sans weights in `assets/fonts/` are part of the design system.
+
+## Dependencies
+
+- Before adding or upgrading **any** package, follow `.cursor/skills/dependency-docs-research/SKILL.md`.
+- For Expo-managed packages, use `npx expo install <pkg>` — never `npm install` directly for SDK-pinned deps.
+- Do not introduce a new state library (Redux, Jotai, etc.). zustand is the decision.
+- Do not introduce a new styling library (NativeWind, styled-components, etc.) without an explicit architectural discussion.
+
+## Verification
+
+- Every non-trivial change must end with `npm run typecheck` passing.
+- `npm run lint` is scripted but the ESLint config is not yet set up — add `eslint-config-expo` before the first lint expectation.
+- BLE / native behavior is only verified on a real device through a dev build (`eas build --profile development`).
+- Web (`npm run web`) must keep booting — it's the fastest feedback loop for non-BLE UI work.
+
+## Anti-patterns (reject in review)
+
+- Inline card JSX in screens. Use `<PlayingCard>` (create it if missing).
+- Hex color literals outside `src/lib/theme.ts`.
+- External avatar CDNs (`pravatar.cc`, `unsplash.com`, etc.) committed to the repo. Use `@assets/...` placeholders.
+- `useEffect` with BLE / MMKV side-effects and no cleanup.
+- New screens without `SafeAreaInsets` handling.
+- Silent `catch {}` blocks — at minimum log via the `onError` callback or `console.warn` with context.
+- Top-level import of native-only modules in files that Metro also bundles for web.
+- Claiming BLE host mode "works" without device verification.
+
+## Scope discipline
+
+This is a scaffold. Until told otherwise:
+- **Do not** introduce auth, analytics, i18n, dark mode, or feature flags.
+- **Do not** refactor working UI screens unless the task asks for it.
+- **Do** prefer small, reviewable diffs; update `STATUS.md` when you finish a meaningful change.

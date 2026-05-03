@@ -1,0 +1,44 @@
+---
+description: Expo Router patterns for Deckd — nav structure, groups, typed Href, deep links
+globs:
+  - "app/**/*.{ts,tsx}"
+  - "components/GlobalNavBar.tsx"
+---
+
+# Expo Router patterns
+
+## Project nav model
+
+- Root layout: `app/_layout.tsx` is a **Stack** with two children — `(tabs)` group and `game` stack — plus a custom `GlobalNavBar` overlay at the root view.
+- The `(tabs)/_layout.tsx` uses `<Tabs>` with `tabBar={() => null}`. The visual tab bar is the custom `GlobalNavBar`; the `Tabs` navigator only provides the route group.
+- `/game` and `/game/pass` live in their own nested stack so the gameboard and pass-phone screens can animate as a flow.
+
+## Navigation rules
+
+- **Never** add a new `<Tabs>` or `<Drawer>` navigator. All new top-level screens are either inside `(tabs)/` (if they need `GlobalNavBar` visible) or in a new nested stack group (like `game/`).
+- Use `useRouter()` + `router.push('/path')` for navigation. Do not import `navigation` from `@react-navigation/native` directly.
+- All hrefs should be typed: import `type { Href } from 'expo-router'` and narrow with `Href` rather than loose strings.
+- Avoid navigating with path strings built from user input — always through a helper that validates the target.
+
+## Layout conventions
+
+- Screen files default-export the screen component.
+- Top-level screen wrapper handles `useSafeAreaInsets()` for top padding; bottom padding is typically handled by `GlobalNavBar`'s overlay or the screen's own bottom bar.
+- Background color for Stack `contentStyle` is `#FAFAFA` across the app — use the theme `colors.bg` once the theme module lands.
+
+## GlobalNavBar behavior
+
+- `GlobalNavBar` is mounted at the root layout and visible on every route.
+- Screens that need full focus (e.g. `/game/pass`) should opt out by adding a pathname guard inside `GlobalNavBar` itself — do NOT render `GlobalNavBar` locally or unmount it from `_layout.tsx`.
+- Active-state logic uses `isActivePath(pathname, href)` — extend that function when adding nav entries, don't reinvent string matching per-entry.
+
+## Deep linking
+
+- Scheme: `deckd://` (declared in `app.json -> scheme`).
+- When adding a new route that should be deep-linkable, confirm the path maps 1:1 to the file route (expo-router handles this automatically) and document the link shape in `STATUS.md`.
+
+## Anti-patterns in this codebase
+
+- Adding a screen file to `app/(tabs)/` purely as a placeholder (e.g. `game_dummy.tsx`). Delete dummies; use a real route or none at all.
+- Rendering `GlobalNavBar` inside a screen.
+- Using `navigation.navigate('RouteName')` — this app is URL-first, not stack-name-first.

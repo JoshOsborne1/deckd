@@ -1,0 +1,9 @@
+{
+  "platforms": ["apple", "android", "web"],
+  "apple": {
+    "modules": ["DeckdBleModule"]
+  },
+  "android": {
+    "modules": ["expo.modules.deckdble.DeckdBleModule"]
+  }
+}

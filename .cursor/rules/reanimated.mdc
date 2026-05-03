@@ -1,0 +1,42 @@
+---
+description: Reanimated 4 + Gesture Handler conventions
+globs:
+  - "app/**/*.{ts,tsx}"
+  - "components/**/*.{ts,tsx}"
+  - "src/**/*.{ts,tsx}"
+  - "babel.config.js"
+---
+
+# Reanimated 4 + Gesture Handler rules
+
+## Setup invariants
+
+- `react-native-reanimated/plugin` is the **last** entry in `babel.config.js -> plugins`. Never prepend anything after it.
+- `react-native-worklets` is installed and the New Arch is enabled — Reanimated 4 expects both. Do not downgrade.
+- `GestureHandlerRootView` is provided by expo-router automatically for screens — do not double-wrap.
+
+## Animation conventions
+
+- Prefer `useSharedValue` + `useAnimatedStyle` over `Animated.Value` (legacy API).
+- Use `withSpring` for tactile motion (card flips, drags, bounces). Use `withTiming` only for fades and linear transforms.
+- Card animations read better with spring configs in the range `{ damping: 14-18, stiffness: 180-240, mass: 0.8-1.0 }` — avoid default springs (too loose).
+- Gesture-driven animations must respect **reduced-motion** — wrap the animation in a check against `useReducedMotion()` and fall back to a static end state.
+- Declare worklets explicitly with `'worklet';` as the first line of any function passed to `runOnJS`, `useAnimatedStyle`, or gesture callbacks.
+
+## Card-specific patterns (this project)
+
+- Flips: animate `rotateY` on a shared value from `0 -> 180` deg; swap face/back at `90` via `interpolate` + opacity. Pre-render both faces — don't unmount/remount.
+- Deals: stagger using `withDelay(index * 60, withSpring(...))`. Never use `setTimeout` for stagger — it leaves worklets behind.
+- Hand fan: animate `translateY` + `rotate` per card via `useAnimatedStyle` bound to an active-index shared value. The fan math is computed once; only the bound value changes.
+- Pass-phone reveal: tie the "hold to reveal" gesture to a `Gesture.Pan()` or `Gesture.LongPress()` with `runOnJS(nav.replace)` on success — do NOT navigate from inside a worklet without `runOnJS`.
+
+## Performance
+
+- Never animate layout props (`width`, `height`, `padding`, `margin`) on hot paths. Animate transforms and opacity.
+- Shadows on animated views are expensive on Android — either remove the shadow during animation or use `shouldRasterizeIOS` / `renderToHardwareTextureAndroid` judiciously.
+- `<FlashList>` is installed — use it for any list > 20 items. Never animate individual rows outside the list's virtualization window.
+
+## Debugging
+
+- React Native debugger doesn't see worklets. Use `console.log` via `runOnJS(console.log)` from worklet scope — or prefer state-driven logs on the JS thread.
+- If an animation looks janky, check the New Arch renderer first (`RCT_NEW_ARCH_ENABLED=1` should already be set by the template). Fabric + Reanimated 4 is the supported combo.

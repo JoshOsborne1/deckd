@@ -1,0 +1,14 @@
+{
+  "name": "deckd-ble",
+  "version": "0.1.0",
+  "description": "Deckd BLE peripheral host (GATT + advertising) for offline multiplayer",
+  "main": "index.ts",
+  "types": "index.ts",
+  "sideEffects": false,
+  "license": "MIT",
+  "peerDependencies": {
+    "expo": "*",
+    "react": "*",
+    "react-native": "*"
+  }
+}

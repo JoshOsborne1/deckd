@@ -1,0 +1,59 @@
+---
+description: Design token discipline — ban hex literals, enforce theme imports
+globs:
+  - "app/**/*.{ts,tsx}"
+  - "components/**/*.{ts,tsx}"
+  - "src/**/*.{ts,tsx}"
+---
+
+# Theme token discipline
+
+All visual constants — colors, radii, spacing, font family names, shadow presets — belong in `src/lib/theme.ts`. If that file does not exist yet, **create it** as part of the first change that needs a shared token. Do not continue proliferating hex literals.
+
+## Canonical token map
+
+```ts
+export const colors = {
+  brand:        '#B02020',
+  brandDark:    '#901A1A',
+  bg:           '#FAFAFA',
+  surface:      '#FFFFFF',
+  ink:          '#1A1A1A',
+  inkMuted:     '#666',
+  inkSubtle:    '#999',
+  border:       '#F0F0F0',
+  borderStrong: '#EAEAEA',
+  warn:         '#F59E0B',
+  neutral500:   '#475569',
+  neutral300:   '#94A3B8',
+} as const;
+
+export const radii = { sm: 6, md: 12, lg: 16, xl: 24, pill: 999 } as const;
+export const space = { xs: 4, sm: 8, md: 12, lg: 16, xl: 20, xxl: 24, xxxl: 32, xxxxl: 40 } as const;
+
+export const fonts = {
+  regular:  'PlusJakartaSans-Regular',
+  medium:   'PlusJakartaSans-Medium',
+  semibold: 'PlusJakartaSans-SemiBold',
+  bold:     'PlusJakartaSans-Bold',
+  extra:    'PlusJakartaSans-ExtraBold',
+} as const;
+```
+
+## Rules
+
+- `StyleSheet.create` values pull from `@theme`. If the import isn't wired yet, import from a relative path until the alias lands.
+- Hex literals are **only** allowed inside `src/lib/theme.ts`.
+- Shadow objects are verbose in RN — keep a `shadow.card`, `shadow.cta`, `shadow.pressed` preset in the theme and spread them (`...shadow.card`) rather than re-writing `shadowColor`/`shadowOffset` per screen.
+- Font sizes are not yet tokenized (they vary a lot between heroes / body / chips). Do not tokenize them prematurely; document recurring values in the theme once 3 call sites use the same size.
+- RGBA overlays (e.g. `rgba(176,32,32,0.2)`) may stay inline only when they are semantically transient (pressed states, dashed borders). When the same overlay is used 3+ times, promote it to `colors.*Translucent`.
+
+## Migration pattern
+
+When you touch a screen for another reason, pull its color/radius/space literals into theme tokens **for that screen only**. Do not do a repo-wide theme migration in one PR — it's noisy and defeats review.
+
+## Anti-patterns
+
+- Defining a local `colors = { ... }` in a screen file after the theme module exists.
+- Re-exporting theme tokens under different names in component files.
+- Using `theme.colors.brand` in a `.web.ts` stub file that is supposed to be API-only — stubs stay dependency-free.

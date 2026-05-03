@@ -1,0 +1,34 @@
+{
+  "$schema": "https://cursor.sh/schemas/hooks.schema.json",
+  "_comment": "Cursor 3 hooks let you run scripts on agent events. This file is INTENTIONALLY MINIMAL — uncomment entries after deciding you want the friction. Each hook runs a shell command; keep them fast (< 2s) or they'll slow the loop.",
+
+  "hooks": {
+    "_examples_disabled": [
+      {
+        "event": "afterFileEdit",
+        "match": { "paths": ["**/*.ts", "**/*.tsx"] },
+        "command": "npm run typecheck --silent",
+        "description": "Run typecheck after every TS/TSX edit. DISABLED by default — noisy on multi-file refactors.",
+        "timeoutMs": 15000,
+        "blocking": false
+      },
+      {
+        "event": "beforeShellExecute",
+        "match": {
+          "commandPattern": "^(eas build|expo prebuild|git push|rm -rf)"
+        },
+        "command": "echo 'Blocked by hooks.json — requires explicit user confirmation' && exit 1",
+        "description": "Safety net for destructive commands. DISABLED — Cursor's built-in confirm covers most cases.",
+        "blocking": true
+      },
+      {
+        "event": "afterAgentTurn",
+        "command": "node -e \"const fs = require('fs'); const line = '\\n- ' + new Date().toISOString().slice(0,10) + ' | TODO | agent turn completed | —'; fs.appendFileSync('STATUS.md', line);\"",
+        "description": "Auto-append a TODO line to STATUS.md after every agent turn. DISABLED — prefer /status-append for curated entries.",
+        "blocking": false
+      }
+    ]
+  },
+
+  "_howTo": "To enable an example: move it from `_examples_disabled` into a top-level `hooks` array. Hooks run in the project root. Windows users: commands run through PowerShell — wrap non-trivial shell syntax in a .ps1 or Node script under `.cursor/scripts/`."
+}

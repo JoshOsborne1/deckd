@@ -1,0 +1,70 @@
+{
+  "expo": {
+    "name": "Deckd",
+    "slug": "deckd",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#FAFAFA"
+    },
+    "ios": {
+      "bundleIdentifier": "com.deckd.app",
+      "buildNumber": "1",
+      "supportsTablet": false,
+      "infoPlist": {
+        "NSBluetoothAlwaysUsageDescription": "Deckd uses Bluetooth to connect players for local multiplayer.",
+        "NSBluetoothPeripheralUsageDescription": "Deckd uses Bluetooth to host and join local game sessions.",
+        "NSCameraUsageDescription": "Deckd uses the camera to scan QR codes for multiplayer sessions.",
+        "NSPhotoLibraryUsageDescription": "Deckd saves game screenshots to your photo library.",
+        "CFBundleURLTypes": [
+          {
+            "CFBundleURLSchemes": ["deckd"]
+          }
+        ]
+      }
+    },
+    "android": {
+      "package": "com.deckd.app",
+      "versionCode": 1,
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#FAFAFA"
+      },
+      "permissions": [
+        "android.permission.BLUETOOTH",
+        "android.permission.BLUETOOTH_ADMIN",
+        "android.permission.BLUETOOTH_SCAN",
+        "android.permission.BLUETOOTH_CONNECT",
+        "android.permission.BLUETOOTH_ADVERTISE",
+        "android.permission.ACCESS_FINE_LOCATION"
+      ]
+    },
+    "extra": {
+      "revenueCatIosApiKey": "",
+      "revenueCatAndroidApiKey": ""
+    },
+    "plugins": [
+      "expo-router",
+      "expo-audio",
+      "expo-font",
+      "expo-secure-store",
+      [
+        "react-native-ble-plx",
+        {
+          "isBackgroundEnabled": false,
+          "modes": [
+            "central"
+          ],
+          "bluetoothAlwaysPermission": "Allow Deckd to use Bluetooth for local multiplayer."
+        }
+      ],
+      "expo-asset"
+    ],
+    "scheme": "deckd"
+  }
+}

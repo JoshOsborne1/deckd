@@ -1,0 +1,38 @@
+---
+description: BLE safety rules — applies whenever touching BLE code
+globs:
+  - "lib/ble*.ts"
+  - "app/**/pass*.{ts,tsx}"
+  - "app/**/lobby*.{ts,tsx}"
+  - "src/store/bleStore*.ts"
+---
+
+# BLE safety rules
+
+**Before writing anything new here, read `.cursor/skills/ble-realtalk/SKILL.md`.** It documents the peripheral-mode problem that determines whether the code you're about to write is even possible.
+
+## Hard rules
+
+- **Single manager:** only `lib/ble.ts` instantiates `BleManager`. Consumers call `getBLEService()` / `destroyBLEService()`.
+- **Platform split:** `lib/ble.web.ts` exists so web builds don't crash. Keep the two files' **public API identical** — `BLEService`, `BLEConnectionState`, `BLECallbacks`, `GameStateMessage`, `getBLEService`, `destroyBLEService`. Never import `react-native-ble-plx` from `lib/ble.web.ts` or any shared file.
+- **Cleanup:** every component that triggers scanning, connecting, or advertising must call `destroyBLEService()` (or at minimum `stopScanning()` + `disconnect()`) in its cleanup / unmount path.
+- **Error paths:** every BLE callback registers an `onError`. Never `.catch(() => {})` without surfacing through `onError`. The user must see a connection failure.
+- **Permissions:** BLE-related permission strings live in `app.json`. If you add a capability that needs a new permission (e.g. background BLE), update `app.json` in the same change and re-prebuild.
+- **Real device:** BLE is untestable on simulators. Do not claim a BLE change works without verifying on a physical device through a dev build.
+
+## Honesty markers
+
+- `startHostAdvertising()` today is not a real advertisement — `react-native-ble-plx` is a GATT central. Any code that calls this and assumes a peer can discover it is **wrong**.
+- Until peripheral mode is resolved, keep the `⚠ PERIPHERAL MODE NOT IMPLEMENTED` comment in `lib/ble.ts` intact and visible.
+- When proposing multiplayer features, assume host mode does not exist. If the feature requires it, flag the dependency explicitly and propose alternatives (LAN via Zeroconf/UDP, QR-code handshake + relay server, room-code API).
+
+## Message shape
+
+- All payloads use the `GameStateMessage` envelope: `{ type, data, timestamp, senderId }`.
+- New message types extend the discriminated union — don't invent bare `{ data: ... }` shapes.
+- Payloads must survive `JSON.stringify` → `atob` / `btoa` round-trip. Keep them ASCII-safe; no Date objects, no Maps, no Sets.
+
+## Testing discipline
+
+- Mock BLE in unit tests through the `BLECallbacks` seam — the service's public API is narrow enough to fake.
+- Integration tests go through the web stub; they test state transitions and message envelopes, not the radio.
