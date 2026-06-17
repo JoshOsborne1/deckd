@@ -82,7 +82,7 @@ export const CardButton = forwardRef<View, CardButtonProps>(function CardButton(
   },
   ref,
 ) {
-  const { haptic: fire } = useMotion();
+  const { haptic: fire, reduceMotion } = useMotion();
   const scale = useSharedValue(1);
   const lift = useSharedValue(0);
 
@@ -99,14 +99,24 @@ export const CardButton = forwardRef<View, CardButtonProps>(function CardButton(
       : shadow.none;
 
   const handlePressIn = (e: GestureResponderEvent) => {
-    scale.value = withSpring(0.97, motion.spring.press);
-    lift.value = withTiming(2, { duration: motion.duration.fast });
+    if (reduceMotion) {
+      scale.value = 1;
+      lift.value = 0;
+    } else {
+      scale.value = withSpring(0.97, motion.spring.press);
+      lift.value = withTiming(2, { duration: motion.duration.fast });
+    }
     onPressIn?.(e);
   };
 
   const handlePressOut = (e: GestureResponderEvent) => {
-    scale.value = withSpring(1, motion.spring.press);
-    lift.value = withTiming(0, { duration: motion.duration.base });
+    if (reduceMotion) {
+      scale.value = 1;
+      lift.value = 0;
+    } else {
+      scale.value = withSpring(1, motion.spring.press);
+      lift.value = withTiming(0, { duration: motion.duration.base });
+    }
     onPressOut?.(e);
   };
 

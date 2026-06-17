@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Alert, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AvatarPlaceholder } from '@components/AvatarPlaceholder';
@@ -68,8 +68,13 @@ export default function ProfileScreen() {
   };
 
   return (
-    <View style={styles.container}>
+    <KeyboardAvoidingView
+      style={styles.container}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      keyboardVerticalOffset={insets.top}
+    >
       <ScrollView
+        keyboardShouldPersistTaps="handled"
         contentContainerStyle={[
           styles.scrollContent,
           { paddingTop: insets.top + space.sm, paddingBottom: insets.bottom + space.x5l * 3 },
@@ -267,7 +272,7 @@ export default function ProfileScreen() {
           </CardButton>
         </CardSection>
       </ScrollView>
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 

@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import Animated, {
   Extrapolation,
   interpolate,
@@ -75,6 +75,7 @@ export function HubLayer({
   bottomInset,
 }: HubLayerProps) {
   const setViewMode = useUiStore((s) => s.setViewMode);
+  const { width } = useWindowDimensions();
   const nickname = useProfileStore((s) => s.nickname);
   const avatarSeed = useProfileStore((s) => s.avatarSeed);
   const createSession = useGameStore((s) => s.createSession);
@@ -121,6 +122,7 @@ export function HubLayer({
     [],
   );
   const interactive = active && gateOpen;
+  const narrowWidth = width < 380;
 
   const activePreset = useMemo(
     () => builtinPresets.find((p) => p.id === presetId) ?? builtinPresets[0],
@@ -506,20 +508,20 @@ export function HubLayer({
           </CardSection>
         </Animated.View>
 
-        <Animated.View style={[styles.ctaRow, ctaRowStyle]}>
+        <Animated.View style={[styles.ctaRow, narrowWidth && styles.ctaRowNarrow, ctaRowStyle]}>
           <CardButton
             variant="ghost"
             size="md"
             elevated={false}
             haptic="light"
             onPress={() => setViewMode('lobby')}
-            style={styles.bleChip}
+            style={narrowWidth ? { ...styles.bleChip, ...styles.bleChipNarrow } : styles.bleChip}
           >
             <Radio size={16} color={colors.inkMuted} />
             <Text style={styles.bleChipText}>Invite nearby</Text>
           </CardButton>
 
-          <Animated.View style={[styles.startCtaWrap, startCtaStyle]}>
+          <Animated.View style={[styles.startCtaWrap, narrowWidth && styles.startCtaWrapNarrow, startCtaStyle]}>
             <CardButton
               variant="primary"
               size="lg"
@@ -756,6 +758,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: space.md,
   },
+  ctaRowNarrow: {
+    flexDirection: 'column',
+    alignItems: 'stretch',
+  },
   bleChip: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -767,8 +773,15 @@ const styles = StyleSheet.create({
     fontFamily: fonts.semibold,
     color: colors.inkMuted,
   },
+  bleChipNarrow: {
+    width: '100%',
+  },
   startCtaWrap: {
     flex: 1,
+  },
+  startCtaWrapNarrow: {
+    flex: 0,
+    width: '100%',
   },
   startCta: {
     flex: 1,

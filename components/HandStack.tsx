@@ -190,7 +190,7 @@ export function HandStack({
   );
 
   return (
-    <View style={styles.root}>
+    <View style={[styles.root, { height: size === 'md' ? 162 : 200 }]}>
       {cards.map((card, index) => (
         <StackCard
           key={card.id}
@@ -218,7 +218,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'flex-end',
-    height: 200,
   },
   cardSlot: {
     position: 'absolute',

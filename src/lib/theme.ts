@@ -18,6 +18,27 @@ export const colors = {
   neutral300: '#94A3B8',
   /** Bottom nav paper strip (lifted from felt) */
   navStrip: '#EBEBED',
+  /** Table surface colors */
+  tableFelt: '#2D5A3D',
+  tableRail: '#1E3D2A',
+  tableWell: '#234A33',
+  /** Seat state colors */
+  seatActive: '#B02020',
+  seatWaiting: '#F59E0B',
+  seatRemote: '#3B82F6',
+  seatOffline: '#94A3B8',
+  seatDealer: '#D4AF37',
+  /** Card surface colors */
+  cardPaper: '#FFFFFF',
+  cardEdge: '#EAEAEA',
+  /** Action semantic colors */
+  actionSafe: '#22C55E',
+  actionWarn: '#F59E0B',
+  /** Sync state colors */
+  syncConnected: '#22C55E',
+  syncScanning: '#3B82F6',
+  syncLost: '#EF4444',
+  syncHost: '#B02020',
 } as const;
 
 export const alpha = {
@@ -114,19 +135,19 @@ function makeShadow(
 export const shadow = {
   none: {} as ShadowStyle,
   card: makeShadow(
-    { shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 4 },
+    { shadowColor: colors.ink, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 4 },
     2,
   ),
   cardStrong: makeShadow(
-    { shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 6 },
+    { shadowColor: colors.ink, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 6 },
     3,
   ),
   elevated: makeShadow(
-    { shadowColor: '#000', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.15, shadowRadius: 10 },
+    { shadowColor: colors.ink, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.15, shadowRadius: 10 },
     6,
   ),
   hand: makeShadow(
-    { shadowColor: '#000', shadowOffset: { width: 0, height: -4 }, shadowOpacity: 0.1, shadowRadius: 8 },
+    { shadowColor: colors.ink, shadowOffset: { width: 0, height: -4 }, shadowOpacity: 0.1, shadowRadius: 8 },
     8,
   ),
   cta: makeShadow(

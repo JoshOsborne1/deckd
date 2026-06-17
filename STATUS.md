@@ -30,7 +30,7 @@ Most recent at the top. Agents should read the last ~10 entries before starting.
   - `components/layers/HomeLayer.tsx` — each block (stats banner, hero CTA, secondary CTA, store preview divider, carousel, Deckd+, sale) interpolates its own exit window. Hero CTA morphs in place (scale 1→0.88, ty 0→+180) rather than leaving.
   - `components/layers/HubLayer.tsx` — session setup with per-element entry staggers. Preset chips + player chips further-stagger by index. Deal-now CTA scales 0.92→1 to "catch" the morphing hero.
   - `components/layers/TableLayer.tsx` — **engine-driven**. `viewerId` = `currentPlayerId` in pass mode (shared phone shows the active seat), else `hostId`. PASS TURN: `endTurn(viewerId)` → `enterPrivacy(next.id)` → `openPass({...})`. Reveal (`PassLayer`): `exitPrivacy()` then `closePass()`. Hand hidden while `privacySeat !== null` (recipient must long-press). Discard + `HandFan` support jokers via `parseJokerId` + `jokerColor` on `PlayingCard`.
-  - `components/layers/LobbyLayer.tsx` — BLE lobby: `useBleStore` + `getBLEService()` scan/stop, device list, connection state, errors; host advertise still Phase 5.
+  - `components/layers/LobbyLayer.tsx` — BLE lobby: `useBleStore` + `getBLEService()` scan/stop, device list, connection state, errors; host advertising calls the custom native module scaffold but is not device-proven.
   - `components/layers/PassLayer.tsx` — thin wrapper over `PrivacyVeil` bound to `useUiStore.passContext`.
 - Stores:
   - `src/store/uiStore.ts` — `viewMode`, `openPass / closePass`, `resetToHome`, MMKV-persisted (sanitises `pass` → `home` on rehydrate).
@@ -64,14 +64,14 @@ Most recent at the top. Agents should read the last ~10 entries before starting.
   - `components/PrivacyVeil.tsx` — 600ms long-press gate w/ progress ring + success haptic.
   - `components/FlipCard.tsx` — 3D Y-axis flip wrapper.
   - `components/HandFan.tsx` / `HandStack.tsx` — Reanimated layouts; `Gesture.Race` (tap flip, pan swipe-up discard, horizontal reorder); `FlipCard` per card.
-- Platform-split BLE scaffold (`lib/ble.ts` central-only + `lib/ble.web.ts` stub) — honest about limitations.
+- Platform-split BLE scaffold: `lib/ble.ts` uses `react-native-ble-plx` for guest/central scanning plus `modules/deckd-ble` for host/peripheral advertising; `lib/ble.web.ts` is an honest no-BLE stub.
 - `lib/presetResolve.ts` — `resolvePresetForSession` maps Presets Library default (builtin or user uuid) → built-in id for `findPreset`.
 - `lib/eventLogFormat.ts` — one-line formatter for `GameEvent` (event log modal).
 - `components/EventHistoryModal.tsx` — bottom sheet modal; Table clock icon opens full event log (newest-first slice).
 - `eas.json` — `android.buildType` on `preview` (apk) + `production` (app-bundle).
 
 ### Open risks / decisions pending
-- **BLE peripheral mode is still not real.** `react-native-ble-plx` is central-only. Phase 5 = iOS-first custom Expo native module (`CBPeripheralManager`) ship-ready, Android (`BluetoothLeAdvertiser` + GATT server) follows.
+- **BLE peripheral mode is scaffolded, not proven.** `react-native-ble-plx` remains central-only, while `modules/deckd-ble` adds iOS `CBPeripheralManager` and Android `BluetoothLeAdvertiser`/GATT host paths. Treat as unverified until real-device matrix passes.
 - **User presets are cosmetic clones.** Rule execution still derives from `basedOn` built-in. Real rule overrides (overriding `supportsPlayerCount`, `setup`, etc.) arrive when the rules DSL exists.
 - **Haptics:** in-app `reduceMotionOverride` no longer mutes haptics; **system** reduce-motion still does (accessibility).
 - **No store (IAP) plumbing.** All `/store` CTAs `Alert.alert` placeholders. Phase 7.
@@ -79,8 +79,8 @@ Most recent at the top. Agents should read the last ~10 entries before starting.
 - **Shared-element position between hero CTA and Hub Deal-now is approximated** via translateY. A measured-handoff pass (using `onLayout` captures) would make it 1:1 pixel-perfect.
 
 ### Immediate high-leverage tasks (Phase 5+)
-1. Expo native module: iOS `CBPeripheralManager` + Android `BluetoothLeAdvertiser` + GATT; replace `bleStore` host stub; **needs `expo prebuild` + device verification** (not run automatically).
-2. Wire discovered device → `connectToDevice` + session transport (event replication).
+1. Real-device BLE proof harness: prove advertise → scan → connect → guest write → host receive → host notify → guest receive across iOS/Android pairs.
+2. Wire discovered device selection + session transport into lobby/table UX, with ACK/retry/snapshot status visible enough to debug.
 3. Optional: room codes / pairing PIN.
 4. Phase 7: IAP / `expo-in-app-purchases` or RevenueCat for `/store`.
 
@@ -89,6 +89,12 @@ Most recent at the top. Agents should read the last ~10 entries before starting.
 ## Change log
 
 <!-- Append new entries here, most recent at the top. -->
+
+- 2026-05-04 | frontend-hardening | Hardened the mobile shell before manual UI craft: fixed global nav visibility on secondary routes, added keyboard-safe profile/list forms, tightened table safe-area/compact sizing/action menu/history split, made opponent and hand layouts small-screen-safe, improved pass veil safe-area and transform-based reveal fill, removed visible dev event chip, stopped store long-press cosmetic unlocks, and replaced roadmap/BLE/IAP leak copy with honest product copy | `npm run typecheck` and `npm run lint` pass; `npx expo-doctor` runs but fails 1/17 because an ancestor `E:\projects\deckd\node_modules` duplicates `react`/`react-native` outside this workspace
+- 2026-05-04 | ble-doc-handoff | Fixed BLE transport correctness issues: chunk batches now share a correlation id, BLE callbacks no longer clobber scan/lobby listeners, scan accepts UUID-matched devices even when Android host name is missing, reconnect retries reset state, UTF-8 base64 is used for wire JSON, remote snapshot application no longer refolds stale local history, web BLE stub matches current API, README/AGENTS/STATUS were corrected, and `state.md` was added as IDE handoff | Physical-device BLE proof matrix remains the production blocker
+- 2026-05-03 | product-build | Added persisted runtime cosmetics store, wired Store card backs/table themes to real equip state, expanded PlayingCard backs to registry-driven skins, applied equipped table theme to the root table surface, fixed gameStore seq bookkeeping, added remote event/snapshot ingestion APIs for BLE transport, and wrote Rive handoff doc | BLE native transport still needs physical-device verification before product claims
+- 2026-05-03 | foundation-to-ui-ready | Cleaned stale README/PLAN/.cursor context; restored Expo SDK alignment including `react-native-worklets`; added table/card/sync theme tokens; added visual domain models (`CardDefinition`, `DeckDefinition`, `CardBackDefinition`, `TableThemeDefinition`); added setup manifest DSL/compiler/validator; upgraded user presets to optionally carry real manifests; replaced legacy BLE `game_state` wire shape with versioned event/intention/snapshot/ACK/chunk protocol; added BLE transport abstraction; added UI Prompt Pack and Rive implementation guide | Real-device BLE proof matrix still required before claiming BLE works; next major work should be UI/table/hub/nav/pass polish
+- 2026-05-03 | audit | Full repo audit and publish plan added at docs/DECKD_AUDIT_AND_PUBLISH_PLAN_2026-05-03.md; Hermes skill deckd-product-build created | Use plan as canonical backlog until README/PLAN drift is fully cleaned
 
 - 2026-04-20 | phase-5-prep | Parallel slice: `lib/presetResolve` + Hub syncs Presets Library default into hub chips; `sessionHistoryStore` + Hub append on “Deal now” when prior session active; Profile “Recent tables”; `bleStore` + Lobby refactor; `EventHistoryModal` + Table clock icon; `alpha.inkOverlay45`; `eas.json` android apk/aab | Native BLE module not in this commit (AGENTS: no prebuild without ask)
 - 2026-04-20 | phase-4b | Hand UX: `HandFan` + `HandStack` use `Gesture.Race` (tap flip, pan: swipe-up discard, horizontal swap for `reorderHand`). Hub Options adds Wide / Tight / Stack hand layout → `fanStyle` in session config. `LobbyLayer` wires `getBLEService()` scan start/stop, live connection state, discovered device list, host CTA stub + error surface. `useMotion`: haptics no longer blocked by in-app `reduceMotionOverride` (OS reduce-motion still mutes haptics). NEW `src/animations/stack.ts` + `components/HandStack.tsx` | Discard gesture changed from long-press to swipe-up — hint under hand

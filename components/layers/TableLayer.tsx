@@ -1,17 +1,18 @@
 import React, { useCallback, useMemo, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Modal, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import Animated from 'react-native-reanimated';
-import { ChevronLeft, Clock, Menu, Shuffle } from 'lucide-react-native';
+import { ChevronLeft, Clock, Menu, Shuffle, X } from 'lucide-react-native';
 import { AvatarPlaceholder } from '@components/AvatarPlaceholder';
 import { CardButton } from '@components/CardButton';
 import { CardSection } from '@components/CardSection';
-import { PlayingCard } from '@components/PlayingCard';
+import { PlayingCard, SIZE_MAP, type PlayingCardSize } from '@components/PlayingCard';
 import { EventHistoryModal } from '@components/EventHistoryModal';
 import { HandFan } from '@components/HandFan';
 import { HandStack } from '@components/HandStack';
 import { useLayerSurfaceEntrance } from '@hooks/useLayerSurfaceEntrance';
 import { useMotion } from '@hooks/useMotion';
 import { useUiStore } from '@store/uiStore';
+import { useCosmeticsStore } from '@store/cosmeticsStore';
 import { useGameStore } from '@store/gameStore';
 import {
   parseCardId,
@@ -55,12 +56,14 @@ interface TableLayerProps {
 export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
   const { haptic } = useMotion();
   const setViewMode = useUiStore((s) => s.setViewMode);
+  const equippedBackId = useCosmeticsStore((s) => s.equippedBackId);
   const openPass = useUiStore((s) => s.openPass);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const { width, height } = useWindowDimensions();
 
   const state = useGameStore((s) => s.state);
   const events = useGameStore((s) => s.events);
-  const seq = useGameStore((s) => s.seq);
   const dealCard = useGameStore((s) => s.dealCard);
   const flipCard = useGameStore((s) => s.flipCard);
   const moveCard = useGameStore((s) => s.moveCard);
@@ -97,6 +100,15 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
   const nextPlayerId = useMemo(() => selectNextPlayerId(state), [state]);
   const isHost = Boolean(hostPlayerId && viewerId === hostPlayerId);
   const isPassMode = state.meta.mode === 'pass';
+  const compactHeight = height < 700;
+  const narrowWidth = width < 380;
+  const handCardSize: 'md' | 'lg' =
+    compactHeight || narrowWidth || localHand.length >= 7 ? 'md' : 'lg';
+  const tableCardSize: PlayingCardSize = compactHeight || narrowWidth ? 'md' : 'lg';
+  const drawCardSize: PlayingCardSize = compactHeight || narrowWidth ? 'sm' : 'md';
+  const handHeight = handCardSize === 'md' ? 148 : 180;
+  const tableGap = narrowWidth ? space.lg : space.xxl;
+  const discardSpec = SIZE_MAP[tableCardSize];
 
   const currentPlayerName = useMemo(() => {
     const p = state.players.find((pl) => pl.id === currentPlayerId);
@@ -104,6 +116,13 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
   }, [state.players, currentPlayerId]);
 
   const surfaceStyle = useLayerSurfaceEntrance(active);
+
+  React.useEffect(() => {
+    if (!active) {
+      setMenuOpen(false);
+      setHistoryOpen(false);
+    }
+  }, [active]);
 
   // --- Card face resolver for HandFan ---
   const faceFor = useCallback(
@@ -135,10 +154,13 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
 
   const handleCardLongPress = useCallback(
     (cardId: string) => {
+      if (!viewerId || !isMyTurn) return;
+      const card = state.cards[cardId];
+      if (!card || card.zoneId !== handZoneId(viewerId)) return;
       haptic('medium');
       moveCard(cardId, ZONE_DISCARD, 'up');
     },
-    [haptic, moveCard],
+    [viewerId, isMyTurn, state.cards, haptic, moveCard],
   );
 
   const handlePassTurn = useCallback(() => {
@@ -176,8 +198,20 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
     setHistoryOpen(true);
   }, [haptic]);
 
+  const handleMenu = useCallback(() => {
+    haptic('light');
+    setMenuOpen(true);
+  }, [haptic]);
+
+  const handleMenuHistory = useCallback(() => {
+    haptic('light');
+    setMenuOpen(false);
+    setHistoryOpen(true);
+  }, [haptic]);
+
   const handleBackToHub = useCallback(() => {
     haptic('light');
+    setMenuOpen(false);
     setViewMode('hub');
   }, [haptic, setViewMode]);
 
@@ -248,12 +282,21 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
       </View>
 
       {/* Opponents */}
-      <View style={styles.opponents}>
+      <ScrollView
+        horizontal
+        style={styles.opponentsRail}
+        contentContainerStyle={styles.opponentsContent}
+        showsHorizontalScrollIndicator={false}
+      >
         {opponents.map((opp) => {
           const handSize = selectOpponentHandSize(state, opp.id);
           return (
             <View key={opp.id} style={styles.opponent}>
-              <AvatarPlaceholder seed={opp.avatarSeed} label={opp.name} size={56} />
+              <AvatarPlaceholder
+                seed={opp.avatarSeed}
+                label={opp.name}
+                size={compactHeight || narrowWidth ? 44 : 56}
+              />
               <View style={styles.countPill}>
                 <Text style={styles.countText}>
                   {handSize} {handSize === 1 ? 'CARD' : 'CARDS'}
@@ -264,18 +307,21 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
                   <PlayingCard
                     face="down"
                     size="xs"
+                    back={equippedBackId}
                     style={{ transform: [{ rotate: '-8deg' }, { translateX: 4 }] }}
                   />
                 )}
-                {handSize > 1 && <PlayingCard face="down" size="xs" />}
+                {handSize > 1 && !narrowWidth ? (
+                  <PlayingCard face="down" size="xs" back={equippedBackId} />
+                ) : null}
               </View>
             </View>
           );
         })}
-      </View>
+      </ScrollView>
 
       {/* Table middle */}
-      <View style={styles.table}>
+      <View style={[styles.table, compactHeight && styles.tableCompact, { gap: tableGap }]}>
         {/* Draw pile */}
         <Pressable
           onPress={handleDrawCard}
@@ -286,7 +332,7 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
             (!isMyTurn || drawCount === 0) && { opacity: 0.5 },
           ]}
         >
-          <PlayingCard face="down" size="md" />
+          <PlayingCard face="down" size={drawCardSize} back={equippedBackId} />
           <Text style={styles.deckLeftText}>{drawCount} LEFT</Text>
         </Pressable>
 
@@ -297,7 +343,7 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
               rank={discardParsed.rank}
               suit={discardParsed.suit}
               face={discardTop.face}
-              size="lg"
+              size={tableCardSize}
               elevated
             />
           </View>
@@ -306,19 +352,24 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
             <PlayingCard
               jokerColor={discardJoker}
               face={discardTop.face}
-              size="lg"
+              size={tableCardSize}
               elevated
             />
           </View>
         ) : (
-          <View style={styles.discardSlot}>
+          <View
+            style={[
+              styles.discardSlot,
+              { width: discardSpec.width, height: discardSpec.height },
+            ]}
+          >
             <Text style={styles.discardLabel}>DISCARD</Text>
           </View>
         )}
       </View>
 
       {/* Action bar */}
-      <View style={[styles.actionBar, { marginBottom: bottomInset > 0 ? 0 : space.lg }]}>
+      <View style={[styles.actionBar, compactHeight && styles.actionBarCompact]}>
         <Pressable
           onPress={handleShuffle}
           disabled={!isHost}
@@ -343,11 +394,11 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
               ...(isMyTurn ? undefined : { opacity: 0.5 }),
             }}
           >
-            <Text style={styles.passBtnText}>PASS TURN »</Text>
+            <Text style={styles.passBtnText}>Pass turn</Text>
           </CardButton>
         ) : (
           <Pressable
-            onPress={handleHistory}
+            onPress={handleMenu}
             style={({ pressed }) => [styles.iconBtn, pressed && { opacity: 0.85 }]}
           >
             <Menu size={20} color={colors.inkMuted} />
@@ -363,9 +414,17 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
       </View>
 
       {/* Local hand */}
-      <View style={[styles.hand, { paddingBottom: bottomInset + space.lg }]}>
+      <View
+        style={[
+          styles.hand,
+          {
+            minHeight: handHeight,
+            paddingBottom: bottomInset + (compactHeight ? space.sm : space.lg),
+          },
+        ]}
+      >
         {handLocked ? (
-          <View style={styles.hiddenHand}>
+          <View style={[styles.hiddenHand, { height: handHeight }]}>
             <Text style={styles.hiddenText}>HAND LOCKED — REVEAL TO CONTINUE</Text>
           </View>
         ) : state.config.fanStyle === 'stacked' ? (
@@ -373,10 +432,10 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
             cards={localHand}
             faceFor={faceFor}
             onCardPress={handleCardPress}
-            onCardLongPress={handleCardLongPress}
+            onCardLongPress={isMyTurn ? handleCardLongPress : undefined}
             onReorder={handleReorder}
             reorderEnabled={isMyTurn}
-            size="lg"
+            size={handCardSize}
           />
         ) : (
           <HandFan
@@ -385,38 +444,82 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
             faceFor={faceFor}
             fanStyle={state.config.fanStyle}
             onCardPress={handleCardPress}
-            onCardLongPress={handleCardLongPress}
+            onCardLongPress={isMyTurn ? handleCardLongPress : undefined}
             onReorder={handleReorder}
             reorderEnabled={isMyTurn}
-            size="lg"
+            size={handCardSize}
           />
         )}
         {!handLocked && localHand.length > 0 ? (
           <Text style={styles.handHint} accessibilityRole="text">
-            Tap flip · swipe up discard · drag sideways to reorder
+            {isMyTurn
+              ? 'Tap flip · swipe up discard · drag sideways to reorder'
+              : 'Tap flip · wait for your turn to play cards'}
           </Text>
         ) : null}
       </View>
-
-      {/* Dev-only event log debug */}
-      {__DEV__ && (
-        <Pressable
-          onPress={() => {
-            console.log(`[DEV] events: ${events.length}, seq: ${seq}`);
-          }}
-          style={styles.devChip}
-        >
-          <Text style={styles.devText}>
-            EVT:{events.length} SEQ:{seq}
-          </Text>
-        </Pressable>
-      )}
 
       <EventHistoryModal
         visible={historyOpen}
         events={events}
         onClose={() => setHistoryOpen(false)}
       />
+
+      <Modal
+        visible={menuOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setMenuOpen(false)}
+      >
+        <View style={styles.menuBackdrop}>
+          <Pressable
+            style={StyleSheet.absoluteFill}
+            accessibilityRole="button"
+            accessibilityLabel="Close table menu"
+            onPress={() => setMenuOpen(false)}
+          />
+          <View style={[styles.menuSheet, { paddingBottom: bottomInset + space.xl }]}>
+            <View style={styles.menuHeader}>
+              <View>
+                <Text style={styles.menuEyebrow}>TABLE MENU</Text>
+                <Text style={styles.menuTitle}>Round controls</Text>
+              </View>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Close table menu"
+                onPress={() => setMenuOpen(false)}
+                style={({ pressed }) => [styles.menuClose, pressed && { opacity: 0.75 }]}
+              >
+                <X size={20} color={colors.inkMuted} />
+              </Pressable>
+            </View>
+            <View style={styles.menuActions}>
+              <CardButton
+                variant="secondary"
+                size="md"
+                elevated={false}
+                haptic="light"
+                onPress={handleMenuHistory}
+                style={styles.menuAction}
+              >
+                <Clock size={18} color={colors.inkMuted} />
+                <Text style={styles.menuActionText}>View history</Text>
+              </CardButton>
+              <CardButton
+                variant="ghost"
+                size="md"
+                elevated={false}
+                haptic="light"
+                onPress={handleBackToHub}
+                style={styles.menuAction}
+              >
+                <ChevronLeft size={18} color={colors.inkMuted} />
+                <Text style={styles.menuActionText}>Back to hub</Text>
+              </CardButton>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </Animated.View>
   );
 }
@@ -452,12 +555,17 @@ const styles = StyleSheet.create({
     color: colors.inkSubtle,
     letterSpacing: letterSpacing.caps,
   },
-  opponents: {
+  opponentsRail: {
+    flexGrow: 0,
+    flexShrink: 0,
+  },
+  opponentsContent: {
+    flexGrow: 1,
     flexDirection: 'row',
     justifyContent: 'center',
-    paddingHorizontal: space.xxl,
+    paddingHorizontal: space.xl,
     paddingTop: space.lg,
-    gap: space.xxl,
+    gap: space.lg,
   },
   opponent: {
     alignItems: 'center',
@@ -488,7 +596,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: space.xl,
-    gap: space.xxl,
+    minHeight: 150,
+  },
+  tableCompact: {
+    paddingHorizontal: space.lg,
+    minHeight: 120,
   },
   deckStack: {
     alignItems: 'center',
@@ -513,8 +625,6 @@ const styles = StyleSheet.create({
     borderStyle: 'dashed',
   },
   discardSlot: {
-    width: 110,
-    height: 160,
     borderRadius: radii.card,
     borderWidth: 2,
     borderColor: colors.borderStrong,
@@ -536,6 +646,10 @@ const styles = StyleSheet.create({
     gap: space.xl,
     paddingTop: space.md,
   },
+  actionBarCompact: {
+    gap: space.md,
+    paddingTop: space.xs,
+  },
   iconBtn: {
     width: 48,
     height: 48,
@@ -556,7 +670,6 @@ const styles = StyleSheet.create({
   },
   hand: {
     justifyContent: 'center',
-    minHeight: 180,
   },
   handHint: {
     marginTop: space.sm,
@@ -606,19 +719,56 @@ const styles = StyleSheet.create({
     fontSize: fontSizes.body,
     fontFamily: fonts.bold,
   },
-  devChip: {
-    position: 'absolute',
-    bottom: 4,
-    left: 4,
-    backgroundColor: alpha.inkOverlay20,
-    paddingHorizontal: space.sm,
-    paddingVertical: 2,
-    borderRadius: radii.xs,
+  menuBackdrop: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    backgroundColor: alpha.inkOverlay45,
   },
-  devText: {
-    fontSize: 9,
+  menuSheet: {
+    backgroundColor: colors.surface,
+    borderTopLeftRadius: radii.xxl,
+    borderTopRightRadius: radii.xxl,
+    paddingTop: space.lg,
+    paddingHorizontal: space.lg,
+  },
+  menuHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: space.lg,
+  },
+  menuEyebrow: {
+    fontSize: fontSizes.caption,
     fontFamily: fonts.bold,
-    color: colors.surface,
+    color: colors.inkSubtle,
+    letterSpacing: letterSpacing.caps,
+  },
+  menuTitle: {
+    marginTop: space.xs,
+    fontSize: fontSizes.h3,
+    fontFamily: fonts.extra,
+    color: colors.ink,
+  },
+  menuClose: {
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: radii.pill,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  menuActions: {
+    gap: space.sm,
+  },
+  menuAction: {
+    width: '100%',
+  },
+  menuActionText: {
+    marginLeft: space.sm,
+    fontSize: fontSizes.body,
+    fontFamily: fonts.semibold,
+    color: colors.inkMuted,
   },
 });
 

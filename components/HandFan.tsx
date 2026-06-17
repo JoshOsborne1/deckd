@@ -50,6 +50,7 @@ function FanCard({
   index,
   total,
   spread,
+  overlapFactor,
   face,
   size,
   highlighted,
@@ -63,6 +64,7 @@ function FanCard({
   index: number;
   total: number;
   spread: number;
+  overlapFactor: number;
   face: CardFace;
   size: 'md' | 'lg';
   highlighted: boolean;
@@ -74,7 +76,7 @@ function FanCard({
 }) {
   const { haptic } = useMotion();
   const cardWidth = SIZE_MAP[size].width;
-  const fan = handFanTransform(index, total, spread, cardWidth);
+  const fan = handFanTransform(index, total, spread, cardWidth, overlapFactor);
   const entry = useSharedValue(reduceMotion || !isNew ? 1 : 0);
 
   useEffect(() => {
@@ -195,6 +197,11 @@ export function HandFan({
     ? (containerWidth / total) * 0.8
     : resolvedSpread;
   const cappedSpread = Math.min(resolvedSpread, maxSpread);
+  const maxOverlap =
+    containerWidth > 0 && total > 1
+      ? (containerWidth - cardWidth) / (cardWidth * (total - 1))
+      : 0.55;
+  const overlapFactor = Math.max(0.16, Math.min(0.55, maxOverlap));
 
   const handleReorderDx = useCallback(
     (cardId: CardId, dx: number) => {
@@ -216,8 +223,11 @@ export function HandFan({
 
   return (
     <View
-      style={styles.root}
-      onLayout={(e) => setContainerWidth(e.nativeEvent.layout.width)}
+      style={[styles.root, { height: size === 'md' ? 148 : 180 }]}
+      onLayout={(e) => {
+        const nextWidth = Math.round(e.nativeEvent.layout.width);
+        setContainerWidth((current) => (current === nextWidth ? current : nextWidth));
+      }}
     >
       {cards.map((card, index) => (
         <FanCard
@@ -226,6 +236,7 @@ export function HandFan({
           index={index}
           total={total}
           spread={cappedSpread}
+          overlapFactor={overlapFactor}
           face={faceFor(card)}
           size={size}
           highlighted={highlightCardIds?.has(card.id) ?? false}
@@ -247,7 +258,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'flex-end',
-    height: 180,
   },
   cardSlot: {
     position: 'absolute',

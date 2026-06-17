@@ -32,6 +32,7 @@ export function handFanTransform(
   total: number,
   spread: number,
   cardWidth = 110,
+  overlapFactor = 0.55,
 ): FanTransform {
   'worklet';
   if (total <= 1) {
@@ -42,10 +43,10 @@ export function handFanTransform(
   const t = index / (total - 1);
   const angle = -halfSpread + t * spread;
 
-  const overlapFactor = 0.55;
-  const totalWidth = cardWidth * (1 + (total - 1) * overlapFactor);
+  const safeOverlap = overlapFactor < 0.16 ? 0.16 : overlapFactor > 0.55 ? 0.55 : overlapFactor;
+  const totalWidth = cardWidth * (1 + (total - 1) * safeOverlap);
   const xStart = -totalWidth / 2 + cardWidth / 2;
-  const translateX = xStart + index * cardWidth * overlapFactor;
+  const translateX = xStart + index * cardWidth * safeOverlap;
 
   // Parabolic curve: 0 at center, positive at edges (cards drop down)
   const normalized = t * 2 - 1; // -1 to +1

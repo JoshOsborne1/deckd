@@ -1,32 +1,39 @@
 import { useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { Lock } from 'lucide-react-native';
+import { Check, Lock } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CardButton } from '@components/CardButton';
 import { CardSection } from '@components/CardSection';
 import { FlipCard } from '@components/FlipCard';
 import { PlayingCard } from '@components/PlayingCard';
-import { useMotion } from '@hooks/useMotion';
 import { isIapConfigured, purchaseProduct, restorePurchases } from '@lib/iap';
 import { useProfileStore } from '@store/profileStore';
+import { useCosmeticsStore } from '@store/cosmeticsStore';
+import { BUILTIN_CARD_BACKS, BUILTIN_TABLE_THEMES } from '@engine/visuals';
 import { alpha, colors, fontSizes, fonts, letterSpacing, radii, shadow, space, textStyles } from '@theme';
 
 interface StoreItem {
   id: string;
   title: string;
   price: string;
-  back: 'brand' | 'ink';
+  back: string;
   tint: string;
 }
 
-const CATALOGUE_ITEMS: StoreItem[] = [
-  { id: 'crimson', title: 'Crimson', price: 'FREE', back: 'brand', tint: alpha.brand20 },
-  { id: 'midnight', title: 'Midnight', price: '$1.99', back: 'ink', tint: alpha.inkOverlay12 },
-  { id: 'ember', title: 'Ember', price: '$1.99', back: 'brand', tint: alpha.brand30 },
-  { id: 'onyx', title: 'Onyx', price: '$1.99', back: 'ink', tint: alpha.inkOverlay20 },
-  { id: 'ivory-linen', title: 'Ivory Linen', price: '$1.99', back: 'brand', tint: alpha.whiteOverlay45 },
-  { id: 'smoked-oak', title: 'Smoked Oak', price: '$1.99', back: 'ink', tint: alpha.inkOverlay08 },
-];
+const CATALOGUE_ITEMS: StoreItem[] = BUILTIN_CARD_BACKS.map((back) => ({
+  id: back.id,
+  title: back.name,
+  price: back.unlockedByDefault ? 'FREE' : '$1.99',
+  back: back.id,
+  tint: back.palette?.[0] ?? alpha.brand20,
+}));
+
+const TABLE_THEME_ITEMS = BUILTIN_TABLE_THEMES.map((theme) => ({
+  id: theme.id,
+  title: theme.name,
+  price: theme.unlockedByDefault ? 'FREE' : '$2.99',
+  theme,
+}));
 
 const BUNDLES = [
   { id: 'starter', title: 'Starter Bundle', summary: '3 backs for $2.99', price: '$2.99' },
@@ -36,17 +43,21 @@ const BUNDLES = [
 
 export default function StoreScreen() {
   const insets = useSafeAreaInsets();
-  const { reduceMotion } = useMotion();
   const hapticsEnabled = useProfileStore((s) => s.hapticsEnabled);
-  const buttonHaptic = hapticsEnabled && !reduceMotion ? 'light' : false;
+  const buttonHaptic = hapticsEnabled ? 'light' : false;
 
-  const [ownedBacks] = useState(['crimson']);
+  const ownedBacks = useCosmeticsStore((s) => s.ownedBackIds);
+  const selectedBackId = useCosmeticsStore((s) => s.equippedBackId);
+  const selectedThemeId = useCosmeticsStore((s) => s.equippedTableThemeId);
+  const ownedThemeIds = useCosmeticsStore((s) => s.ownedTableThemeIds);
+  const equipBack = useCosmeticsStore((s) => s.equipBack);
+  const equipTableTheme = useCosmeticsStore((s) => s.equipTableTheme);
   const [previewBack, setPreviewBack] = useState<string | null>(null);
   const [previewFace, setPreviewFace] = useState<'up' | 'down'>('down');
 
   const showPlaceholder = async () => {
     if (!isIapConfigured()) {
-      Alert.alert('Store', 'In-app purchases are not configured yet. See MONETIZATION.md.');
+      Alert.alert('Store', 'Purchases are unavailable in this build. Free cosmetics can be equipped now.');
       return;
     }
     try {
@@ -109,7 +120,8 @@ export default function StoreScreen() {
         >
           <View style={styles.catalogueGrid}>
             {CATALOGUE_ITEMS.map((item) => {
-              const owned = item.price === 'FREE' || ownedBacks.includes(item.id);
+              const owned = ownedBacks.includes(item.id);
+              const equipped = selectedBackId === item.id;
               return (
                 <CardSection key={item.id} variant="surface" style={styles.catalogueItem}>
                   <Pressable
@@ -137,10 +149,63 @@ export default function StoreScreen() {
                     <Text
                       style={[styles.priceLabel, owned && { color: colors.surface }]}
                     >
-                      {owned ? 'Owned' : item.price}
+                      {equipped ? 'Equipped' : owned ? 'Owned' : item.price}
                     </Text>
                   </View>
+                  <CardButton
+                    variant={equipped ? 'primary' : owned ? 'secondary' : 'ghost'}
+                    size="sm"
+                    elevated={false}
+                    haptic={buttonHaptic}
+                    onPress={() => {
+                      if (equipped) return;
+                      if (owned) {
+                        equipBack(item.id);
+                        return;
+                      }
+                      void showPlaceholder();
+                    }}
+                    style={styles.itemAction}
+                  >
+                    <Text style={equipped ? styles.itemActionTextActive : styles.itemActionText}>
+                      {equipped ? 'Equipped' : owned ? 'Equip' : 'Unlock'}
+                    </Text>
+                  </CardButton>
                 </CardSection>
+              );
+            })}
+          </View>
+        </CardSection>
+
+        <CardSection
+          variant="surface"
+          eyebrow="TABLES"
+          title="Table themes"
+          style={styles.section}
+        >
+          <View style={styles.themeRail}>
+            {TABLE_THEME_ITEMS.map((item) => {
+              const owned = ownedThemeIds.includes(item.id);
+              const equipped = selectedThemeId === item.id;
+              return (
+                <Pressable
+                  key={item.id}
+                  style={[styles.themeCard, equipped && styles.themeCardActive]}
+                  onPress={() => {
+                    if (owned) {
+                      equipTableTheme(item.id);
+                      return;
+                    }
+                    void showPlaceholder();
+                  }}
+                >
+                  <View style={[styles.themeSwatch, { backgroundColor: item.theme.surfaceBase, borderColor: item.theme.railColor }]}>
+                    <View style={[styles.themeWell, { backgroundColor: item.theme.wellColor }]} />
+                  </View>
+                  <Text style={styles.itemTitle}>{item.title}</Text>
+                  <Text style={styles.themeMeta}>{equipped ? 'Equipped' : owned ? 'Owned' : item.price}</Text>
+                  {equipped && <Check size={16} color={colors.brand} style={styles.themeCheck} />}
+                </Pressable>
               );
             })}
           </View>
@@ -195,7 +260,7 @@ export default function StoreScreen() {
         <Pressable style={styles.previewOverlay} onPress={() => setPreviewBack(null)}>
           <View style={styles.previewCardWrap}>
             <Pressable onPress={() => setPreviewFace((f) => (f === 'up' ? 'down' : 'up'))}>
-              <FlipCard face={previewFace} back={previewBack as 'brand' | 'ink'} size="lg" />
+              <FlipCard face={previewFace} back={previewBack} size="lg" />
             </Pressable>
             <Text style={styles.previewHint}>Tap to flip</Text>
           </View>
@@ -281,7 +346,44 @@ const styles = StyleSheet.create({
     color: colors.brand,
     letterSpacing: letterSpacing.cap,
   },
+  itemAction: {
+    alignSelf: 'stretch',
+    ...shadow.none,
+  },
+  itemActionText: {
+    fontFamily: fonts.bold,
+    fontSize: fontSizes.caption,
+    color: colors.inkMuted,
+    letterSpacing: letterSpacing.cap,
+  },
+  itemActionTextActive: {
+    fontFamily: fonts.bold,
+    fontSize: fontSizes.caption,
+    color: colors.surface,
+    letterSpacing: letterSpacing.cap,
+  },
   bundleRow: { gap: space.md },
+  themeRail: { gap: space.sm },
+  themeCard: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radii.lg,
+    padding: space.sm,
+    backgroundColor: colors.surface,
+    position: 'relative',
+  },
+  themeCardActive: { borderColor: colors.brand, backgroundColor: colors.brandSoft },
+  themeSwatch: {
+    height: 56,
+    borderRadius: radii.md,
+    borderWidth: 4,
+    marginBottom: space.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  themeWell: { width: '54%', height: 26, borderRadius: 999, opacity: 0.72 },
+  themeMeta: { fontFamily: fonts.bold, fontSize: fontSizes.micro, color: colors.inkMuted, marginTop: space.xs },
+  themeCheck: { position: 'absolute', right: space.sm, top: space.sm },
   bundleCard: {
     width: space.x5l * 5,
     marginRight: space.md,

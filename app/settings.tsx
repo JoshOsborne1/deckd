@@ -58,8 +58,8 @@ export default function SettingsScreen() {
             <Bluetooth size={22} color={colors.brand} />
             <View style={styles.rowText}>
               <Text style={styles.body}>
-                Host mode advertises a Deckd service on-device. Guests scan and connect — no router, no
-                account. iOS and Android may ask for Bluetooth permission; sessions are foreground-first.
+                Pass-and-play works without signal today. BLE nearby-table play is scaffolded for dev builds,
+                but host advertising still needs physical-device verification before it becomes a product claim.
               </Text>
             </View>
           </View>

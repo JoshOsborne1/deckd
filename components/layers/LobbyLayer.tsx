@@ -18,7 +18,7 @@ interface LobbyLayerProps {
 
 /**
  * BLE lobby — central scan via `react-native-ble-plx` + `bleStore`.
- * Peripheral host mode remains Phase 5 (native module).
+ * Host advertising is native-scaffolded but still requires physical-device proof.
  */
 export function LobbyLayer({ active, topInset, bottomInset }: LobbyLayerProps) {
   const { haptic } = useMotion();
@@ -35,7 +35,10 @@ export function LobbyLayer({ active, topInset, bottomInset }: LobbyLayerProps) {
   useEffect(() => {
     if (!active) return;
     attach();
-  }, [active, attach]);
+    return () => {
+      stopScan();
+    };
+  }, [active, attach, stopScan]);
 
   const startScanSafe = useCallback(async () => {
     haptic('medium');
@@ -91,8 +94,8 @@ export function LobbyLayer({ active, topInset, bottomInset }: LobbyLayerProps) {
         </View>
         <Text style={styles.title}>Nearby tables</Text>
         <Text style={styles.copy}>
-          Scan finds hosts advertising a Deckd-compatible name prefix. Full offline host mode
-          (peripheral + GATT server) ships with the iOS native module in Phase 5.
+          Scan looks for nearby Deckd hosts from a development build. Pass-and-play is reliable today;
+          BLE host mode stays behind real-device verification.
         </Text>
 
         <CardSection variant="ghost" style={styles.statusCard} tab>
@@ -100,7 +103,7 @@ export function LobbyLayer({ active, topInset, bottomInset }: LobbyLayerProps) {
           <Text style={styles.statusRow}>
             Central (scan / connect) · {centralReady ? 'ready' : 'n/a on this platform'}
           </Text>
-          <Text style={styles.statusRow}>Peripheral (advertise as host) · native module pending</Text>
+          <Text style={styles.statusRow}>Peripheral host · native scaffold, unverified</Text>
           <Text style={[styles.statusRow, { marginTop: space.sm }]}>
             State:{' '}
             <Text style={styles.statusEmph}>{connectionState}</Text>
@@ -133,13 +136,13 @@ export function LobbyLayer({ active, topInset, bottomInset }: LobbyLayerProps) {
             onPress={() =>
               Alert.alert(
                 'Host this table',
-                'Advertising as a BLE peripheral requires the Deckd native module (Phase 5). Until then, use Pass & Play on one device.',
+                'Host advertising is scaffolded for dev builds but not product-proven yet. Use Pass & Play for real games until the device matrix passes.',
               )
             }
             style={styles.hostBtn}
           >
             <Square size={18} color={colors.ink} style={{ marginRight: space.sm }} />
-            <Text style={styles.hostBtnText}>Host (BLE) — Phase 5</Text>
+            <Text style={styles.hostBtnText}>Host test (BLE)</Text>
           </CardButton>
         </View>
 

@@ -7,7 +7,7 @@ import { createPlatformStorage } from '@lib/storage';
  *   - home:  ambient stats, shop preview, hero CTA (non-game cosmetic chrome)
  *   - hub:   session setup (preset picker, players, host/join)
  *   - table: active freeplay session
- *   - lobby: BLE discovery & peer list (Phase 5)
+ *   - lobby: BLE discovery & peer list
  *   - pass:  full-screen privacy veil overlay
  */
 export type ViewMode = 'home' | 'hub' | 'table' | 'lobby' | 'pass';

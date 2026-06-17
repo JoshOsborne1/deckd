@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { StyleSheet, Text, View, type ViewStyle } from 'react-native';
-import { colors, fonts } from '@theme';
+import { alpha, colors, fonts } from '@theme';
 
 export interface AvatarPlaceholderProps {
   seed: string;
@@ -13,12 +13,12 @@ export interface AvatarPlaceholderProps {
 const PALETTE: { bg: string; fg: string }[] = [
   { bg: colors.brand, fg: colors.surface },
   { bg: colors.ink, fg: colors.surface },
-  { bg: '#334155', fg: '#FFFFFF' },
-  { bg: '#9A3412', fg: '#FFFFFF' },
-  { bg: '#92400E', fg: '#FFFFFF' },
-  { bg: '#4C1D95', fg: '#FFFFFF' },
-  { bg: '#1E3A8A', fg: '#FFFFFF' },
-  { bg: '#064E3B', fg: '#FFFFFF' },
+  { bg: colors.neutral500, fg: colors.surface },
+  { bg: colors.brandDark, fg: colors.surface },
+  { bg: colors.warn, fg: colors.surface },
+  { bg: colors.seatRemote, fg: colors.surface },
+  { bg: colors.tableRail, fg: colors.surface },
+  { bg: colors.tableFelt, fg: colors.surface },
 ];
 
 function hashSeed(seed: string): number {
@@ -49,7 +49,7 @@ export const AvatarPlaceholder: React.FC<AvatarPlaceholderProps> = ({
     ring === 'brand'
       ? { borderWidth: 2, borderColor: colors.brand }
       : ring === 'soft'
-        ? { borderWidth: 2, borderColor: 'rgba(176,32,32,0.2)' }
+        ? { borderWidth: 2, borderColor: alpha.brand20 }
         : {};
 
   return (

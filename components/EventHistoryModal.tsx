@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
@@ -28,6 +29,7 @@ export interface EventHistoryModalProps {
  */
 export function EventHistoryModal({ visible, events, onClose }: EventHistoryModalProps) {
   const { reduceMotion } = useMotion();
+  const insets = useSafeAreaInsets();
   const [renderModal, setRenderModal] = useState(false);
   const exitUnmountTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const rafRef = useRef<number | null>(null);
@@ -115,7 +117,7 @@ export function EventHistoryModal({ visible, events, onClose }: EventHistoryModa
           accessibilityLabel="Dismiss event log"
           onPress={onClose}
         />
-        <Animated.View style={[styles.sheet, sheetStyle]}>
+        <Animated.View style={[styles.sheet, { paddingBottom: insets.bottom + space.xl }, sheetStyle]}>
           <View style={styles.header}>
             <Text style={styles.title}>Event log</Text>
             <CardButton variant="ghost" size="sm" elevated={false} haptic="light" onPress={onClose}>
@@ -156,7 +158,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
-    paddingBottom: space.xl,
     paddingHorizontal: space.lg,
     paddingTop: space.lg,
   },
