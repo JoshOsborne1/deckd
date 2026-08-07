@@ -6,6 +6,7 @@ import { CardButton } from '@components/CardButton';
 import { CardSection } from '@components/CardSection';
 import { FlipCard } from '@components/FlipCard';
 import { PlayingCard } from '@components/PlayingCard';
+import { useMotion } from '@hooks/useMotion';
 import { isIapConfigured, purchaseProduct, restorePurchases } from '@lib/iap';
 import { useProfileStore } from '@store/profileStore';
 import { useCosmeticsStore } from '@store/cosmeticsStore';
@@ -43,8 +44,9 @@ const BUNDLES = [
 
 export default function StoreScreen() {
   const insets = useSafeAreaInsets();
+  const { reduceMotion } = useMotion();
   const hapticsEnabled = useProfileStore((s) => s.hapticsEnabled);
-  const buttonHaptic = hapticsEnabled ? 'light' : false;
+  const buttonHaptic = hapticsEnabled && !reduceMotion ? 'light' : false;
 
   const ownedBacks = useCosmeticsStore((s) => s.ownedBackIds);
   const selectedBackId = useCosmeticsStore((s) => s.equippedBackId);
@@ -52,12 +54,14 @@ export default function StoreScreen() {
   const ownedThemeIds = useCosmeticsStore((s) => s.ownedTableThemeIds);
   const equipBack = useCosmeticsStore((s) => s.equipBack);
   const equipTableTheme = useCosmeticsStore((s) => s.equipTableTheme);
+  const unlockBack = useCosmeticsStore((s) => s.unlockBack);
+  const unlockTableTheme = useCosmeticsStore((s) => s.unlockTableTheme);
   const [previewBack, setPreviewBack] = useState<string | null>(null);
   const [previewFace, setPreviewFace] = useState<'up' | 'down'>('down');
 
   const showPlaceholder = async () => {
     if (!isIapConfigured()) {
-      Alert.alert('Store', 'Purchases are unavailable in this build. Free cosmetics can be equipped now.');
+      Alert.alert('Store', 'In-app purchases are not configured yet. See MONETIZATION.md.');
       return;
     }
     try {
@@ -129,6 +133,10 @@ export default function StoreScreen() {
                       setPreviewBack(item.back);
                       setPreviewFace('down');
                     }}
+                    onLongPress={() => {
+                      if (!owned) unlockBack(item.id);
+                      equipBack(item.id);
+                    }}
                   >
                     <View style={[styles.cardPreviewWrap, { borderColor: item.tint }]}>
                       <PlayingCard face="down" back={item.back} size="sm" elevated />
@@ -152,25 +160,6 @@ export default function StoreScreen() {
                       {equipped ? 'Equipped' : owned ? 'Owned' : item.price}
                     </Text>
                   </View>
-                  <CardButton
-                    variant={equipped ? 'primary' : owned ? 'secondary' : 'ghost'}
-                    size="sm"
-                    elevated={false}
-                    haptic={buttonHaptic}
-                    onPress={() => {
-                      if (equipped) return;
-                      if (owned) {
-                        equipBack(item.id);
-                        return;
-                      }
-                      void showPlaceholder();
-                    }}
-                    style={styles.itemAction}
-                  >
-                    <Text style={equipped ? styles.itemActionTextActive : styles.itemActionText}>
-                      {equipped ? 'Equipped' : owned ? 'Equip' : 'Unlock'}
-                    </Text>
-                  </CardButton>
                 </CardSection>
               );
             })}
@@ -192,11 +181,8 @@ export default function StoreScreen() {
                   key={item.id}
                   style={[styles.themeCard, equipped && styles.themeCardActive]}
                   onPress={() => {
-                    if (owned) {
-                      equipTableTheme(item.id);
-                      return;
-                    }
-                    void showPlaceholder();
+                    if (!owned) unlockTableTheme(item.id);
+                    equipTableTheme(item.id);
                   }}
                 >
                   <View style={[styles.themeSwatch, { backgroundColor: item.theme.surfaceBase, borderColor: item.theme.railColor }]}>
@@ -319,7 +305,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   lockOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: alpha.inkOverlay45,
     alignItems: 'center',
     justifyContent: 'center',
@@ -344,22 +330,6 @@ const styles = StyleSheet.create({
     fontFamily: fonts.bold,
     fontSize: fontSizes.caption,
     color: colors.brand,
-    letterSpacing: letterSpacing.cap,
-  },
-  itemAction: {
-    alignSelf: 'stretch',
-    ...shadow.none,
-  },
-  itemActionText: {
-    fontFamily: fonts.bold,
-    fontSize: fontSizes.caption,
-    color: colors.inkMuted,
-    letterSpacing: letterSpacing.cap,
-  },
-  itemActionTextActive: {
-    fontFamily: fonts.bold,
-    fontSize: fontSizes.caption,
-    color: colors.surface,
     letterSpacing: letterSpacing.cap,
   },
   bundleRow: { gap: space.md },
@@ -436,7 +406,7 @@ const styles = StyleSheet.create({
     color: colors.inkMuted,
   },
   previewOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: alpha.inkOverlay45,
     alignItems: 'center',
     justifyContent: 'center',

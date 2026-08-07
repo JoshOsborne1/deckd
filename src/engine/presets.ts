@@ -16,6 +16,8 @@ export interface Preset {
   id: string;
   name: string;
   summary: string;
+  minPlayers: number;
+  maxPlayers: number;
   supportsPlayerCount: (n: number) => boolean;
   setup: (input: PresetSetupInput) => PresetSetupResult;
   helpers?: {
@@ -58,6 +60,8 @@ export const freeplayPreset: Preset = {
   id: 'freeplay',
   name: 'Freeplay',
   summary: 'A shuffled deck on the table. Deal, draw, and flip however you like.',
+  minPlayers: 1,
+  maxPlayers: 12,
   supportsPlayerCount: (n) => n >= 1 && n <= 12,
   setup: ({ players, deckOrder }) => {
     const zones = fillDrawZone(buildCoreZones(players), deckOrder);
@@ -69,6 +73,8 @@ export const dealTwoEachPreset: Preset = {
   id: 'deal-two-each',
   name: 'Deal 2 each',
   summary: 'Two cards dealt face-down to every player. Rest stays in the draw pile.',
+  minPlayers: 2,
+  maxPlayers: 10,
   supportsPlayerCount: (n) => n >= 2 && n <= 10,
   setup: ({ players, deckOrder }) => {
     const zones = buildCoreZones(players);
@@ -92,6 +98,8 @@ export const blackjackStylePreset: Preset = {
   id: 'blackjack',
   name: 'Blackjack-style',
   summary: '2 to each player face-up, dealer 1 up + 1 down. Scoring helper, no betting.',
+  minPlayers: 2,
+  maxPlayers: 7,
   supportsPlayerCount: (n) => n >= 2 && n <= 7,
   setup: ({ players, deckOrder }) => {
     const zones = buildCoreZones(players);
@@ -128,6 +136,8 @@ export const pokerStylePreset: Preset = {
   id: 'poker',
   name: 'Poker-style',
   summary: 'Two hole cards each. Burn/flop/turn/river triggered by host. No rule enforcement.',
+  minPlayers: 2,
+  maxPlayers: 10,
   supportsPlayerCount: (n) => n >= 2 && n <= 10,
   setup: ({ players, deckOrder }) => {
     const zones = buildCoreZones(players);

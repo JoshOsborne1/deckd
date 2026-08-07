@@ -3,11 +3,10 @@ import { BleManager, Device, Characteristic, BleError } from 'react-native-ble-p
 import { Platform } from 'react-native';
 import {
   type DeckdWireMessage,
-  type HandshakeMessage,
-  DECKD_PROTOCOL_VERSION,
   encodeWireMessage,
   handshakeCompatible,
   parseWireMessage,
+  buildHandshake,
 } from '@lib/bleProtocol';
 
 export const DECKD_SERVICE_UUID = 'F000DE10-0000-4000-8000-00805F9B34FB';
@@ -30,6 +29,7 @@ type DeckdBleModule = {
 
 function getDeckdBleModule(): DeckdBleModule | null {
   try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const mod = require('deckd-ble') as unknown;
     const candidate =
       typeof mod === 'object' && mod !== null && 'default' in mod
@@ -53,19 +53,11 @@ function getDeckdBleModule(): DeckdBleModule | null {
 
 export type BLEConnectionState = 'disconnected' | 'scanning' | 'connecting' | 'connected' | 'advertising';
 
-export interface GameStateMessage {
-  type: 'game_state';
-  data: unknown;
-  timestamp: number;
-  senderId: string;
-}
-
 export interface BLECallbacks {
   onConnectionStateChange: (state: BLEConnectionState) => void;
-  onGameStateReceived: (message: GameStateMessage) => void;
   onError: (error: Error) => void;
   onDeviceFound?: (device: Device) => void;
-  /** All parsed wire messages (handshake, ping, game_state). */
+  /** All parsed wire messages. */
   onWireMessage?: (message: DeckdWireMessage) => void;
 }
 
@@ -81,7 +73,7 @@ function appBuildString(): string {
 export class BLEService {
   private manager: BleManager;
   private device: Device | null = null;
-  private callbacks: BLECallbacks | null = null;
+  private callbackListeners = new Set<BLECallbacks>();
   private connectionState: BLEConnectionState = 'disconnected';
   private reconnectAttempts = 0;
   private reconnectTimeoutId: ReturnType<typeof setTimeout> | null = null;
@@ -94,7 +86,33 @@ export class BLEService {
   }
 
   public setCallbacks(callbacks: BLECallbacks): void {
-    this.callbacks = callbacks;
+    this.callbackListeners.clear();
+    this.callbackListeners.add(callbacks);
+  }
+
+  public addCallbacks(callbacks: BLECallbacks): () => void {
+    this.callbackListeners.add(callbacks);
+    return () => {
+      this.callbackListeners.delete(callbacks);
+    };
+  }
+
+  private emitConnectionState(state: BLEConnectionState): void {
+    for (const callbacks of this.callbackListeners) {
+      callbacks.onConnectionStateChange(state);
+    }
+  }
+
+  private emitError(error: Error): void {
+    for (const callbacks of this.callbackListeners) {
+      callbacks.onError(error);
+    }
+  }
+
+  private emitDeviceFound(device: Device): void {
+    for (const callbacks of this.callbackListeners) {
+      callbacks.onDeviceFound?.(device);
+    }
   }
 
   public getConnectionState(): BLEConnectionState {
@@ -103,7 +121,7 @@ export class BLEService {
 
   private setConnectionState(state: BLEConnectionState): void {
     this.connectionState = state;
-    this.callbacks?.onConnectionStateChange(state);
+    this.emitConnectionState(state);
   }
 
   private generateHostServiceName(): string {
@@ -112,14 +130,8 @@ export class BLEService {
   }
 
   private dispatchWire(msg: DeckdWireMessage): void {
-    this.callbacks?.onWireMessage?.(msg);
-    if (msg.type === 'game_state') {
-      this.callbacks?.onGameStateReceived({
-        type: 'game_state',
-        data: msg.data,
-        timestamp: msg.timestamp,
-        senderId: msg.senderId,
-      });
+    for (const callbacks of this.callbackListeners) {
+      callbacks.onWireMessage?.(msg);
     }
   }
 
@@ -135,15 +147,15 @@ export class BLEService {
         const msg = parseWireMessage(json);
         if (!msg) return;
         if (msg.type === 'handshake' && msg.role === 'guest') {
-          if (!handshakeCompatible(msg.protocolVersion)) {
-            this.callbacks?.onError(new Error('Incompatible protocol version from guest'));
+          if (!handshakeCompatible(msg.v)) {
+            this.emitError(new Error('Incompatible protocol version from guest'));
             return;
           }
           void this.replyHostHandshake();
         }
         this.dispatchWire(msg);
       } catch (err) {
-        this.callbacks?.onError(err instanceof Error ? err : new Error(String(err)));
+        this.emitError(err instanceof Error ? err : new Error(String(err)));
       }
     });
   }
@@ -153,13 +165,11 @@ export class BLEService {
     if (!deckdBle) {
       throw new Error(DECKD_BLE_UNAVAILABLE_MESSAGE);
     }
-    const reply: HandshakeMessage = {
-      type: 'handshake',
-      protocolVersion: DECKD_PROTOCOL_VERSION,
+    const reply = buildHandshake({
       role: 'host',
       appBuild: appBuildString(),
       clientId: this.hostServiceName ?? 'host',
-    };
+    });
     const json = encodeWireMessage(reply);
     const b64 = this.base64Encode(json);
     await deckdBle.notifySubscribers(b64);
@@ -196,7 +206,7 @@ export class BLEService {
       this.hostWriteSubscription = null;
       this.setConnectionState('disconnected');
       const err = error instanceof Error ? error : new Error(String(error));
-      this.callbacks?.onError(err);
+      this.emitError(err);
       throw err;
     }
   }
@@ -235,21 +245,20 @@ export class BLEService {
         { allowDuplicates: false },
         (error: BleError | null, scannedDevice: Device | null) => {
           if (error) {
-            this.callbacks?.onError(error);
+            this.emitError(error);
             this.stopScanning();
             return;
           }
 
-          const nameOk = scannedDevice?.localName?.startsWith(HOST_SERVICE_PREFIX) ?? false;
-          if (nameOk || scannedDevice?.name?.startsWith(HOST_SERVICE_PREFIX)) {
-            this.callbacks?.onDeviceFound?.(scannedDevice!);
+          if (scannedDevice) {
+            this.emitDeviceFound(scannedDevice);
           }
         },
       );
     } catch (error) {
       this.setConnectionState('disconnected');
       const err = error instanceof Error ? error : new Error(String(error));
-      this.callbacks?.onError(err);
+      this.emitError(err);
       throw err;
     }
   }
@@ -286,17 +295,15 @@ export class BLEService {
   }
 
   private async sendGuestHandshake(): Promise<void> {
-    const msg: HandshakeMessage = {
-      type: 'handshake',
-      protocolVersion: DECKD_PROTOCOL_VERSION,
+    const msg = buildHandshake({
       role: 'guest',
       appBuild: appBuildString(),
       clientId: `guest-${Date.now().toString(36)}`,
-    };
+    });
     await this.sendRawJson(encodeWireMessage(msg));
   }
 
-  private async sendRawJson(json: string): Promise<void> {
+  public async sendRawJson(json: string): Promise<void> {
     if (!this.device || this.connectionState !== 'connected') {
       throw new Error('Not connected');
     }
@@ -345,7 +352,7 @@ export class BLEService {
       DECKD_CHARACTERISTIC_UUID,
       (error: BleError | null, characteristic: Characteristic | null) => {
         if (error) {
-          this.callbacks?.onError(error);
+          this.emitError(error);
           return;
         }
 
@@ -354,18 +361,15 @@ export class BLEService {
             const decodedValue = this.base64Decode(characteristic.value);
             const msg = parseWireMessage(decodedValue);
             if (msg) {
-              if (msg.type === 'handshake' && msg.role === 'host' && !handshakeCompatible(msg.protocolVersion)) {
-                this.callbacks?.onError(new Error('Incompatible protocol version from host'));
+              if (msg.type === 'handshake' && msg.role === 'host' && !handshakeCompatible(msg.v)) {
+                this.emitError(new Error('Incompatible protocol version from host'));
                 return;
               }
               this.dispatchWire(msg);
-            } else {
-              const message: GameStateMessage = JSON.parse(decodedValue);
-              this.callbacks?.onGameStateReceived(message);
             }
           } catch (err) {
             const e = err instanceof Error ? err : new Error(String(err));
-            this.callbacks?.onError(e);
+            this.emitError(e);
           }
         }
       },
@@ -379,40 +383,26 @@ export class BLEService {
       this.reconnectAttempts++;
       const backoffMs = INITIAL_BACKOFF_MS * Math.pow(2, this.reconnectAttempts - 1);
 
-      this.callbacks?.onError(
+      this.emitError(
         new Error(
           `Connection failed, retrying in ${backoffMs}ms (attempt ${this.reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})`,
         ),
       );
 
+      this.device = null;
+      this.setConnectionState('disconnected');
       this.reconnectTimeoutId = setTimeout(() => {
         this.connectToDevice(targetDevice).catch((e) => {
-          this.callbacks?.onError(e instanceof Error ? e : new Error(String(e)));
+          this.emitError(e instanceof Error ? e : new Error(String(e)));
         });
       }, backoffMs);
     } else {
       this.setConnectionState('disconnected');
-      this.callbacks?.onError(err);
+      this.emitError(err);
     }
   }
 
-  public async sendGameState(gameState: unknown): Promise<void> {
-    if (!this.device || this.connectionState !== 'connected') {
-      throw new Error('Not connected to any device');
-    }
-
-    const message: DeckdWireMessage = {
-      type: 'game_state',
-      data: gameState,
-      timestamp: Date.now(),
-      senderId: this.hostServiceName || 'client',
-    };
-
-    const jsonString = encodeWireMessage(message);
-    await this.sendRawJson(jsonString);
-  }
-
-  /** Host pushes a notify to subscribed centrals (e.g. after processing guest write). */
+  /** Host pushes a notify to subscribed centrals. */
   public async notifySubscribersJson(json: string): Promise<boolean> {
     if (Platform.OS === 'web') return false;
     const deckdBle = getDeckdBleModule();
@@ -445,18 +435,12 @@ export class BLEService {
   }
 
   private base64Encode(str: string): string {
-    if (Platform.OS === 'android' || Platform.OS === 'ios') {
-      return btoa(str);
-    }
     const bytes = new TextEncoder().encode(str);
     const binString = Array.from(bytes, (b) => String.fromCharCode(b)).join('');
     return btoa(binString);
   }
 
   private base64Decode(str: string): string {
-    if (Platform.OS === 'android' || Platform.OS === 'ios') {
-      return atob(str);
-    }
     const binString = atob(str);
     const bytes = Uint8Array.from(binString, (m) => m.charCodeAt(0));
     return new TextDecoder().decode(bytes);

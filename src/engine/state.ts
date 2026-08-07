@@ -116,7 +116,6 @@ export function applyEvent(prev: GameState, event: GameEvent): GameState {
 
   if (!canApplyEvent(prev, event)) {
     if (__DEV__) {
-      // eslint-disable-next-line no-console
       console.warn(`[engine] canApplyEvent rejected event ${event.type} (seq ${event.seq})`);
     }
     return prev;

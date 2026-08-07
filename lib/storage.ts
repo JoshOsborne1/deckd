@@ -33,6 +33,7 @@ export function createPlatformStorage(): StateStorage {
   // Native (dev client / prebuild): MMKV.
   // Expo Go cannot load NitroModules, so gracefully fall back.
   try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const { createMMKV } = require('react-native-mmkv') as {
       createMMKV: (options: { id: string }) => {
         getString: (name: string) => string | undefined;

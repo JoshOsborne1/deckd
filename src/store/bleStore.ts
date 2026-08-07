@@ -30,7 +30,6 @@ export const useBleStore = create<BleStoreState>((set, get) => ({
     const ble = getBLEService();
     ble.setCallbacks({
       onConnectionStateChange: (s) => set({ connectionState: s }),
-      onGameStateReceived: () => {},
       onError: (e) => set({ lastError: e.message }),
       onDeviceFound: (device: { id: string; name: string | null; localName: string | null }) => {
         const label = device.localName ?? device.name ?? device.id;

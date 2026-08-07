@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CardButton } from '@components/CardButton';
 import { CardSection } from '@components/CardSection';
 import { PlayingCard } from '@components/PlayingCard';
 import { builtinPresets } from '@engine/index';
+import { useMotion } from '@hooks/useMotion';
 import { useUserPresetsStore } from '@store/presetsStore';
 import { useProfileStore } from '@store/profileStore';
 import { alpha, colors, fontSizes, fonts, letterSpacing, radii, shadow, space, textStyles } from '@theme';
@@ -19,6 +20,7 @@ function playerRangeLabel(supportsPlayerCount: (n: number) => boolean): string {
 
 export default function ListScreen() {
   const insets = useSafeAreaInsets();
+  const { reduceMotion } = useMotion();
   const hapticsEnabled = useProfileStore((s) => s.hapticsEnabled);
   const defaultPresetId = useUserPresetsStore((s) => s.defaultPresetId);
   const presets = useUserPresetsStore((s) => s.presets);
@@ -32,7 +34,7 @@ export default function ListScreen() {
   const [draftName, setDraftName] = useState('');
   const [draftSummary, setDraftSummary] = useState('');
 
-  const buttonHaptic = hapticsEnabled ? 'light' : false;
+  const buttonHaptic = hapticsEnabled && !reduceMotion ? 'light' : false;
 
   const beginEdit = (id: string, name: string, summary: string) => {
     setEditingPresetId(id);
@@ -47,13 +49,8 @@ export default function ListScreen() {
   };
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      keyboardVerticalOffset={insets.top}
-    >
+    <View style={styles.container}>
       <ScrollView
-        keyboardShouldPersistTaps="handled"
         contentContainerStyle={[
           styles.scrollContent,
           { paddingTop: insets.top + space.md, paddingBottom: insets.bottom + space.x5l * 3 },
@@ -102,7 +99,7 @@ export default function ListScreen() {
         <CardSection
           variant="surface"
           eyebrow="YOUR PRESETS"
-          title="Your table variants"
+          title="Cosmetic clones"
           style={styles.section}
         >
           {presets.length === 0 ? (
@@ -115,7 +112,7 @@ export default function ListScreen() {
                 haptic={buttonHaptic}
                 onPress={() => setShowCloneChooser(true)}
               >
-                <Text style={styles.ghostButtonText}>Duplicate a built-in preset</Text>
+                <Text style={styles.ghostButtonText}>Duplicate a built-in to customize</Text>
               </CardButton>
             </CardSection>
           ) : (
@@ -220,7 +217,7 @@ export default function ListScreen() {
             onPress={() => setShowCloneChooser((prev) => !prev)}
             style={styles.newPresetCta}
           >
-            <Text style={styles.secondaryButtonText}>New preset from built-in</Text>
+            <Text style={styles.secondaryButtonText}>+ New preset (duplicate built-in)</Text>
           </CardButton>
 
           {showCloneChooser ? (
@@ -244,7 +241,7 @@ export default function ListScreen() {
           ) : null}
         </CardSection>
       </ScrollView>
-    </KeyboardAvoidingView>
+    </View>
   );
 }
 

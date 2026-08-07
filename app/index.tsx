@@ -13,6 +13,8 @@ import {
   type SurfaceMorph,
 } from '@components/layers/SurfaceMorphContext';
 import { useUiStore } from '@store/uiStore';
+import { useCosmeticsStore } from '@store/cosmeticsStore';
+import { findTableThemeById } from '@engine/visuals';
 import { useMotion } from '@hooks/useMotion';
 import { alpha, colors } from '@theme';
 
@@ -123,8 +125,12 @@ export default function Surface() {
 
 /** Ambient felt layer that anchors the whole surface in the game world. */
 function FeltBackground() {
+  const themeId = useCosmeticsStore((s) => s.equippedTableThemeId);
+  const tableTheme = findTableThemeById(themeId);
   return (
-    <View style={styles.felt} pointerEvents="none">
+    <View style={[styles.felt, { backgroundColor: tableTheme?.surfaceBase ?? colors.bg }]} pointerEvents="none">
+      <View style={[styles.tableRail, { borderColor: tableTheme?.railColor ?? alpha.inkOverlay12 }]} />
+      <View style={[styles.tableWell, { backgroundColor: tableTheme?.wellColor ?? alpha.brand10 }]} />
       <View style={styles.feltVignetteTop} />
       <View style={styles.feltVignetteBottom} />
     </View>
@@ -137,7 +143,26 @@ const styles = StyleSheet.create({
     backgroundColor: colors.bg,
   },
   felt: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
+  },
+  tableRail: {
+    position: 'absolute',
+    left: -70,
+    right: -70,
+    top: '23%',
+    height: '62%',
+    borderRadius: 260,
+    borderWidth: 18,
+    opacity: 0.28,
+  },
+  tableWell: {
+    position: 'absolute',
+    left: 44,
+    right: 44,
+    top: '36%',
+    height: '34%',
+    borderRadius: 190,
+    opacity: 0.34,
   },
   feltVignetteTop: {
     position: 'absolute',

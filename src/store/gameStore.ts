@@ -43,6 +43,8 @@ export interface GameStoreState {
   resetSession: () => void;
 
   dispatch: (event: EventPayload) => void;
+  ingestRemoteEvents: (events: GameEvent[]) => { applied: number; lastSeq: number };
+  applyRemoteSnapshot: (snapshot: GameState, nextSeq: number, tail?: GameEvent[]) => void;
 
   dealCard: (cardId: CardId, toZoneId: ZoneId, face?: CardFace) => void;
   moveCard: (cardId: CardId, toZoneId: ZoneId, face?: CardFace) => void;
@@ -144,7 +146,7 @@ export const useGameStore = create<GameStoreState>()(
         }
 
         const nextState = foldEvents(events);
-        set({ events, seq, state: nextState });
+        set({ events, seq: seq - 1, state: nextState });
         return nextState;
       },
 
@@ -156,6 +158,29 @@ export const useGameStore = create<GameStoreState>()(
         const full = makeEvent(event, nextSeq);
         const nextState = applyEvent(state, full);
         set({ events: [...events, full], seq: nextSeq, state: nextState });
+      },
+
+      ingestRemoteEvents: (incoming) => {
+        const current = get();
+        const seen = new Set(current.events.map((event) => event.id));
+        const fresh = incoming
+          .filter((event) => !seen.has(event.id))
+          .sort((a, b) => a.seq - b.seq);
+        if (fresh.length === 0) {
+          return { applied: 0, lastSeq: current.seq };
+        }
+        const events = [...current.events, ...fresh].sort((a, b) => a.seq - b.seq);
+        const state = foldEvents(events);
+        const lastSeq = Math.max(current.seq, ...events.map((event) => event.seq));
+        set({ events, seq: lastSeq, state });
+        return { applied: fresh.length, lastSeq };
+      },
+
+      applyRemoteSnapshot: (snapshot, nextSeq, tail = []) => {
+        const freshTail = tail.filter((event) => event.seq >= nextSeq).sort((a, b) => a.seq - b.seq);
+        const state = freshTail.reduce((currentState, event) => applyEvent(currentState, event), snapshot);
+        const lastTailSeq = freshTail.reduce((max, event) => Math.max(max, event.seq), nextSeq - 1);
+        set({ events: freshTail, seq: Math.max(nextSeq - 1, lastTailSeq), state });
       },
 
       dealCard: (cardId, toZoneId, face = 'down') =>

@@ -26,7 +26,7 @@ export function isIapConfigured(): boolean {
 
 export async function purchaseProduct(productId: string): Promise<void> {
   if (!isRevenueCatConfigured()) {
-    throw new Error('Purchases are unavailable in this build.');
+    throw new Error('IAP not configured — add RevenueCat API keys (see app.json extra).');
   }
 
   const offerings = await Purchases.getOfferings();
@@ -46,7 +46,7 @@ export async function purchaseProduct(productId: string): Promise<void> {
 
 export async function restorePurchases(): Promise<void> {
   if (!isRevenueCatConfigured()) {
-    throw new Error('Purchases are unavailable in this build.');
+    throw new Error('IAP not configured — add RevenueCat API keys (see app.json extra).');
   }
   await Purchases.restorePurchases();
 }

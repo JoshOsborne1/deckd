@@ -1,4 +1,4 @@
-/** Playing-card primitives used by `src/components/Card`. */
+/** Legacy playing-card primitives retained for older helpers; main engine types live in `src/engine/types.ts`. */
 
 export type Suit = 'hearts' | 'diamonds' | 'clubs' | 'spades';
 

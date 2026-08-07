@@ -4,11 +4,12 @@ import { Club, Diamond, Heart, Spade } from 'lucide-react-native';
 import type { Rank, Suit } from '@lib/types';
 import type { JokerColor } from '@engine/types';
 import { brand } from '@lib/assets';
+import { findBackById } from '@engine/visuals';
 import { alpha, colors, fonts, radii, shadow } from '@theme';
 
 export type PlayingCardSize = 'xs' | 'sm' | 'md' | 'lg';
 export type PlayingCardFace = 'up' | 'down';
-export type PlayingCardBack = 'brand' | 'ink';
+export type PlayingCardBack = 'brand' | 'ink' | string;
 
 export interface PlayingCardProps {
   rank?: Rank;
@@ -72,6 +73,33 @@ function suitTint(suit: Suit): string {
   return suit === 'hearts' || suit === 'diamonds' ? colors.brandSoft : colors.surfaceAlt;
 }
 
+function resolveBackStyle(back: PlayingCardBack): { base: string; accent: string; logoOpacity: number; rings: string[] } {
+  const normalized = back === 'brand' ? 'back-brand' : back === 'ink' ? 'back-ink' : back;
+  const def = findBackById(normalized);
+  const palette = def?.palette ?? (back === 'ink' ? [colors.ink, colors.inkMuted, colors.surface] : [colors.brand, colors.brandDark, colors.surface]);
+  return {
+    base: palette[0] ?? colors.brand,
+    accent: palette[1] ?? colors.brandDark,
+    logoOpacity: def?.family === 'premium' ? 0.26 : back === 'brand' || normalized === 'back-brand' ? 0.18 : 0.3,
+    rings: palette,
+  };
+}
+
+function CardBackFace({ back, spec }: { back: PlayingCardBack; spec: SizeSpec }) {
+  const style = resolveBackStyle(back);
+  return (
+    <View style={[styles.backFill, { backgroundColor: style.base, borderRadius: spec.radius }]}>
+      <View style={[styles.backInset, { borderColor: style.rings[2] ?? alpha.whiteOverlay20, borderRadius: Math.max(2, spec.radius - 3) }]} />
+      <View style={[styles.backDiagonal, { backgroundColor: style.accent }]} />
+      <Image
+        source={brand.logo}
+        resizeMode="contain"
+        style={{ width: spec.center, height: spec.center, opacity: style.logoOpacity }}
+      />
+    </View>
+  );
+}
+
 /** xs size is for decorative use only (stub cards, counters). */
 export const PlayingCard = React.memo(function PlayingCard({
   rank,
@@ -91,27 +119,7 @@ export const PlayingCard = React.memo(function PlayingCard({
 
   const content = useMemo(() => {
     if (face === 'down') {
-      return (
-        <View
-          style={[
-            styles.backFill,
-            {
-              backgroundColor: back === 'brand' ? colors.brand : colors.ink,
-              borderRadius: spec.radius,
-            },
-          ]}
-        >
-          <Image
-            source={brand.logo}
-            resizeMode="contain"
-            style={{
-              width: spec.center,
-              height: spec.center,
-              opacity: back === 'brand' ? 0.18 : 0.3,
-            }}
-          />
-        </View>
-      );
+      return <CardBackFace back={back} spec={spec} />;
     }
 
     if (jokerColor) {
@@ -161,27 +169,7 @@ export const PlayingCard = React.memo(function PlayingCard({
     }
 
     if (!rank || !suit) {
-      return (
-        <View
-          style={[
-            styles.backFill,
-            {
-              backgroundColor: back === 'brand' ? colors.brand : colors.ink,
-              borderRadius: spec.radius,
-            },
-          ]}
-        >
-          <Image
-            source={brand.logo}
-            resizeMode="contain"
-            style={{
-              width: spec.center,
-              height: spec.center,
-              opacity: back === 'brand' ? 0.18 : 0.3,
-            }}
-          />
-        </View>
-      );
+      return <CardBackFace back={back} spec={spec} />;
     }
 
     const color = suitColor(suit);
@@ -278,6 +266,23 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  backInset: {
+    position: 'absolute',
+    left: 5,
+    right: 5,
+    top: 5,
+    bottom: 5,
+    borderWidth: 1,
+    opacity: 0.34,
+  },
+  backDiagonal: {
+    position: 'absolute',
+    width: '140%',
+    height: '26%',
+    opacity: 0.28,
+    transform: [{ rotate: '-18deg' }],
   },
   cornerTop: {
     alignItems: 'flex-start',

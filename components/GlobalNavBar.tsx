@@ -78,9 +78,8 @@ export const GlobalNavBar: React.FC = () => {
   const onRoot = pathname === '/' || pathname === '/index';
   const gameActive = onRoot && viewMode !== 'home';
 
-  // Hide the bar only while the root surface is in a focused game mode.
-  // Secondary routes keep their global chrome even if a game viewMode is persisted.
-  const hidden = onRoot && viewMode !== 'home';
+  // Hide the bar whenever we're inside the game surface (hub/table/lobby/pass).
+  const hidden = viewMode !== 'home';
 
   const go = (href: Href) => {
     const s = String(href);
@@ -284,7 +283,7 @@ const styles = StyleSheet.create({
     marginHorizontal: 3,
     ...Platform.select({
       ios: {
-        shadowColor: colors.ink,
+        shadowColor: '#000',
         shadowOffset: { width: 0, height: -3 },
         shadowOpacity: 0.12,
         shadowRadius: 8,
