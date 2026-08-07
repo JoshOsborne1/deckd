@@ -50,9 +50,12 @@ export function PrivacyVeil({
 
   const [mounted, setMounted] = useState(visible);
 
+  if (visible && !mounted) {
+    setMounted(true);
+  }
+
   useEffect(() => {
     if (visible) {
-      setMounted(true);
       if (reduceMotion) {
         mountScale.value = 1;
         fade.value = withTiming(1, { duration: motion.duration.base });
@@ -83,6 +86,8 @@ export function PrivacyVeil({
     .minDuration(HOLD_MS)
     .maxDistance(20)
     .onBegin(() => {
+      // Shared value mutation is the canonical Reanimated gesture pattern.
+      // eslint-disable-next-line react-hooks/immutability
       progress.value = withTiming(1, { duration: HOLD_MS });
       runOnJS(haptic)('light');
     })
@@ -92,6 +97,7 @@ export function PrivacyVeil({
     })
     .onFinalize((_event, success) => {
       if (!success) {
+        // eslint-disable-next-line react-hooks/immutability
         progress.value = withTiming(0, { duration: motion.duration.base });
       }
     });

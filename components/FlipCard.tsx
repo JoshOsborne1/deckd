@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect } from 'react';
 import { StyleSheet, View } from 'react-native';
 import Animated, {
   interpolate,
@@ -23,11 +23,9 @@ export interface FlipCardProps extends Omit<PlayingCardProps, 'face'> {
  */
 export function FlipCard({ face = 'up', spring, ...cardProps }: FlipCardProps) {
   const progress = useSharedValue(face === 'up' ? 0 : 1);
-  const hasFlipped = useRef(false);
 
   useEffect(() => {
     progress.value = withSpring(face === 'up' ? 0 : 1, spring ?? motion.spring.card);
-    hasFlipped.current = true;
   }, [face, progress, spring]);
 
   const frontOpacity = useDerivedValue(() =>
@@ -47,8 +45,8 @@ export function FlipCard({ face = 'up', spring, ...cardProps }: FlipCardProps) {
     transform: [{ perspective: 900 }, { rotateY: `${progress.value * 180 - 180}deg` }],
   }));
 
-  const showFront = hasFlipped.current || face === 'up';
-  const showBack = hasFlipped.current || face === 'down';
+  const showFront = face === 'up';
+  const showBack = face === 'down';
 
   return (
     <View style={styles.root}>

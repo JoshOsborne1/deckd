@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import Animated, {
   runOnJS,
@@ -162,12 +162,11 @@ export function HandStack({
   highlightCardIds,
 }: HandStackProps) {
   const { reduceMotion } = useMotion();
-  const prevCountRef = useRef(cards.length);
-
-  const newCardStartIndex = prevCountRef.current;
-  useEffect(() => {
-    prevCountRef.current = cards.length;
-  }, [cards.length]);
+  const [prevCount, setPrevCount] = useState(cards.length);
+  const newCardStartIndex = prevCount;
+  if (prevCount !== cards.length) {
+    setPrevCount(cards.length);
+  }
 
   const cardWidth = SIZE_MAP[size].width;
 

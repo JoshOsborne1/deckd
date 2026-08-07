@@ -89,10 +89,11 @@ export function HubLayer({
   );
 
   const [presetId, setPresetId] = React.useState<Preset['id']>(resolvedBuiltinId);
-
-  useEffect(() => {
+  const [prevResolvedBuiltinId, setPrevResolvedBuiltinId] = React.useState(resolvedBuiltinId);
+  if (prevResolvedBuiltinId !== resolvedBuiltinId) {
+    setPrevResolvedBuiltinId(resolvedBuiltinId);
     setPresetId(resolvedBuiltinId);
-  }, [resolvedBuiltinId]);
+  }
   const [playerCount, setPlayerCount] = React.useState<PlayerCount>(2);
   const [includeJokers, setIncludeJokers] = React.useState(false);
   const [fanStyle, setFanStyle] = React.useState<FanStyle>('wide');

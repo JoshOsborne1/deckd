@@ -34,13 +34,16 @@ export function EventHistoryModal({ visible, events, onClose }: EventHistoryModa
   const backdropOpacity = useSharedValue(0);
   const sheetTranslate = useSharedValue(72);
 
+  if (visible && !renderModal) {
+    setRenderModal(true);
+  }
+
   useEffect(() => {
     if (!visible) return;
     if (exitUnmountTimer.current) {
       clearTimeout(exitUnmountTimer.current);
       exitUnmountTimer.current = null;
     }
-    setRenderModal(true);
     backdropOpacity.value = 0;
     sheetTranslate.value = 56;
     rafRef.current = requestAnimationFrame(() => {
@@ -67,10 +70,14 @@ export function EventHistoryModal({ visible, events, onClose }: EventHistoryModa
 
   useEffect(() => {
     if (visible || !renderModal) return;
+    // Reanimated shared values are mutable by design; React Compiler's
+    // immutability rule doesn't model useSharedValue.
+    // eslint-disable-next-line react-hooks/immutability
     backdropOpacity.value = withTiming(0, {
       duration: reduceMotion ? 120 : 200,
       easing: EASING_ACCELERATE,
     });
+    // eslint-disable-next-line react-hooks/immutability
     sheetTranslate.value = withTiming(reduceMotion ? 28 : 56, {
       duration: reduceMotion ? 160 : 220,
       easing: EASING_ACCELERATE,

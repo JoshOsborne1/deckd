@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Alert, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -32,10 +32,11 @@ export default function ProfileScreen() {
   const clearSessionHistory = useSessionHistoryStore((s) => s.clear);
 
   const [draftNickname, setDraftNickname] = useState(nickname);
-
-  useEffect(() => {
+  const [prevNickname, setPrevNickname] = useState(nickname);
+  if (prevNickname !== nickname) {
+    setPrevNickname(nickname);
     setDraftNickname(nickname);
-  }, [nickname]);
+  }
 
   const toggleHaptic = useMemo(() => (hapticsEnabled ? 'light' : false), [hapticsEnabled]);
   const backToHome = () => {
