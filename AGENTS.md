@@ -2,7 +2,7 @@
 
 ## Product rule
 
-Build the v1 app around pass-and-play first. Do not expand scope unless Josh explicitly asks.
+Build the v1 app around pass-and-play first, with multiplayer lobbies as the paid hosting feature. Do not expand scope unless Josh explicitly asks.
 
 V1 is:
 
@@ -12,14 +12,26 @@ V1 is:
 - draw, discard/play, flip/reveal, reorder, pass turn, reset/end
 - strong table, hub, nav, and pass ritual UI
 - local profile and local cosmetics
+- multiplayer lobbies hosted by a Deckd Master (paid pass), guests join free
 
 V1 is not:
 
-- BLE multiplayer
+- BLE multiplayer (dropped from first build)
 - custom rules DSL
 - Rive runtime
-- real IAP/RevenueCat
+- real IAP/RevenueCat configuration (keys, products, offerings)
 - auth, analytics, social, cloud sync
+
+## Deckd Master passes
+
+Hosting a lobby requires a pass. Guests always join free.
+
+- Deal pass: 24 hours
+- Draw pass: 3 days
+- Shuffle pass: 30 days
+- Master pass: lifetime
+
+Product id for the lifetime entitlement: `deckd_master`. Store copy lives in `app/store.tsx` and `components/layers/HomeLayer.tsx`.
 
 ## Source truth
 
@@ -38,7 +50,7 @@ V1 is not:
 - No new state library, styling library, auth, analytics, i18n, or feature flags without explicit approval.
 - No raw color sprawl. Use `src/lib/theme.ts` or add tokens there first.
 - Do not hand-edit generated `ios/` or `android/` folders.
-- Do not claim BLE works without a logged real-device matrix.
+- Do not claim multiplayer works without a real end-to-end lobby test.
 
 ## Workflow
 

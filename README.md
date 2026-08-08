@@ -1,15 +1,16 @@
 # Deckd
 
-Deckd is an Expo/React Native card-table app. The v1 target is deliberately narrow: **a polished pass-and-play card table on one phone**. BLE nearby multiplayer, custom rules, Rive, and real IAP are parked until the core loop feels good.
+Deckd is an Expo/React Native card-table app. The v1 target is deliberately narrow: **a polished pass-and-play card table on one phone, plus multiplayer lobbies hosted by a Deckd Master**. BLE nearby multiplayer is dropped from the first build. Rive, custom rules, and real IAP configuration are parked until the core loop feels good.
 
 ## Current status
 
-- Expo SDK 54, React Native 0.81, React 19, TypeScript strict.
+- Expo SDK 57, React Native 0.86, React 19, TypeScript strict.
 - Expo Router app with a layered main surface: `home | hub | table | lobby | pass`.
 - Zustand + MMKV local state.
 - Event-sourced game engine.
 - Pass-and-play flow, privacy veil, hand fan/stack, draw/discard/flip/pass-turn interactions.
-- Native BLE scaffold exists, but BLE multiplayer is **not a v1 dependency** and must not be marketed as working until real-device proof exists.
+- Multiplayer lobbies are the paid feature: a Deckd Master pass is required to host, guests join free. Passes: Deal (24h), Draw (3d), Shuffle (30d), Master (lifetime).
+- Native BLE scaffold exists in the repo but is **not** a v1 dependency and must not be marketed as working.
 
 ## Setup
 
@@ -36,7 +37,7 @@ npm run dev
 
 This runs on port `8082` so `npm run dev:web` can keep desktop web alive on `8081`.
 
-For native BLE/dev-client work, Expo Go is not enough. Use:
+For native dev-client work, Expo Go is not enough. Use:
 
 ```bash
 npm run dev:phone
@@ -66,7 +67,7 @@ npx expo-doctor
 - `components/` — reusable UI and layered game surfaces.
 - `src/engine/` — framework-free card/game engine.
 - `src/store/` — zustand stores.
-- `lib/` — BLE, storage, IAP, transport helpers.
+- `lib/` — BLE (parked), storage, IAP, transport helpers.
 - `modules/deckd-ble/` — native BLE scaffold. Leave it alone unless explicitly working on BLE proof.
 - `docs/` — current project scope and workflow only.
 

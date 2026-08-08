@@ -1,8 +1,8 @@
 # Parked BLE track
 
-BLE is not part of the v1 build target.
+BLE multiplayer is **dropped from the first build** (decision 2026-08-08). Multiplayer lobbies are now a cloud-relay paid feature: a Deckd Master pass is required to host, guests join free.
 
-The repo contains a native BLE scaffold, protocol messages, and transport code. Treat it as an unproven research/prototype track until physical devices prove:
+The repo still contains a native BLE scaffold, protocol messages, and transport code. Treat it as an unproven research/prototype track. If it is ever revisited as a free local bonus, it must first prove on physical devices:
 
 1. host advertises
 2. guest scans

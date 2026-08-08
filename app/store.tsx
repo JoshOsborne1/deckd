@@ -37,9 +37,10 @@ const TABLE_THEME_ITEMS = BUILTIN_TABLE_THEMES.map((theme) => ({
 }));
 
 const BUNDLES = [
-  { id: 'starter', title: 'Starter Bundle', summary: '3 backs for $2.99', price: '$2.99' },
-  { id: 'table-pack', title: 'Table Pack', summary: 'Felts + backs for your next night', price: '$4.99' },
-  { id: 'pro-upgrade', title: 'Pro Upgrade', summary: 'Deckd+ unlock and priority support', price: '$9.99' },
+  { id: 'deal-pass', title: 'Deal Pass', summary: 'Host lobbies for 24 hours', price: '£0.99' },
+  { id: 'draw-pass', title: 'Draw Pass', summary: 'Host lobbies for 3 days', price: '£2.99' },
+  { id: 'shuffle-pass', title: 'Shuffle Pass', summary: 'Host lobbies for 30 days', price: '£5.99' },
+  { id: 'master-pass', title: 'Master Pass', summary: 'Host lobbies forever', price: '£24.99' },
 ];
 
 export default function StoreScreen() {
@@ -65,7 +66,7 @@ export default function StoreScreen() {
       return;
     }
     try {
-      await purchaseProduct('deckd_plus');
+      await purchaseProduct('deckd_master');
     } catch (e) {
       Alert.alert('Store', e instanceof Error ? e.message : 'Purchase failed');
     }
@@ -96,13 +97,13 @@ export default function StoreScreen() {
           variant="brand"
           tab
           eyebrow="FEATURED"
-          title="Deckd+"
+          title="Deckd Master"
           style={styles.section}
         >
           <View style={styles.bullets}>
-            <Text style={styles.heroBullet}>• Premium felts and layouts</Text>
-            <Text style={styles.heroBullet}>• Exclusive card backs</Text>
-            <Text style={styles.heroBullet}>• Priority support queue</Text>
+            <Text style={styles.heroBullet}>• Host multiplayer lobbies</Text>
+            <Text style={styles.heroBullet}>• Friends join free, from anywhere</Text>
+            <Text style={styles.heroBullet}>• Premium felts and exclusive card backs</Text>
           </View>
           <CardButton
             variant="secondary"
@@ -112,7 +113,7 @@ export default function StoreScreen() {
             style={styles.heroCta}
             innerStyle={{ backgroundColor: alpha.whiteOverlay20, borderColor: 'transparent' }}
           >
-            <Text style={[styles.heroCtaLabel, { color: colors.surface }]}>Go Pro</Text>
+            <Text style={[styles.heroCtaLabel, { color: colors.surface }]}>Become a Master</Text>
           </CardButton>
         </CardSection>
 
@@ -199,8 +200,8 @@ export default function StoreScreen() {
 
         <CardSection
           variant="surface"
-          eyebrow="BUNDLES"
-          title="Quick unlock packs"
+          eyebrow="PASSES"
+          title="Deckd Master passes"
           style={styles.section}
         >
           <ScrollView

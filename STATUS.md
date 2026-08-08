@@ -1,32 +1,19 @@
 # Deckd status
 
-Last cleanup: 2026-06-22.
+Last update: 2026-08-08.
 
 ## Current baseline
 
-The current source was promoted from the latest `deckdherm` snapshot into the root repo. Historical markdown, Cursor command packs, old audit plans, Rive plans, and broad monetization notes were removed.
+Expo SDK 57, React Native 0.86, React 19, TypeScript strict. Expo Router app with layered surfaces: `home | hub | table | lobby | pass`. Zustand + MMKV local state. Event-sourced game engine. Pass-and-play flow with privacy veil, hand fan/stack, draw/discard/flip/pass-turn.
 
-## Cleanup results
+## Product direction (2026-08-08)
 
-- Root project is now the latest usable Deckd source, not the stale GitHub clone plus nested bundle.
-- Markdown reduced to the current essentials only:
-  - `README.md`
-  - `AGENTS.md`
-  - `STATUS.md`
-  - `.cursor/context.md`
-  - `docs/MVP_SCOPE.md`
-  - `docs/ITERATION_WORKFLOW.md`
-  - `docs/PARKED_BLE.md`
-- `.cursor` was reduced to a compact context file and one always-on rule.
-- Added CI at `.github/workflows/ci.yml`.
-- Added ready scripts for simultaneous desktop and phone iteration:
-  - `npm run dev:web` on port `8081`
-  - `npm run dev` / `npm run dev:phone` on port `8082`
-  - `npm run check`
+- BLE multiplayer is **dropped from the first build**. The native scaffold stays in the repo but is not a v1 dependency and must not be marketed.
+- Multiplayer lobbies are the paid feature: a **Deckd Master** pass is required to host; guests join free.
+- Pass tiers (verb-named): **Deal** 24h, **Draw** 3d, **Shuffle** 30d, **Master** lifetime.
+- Store copy and product naming updated from "Deckd+" to "Deckd Master" (app/store.tsx, HomeLayer.tsx).
 
 ## Verification
-
-After cleanup:
 
 - `npm run typecheck` passed.
 - `npm run lint` passed.
@@ -36,21 +23,18 @@ After cleanup:
 
 Security note: `npm audit fix` removed the easy fixes. Remaining audit warnings require breaking upgrades to React Native 0.86 / Expo 56, so they are parked until an intentional SDK upgrade.
 
-## Product decision
-
-V1 is pass-and-play. BLE, Rive, real IAP, custom rules DSL, and paid acquisition are parked until the one-phone card table is good.
-
 ## Immediate next actions
 
 1. Rebuild `components/layers/TableLayer.tsx` into a real table surface.
 2. Simplify `components/layers/HubLayer.tsx` into deck staging.
 3. Split real menu/history flows.
 4. Polish `components/PrivacyVeil.tsx` and pass ritual.
-5. Keep desktop web and phone testing running during design iteration.
+5. Spec the lobby relay server (host = source of truth, join codes, turn relay).
+6. Keep desktop web and phone testing running during design iteration.
 
 ## Parked tracks
 
-- BLE proof matrix and diagnostics.
+- BLE proof matrix and diagnostics (dropped from v1 scope).
 - Rive animation runtime/assets.
-- RevenueCat/IAP.
+- RevenueCat/IAP configuration (keys, App Store products, offering setup).
 - Custom rules DSL and full custom game authoring.

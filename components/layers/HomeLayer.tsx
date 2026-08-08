@@ -358,10 +358,10 @@ export function HomeLayer({
           >
             <View style={styles.plusHeader}>
               <Shield size={20} color={colors.surface} />
-              <Text style={styles.plusTitle}>Deckd+</Text>
+              <Text style={styles.plusTitle}>Deckd Master</Text>
             </View>
             <Text style={styles.plusDesc}>
-              Unlock premium felts & exclusive card backs.
+              Host lobbies. Friends join free.
             </Text>
           </Pressable>
         </Animated.View>
