@@ -17,6 +17,8 @@ let capturedCallbacks: {
   onError: (e: Error) => void;
   onClose: () => void;
   onRoomClosed?: () => void;
+  onEventsReceived?: (events: unknown[]) => void;
+  onIntentReceived?: (intent: string, payload: unknown, fromClientId?: string) => void;
 } | null = null;
 
 jest.mock('@lib/relayTransport', () => ({
@@ -48,7 +50,9 @@ beforeEach(() => {
     roomCode: '',
     players: [],
     lastError: null,
+    localClientId: '',
   });
+  useLobbyStore.getState().registerGameSyncHandlers({});
   capturedCallbacks = null;
 });
 
@@ -126,5 +130,33 @@ describe('lobbyStore', () => {
     expect(s.status).toBe('idle');
     expect(s.roomCode).toBe('');
     expect(s.players).toEqual([]);
+  });
+
+  it('hostLobby and joinLobby set localClientId', () => {
+    useLobbyStore.getState().hostLobby('Alice');
+    expect(useLobbyStore.getState().localClientId).toMatch(/^c-/);
+    useLobbyStore.getState().joinLobby('WXYZ23', 'Bob');
+    expect(useLobbyStore.getState().localClientId).toMatch(/^c-/);
+  });
+
+  it('registerGameSyncHandlers delegates onEventsReceived', () => {
+    const received: unknown[][] = [];
+    useLobbyStore.getState().registerGameSyncHandlers({
+      onEventsReceived: (events) => received.push(events),
+    });
+    useLobbyStore.getState().hostLobby('Alice');
+    capturedCallbacks!.onEventsReceived?.([{ type: 'session/start' } as unknown as never]);
+    expect(received).toHaveLength(1);
+  });
+
+  it('registerGameSyncHandlers delegates onIntentReceived with fromClientId', () => {
+    const intents: { intent: string; from?: string }[] = [];
+    useLobbyStore.getState().registerGameSyncHandlers({
+      onIntentReceived: (intent, _payload, fromClientId) =>
+        intents.push({ intent, from: fromClientId }),
+    });
+    useLobbyStore.getState().hostLobby('Alice');
+    capturedCallbacks!.onIntentReceived?.('request_snapshot', {}, 'guest-1');
+    expect(intents).toEqual([{ intent: 'request_snapshot', from: 'guest-1' }]);
   });
 });

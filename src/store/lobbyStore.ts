@@ -4,8 +4,12 @@
  * Non-persisted: a relay session is transient. The store owns a single
  * RelaySession and mirrors its connection state + player roster. Hosting
  * requires a Deckd Master pass (enforced by the UI); guests join free.
- * Game sync (event broadcast) is a separate concern — this store only
- * wires the relay transport into reactive UI.
+ *
+ * Game sync (event broadcast) is wired through a handler registry: the
+ * multiplayer bridge registers handlers via registerGameSyncHandlers, and
+ * the transport callbacks (onEventsReceived / onIntentReceived /
+ * onSnapshotRequested) delegate to them. This keeps lobbyStore free of
+ * gameStore imports — the bridge imports both stores.
  */
 
 import { create } from 'zustand';
@@ -16,6 +20,7 @@ import {
   type RelaySession,
 } from '@lib/relayTransport';
 import { makeRoomCode, type RelayPlayerInfo } from '@lib/relayProtocol';
+import type { GameSyncHandlers } from '@store/syncLogic';
 
 export type LobbyStatus = 'idle' | 'connecting' | 'connected' | 'error' | 'closed';
 
@@ -25,6 +30,8 @@ export interface LobbyState {
   roomCode: string;
   players: RelayPlayerInfo[];
   lastError: string | null;
+  /** This client's relay clientId (set on host/join). Guests use it as viewerId. */
+  localClientId: string;
 
   /** Host: open a new relay room. Pass masterToken only when the server enforces it. */
   hostLobby: (nickname: string, masterToken?: string) => void;
@@ -32,7 +39,12 @@ export interface LobbyState {
   joinLobby: (roomCode: string, nickname: string) => void;
   /** Leave / close the current session and reset to idle. */
   leaveLobby: () => void;
+  /** Register game-sync handlers (called by the multiplayer bridge). */
+  registerGameSyncHandlers: (handlers: GameSyncHandlers) => void;
 }
+
+/** Singleton handler registry — the transport callbacks delegate here. */
+let gameSyncHandlers: GameSyncHandlers = {};
 
 function makeClientId(): string {
   return `c-${Math.random().toString(36).slice(2, 10)}`;
@@ -48,10 +60,13 @@ function buildCallbacks(set: (partial: Partial<LobbyState>) => void): RelayCallb
         lastError: null,
       });
     },
-    // Game event sync is handled in a separate card; lobby store only tracks
-    // connection + roster, so event/intent handlers are intentionally no-ops.
-    onEventsReceived: () => {},
-    onIntentReceived: () => {},
+    // Delegate game event/intent/snapshot to the registered bridge handlers.
+    onEventsReceived: (events) => {
+      gameSyncHandlers.onEventsReceived?.(events);
+    },
+    onIntentReceived: (intent, payload, fromClientId) => {
+      gameSyncHandlers.onIntentReceived?.(intent, payload, fromClientId);
+    },
     onPlayersChanged: (players) => {
       set({ players });
     },
@@ -81,6 +96,7 @@ export const useLobbyStore = create<LobbyState>()((set, get) => ({
   roomCode: '',
   players: [],
   lastError: null,
+  localClientId: '',
 
   hostLobby: (nickname, masterToken) => {
     // Tear down any existing session before opening a new one.
@@ -95,6 +111,7 @@ export const useLobbyStore = create<LobbyState>()((set, get) => ({
       roomCode,
       players: [],
       lastError: null,
+      localClientId: clientId,
     });
 
     const session = createRelaySession({
@@ -121,6 +138,7 @@ export const useLobbyStore = create<LobbyState>()((set, get) => ({
       roomCode: code,
       players: [],
       lastError: null,
+      localClientId: clientId,
     });
 
     const session = createRelaySession({
@@ -142,6 +160,11 @@ export const useLobbyStore = create<LobbyState>()((set, get) => ({
       roomCode: '',
       players: [],
       lastError: null,
+      localClientId: '',
     });
+  },
+
+  registerGameSyncHandlers: (handlers) => {
+    gameSyncHandlers = handlers;
   },
 }));

@@ -18,6 +18,7 @@ import { useSurfaceMorph } from '@components/layers/SurfaceMorphContext';
 import { useMotion } from '@hooks/useMotion';
 import { useUiStore } from '@store/uiStore';
 import { useGameStore } from '@store/gameStore';
+import { useLobbyStore } from '@store/lobbyStore';
 import { useProfileStore } from '@store/profileStore';
 import { builtinPresets, type Preset } from '@engine/index';
 import type { FanStyle } from '@engine/types';
@@ -81,6 +82,14 @@ export function HubLayer({
   const events = useGameStore((s) => s.events);
   const sessionActive = events.length > 0;
 
+  const lobbyStatus = useLobbyStore((s) => s.status);
+  const lobbyPlayers = useLobbyStore((s) => s.players);
+  const localClientId = useLobbyStore((s) => s.localClientId);
+  const lobbySession = useLobbyStore((s) => s.session);
+  /** Online host: a connected relay session with at least one guest. */
+  const isOnlineHost =
+    lobbySession?.role === 'host' && lobbyStatus === 'connected';
+
   const libraryDefaultId = useUserPresetsStore((s) => s.defaultPresetId);
   const userPresets = useUserPresetsStore((s) => s.presets);
   const resolvedBuiltinId = useMemo(
@@ -140,6 +149,29 @@ export function HubLayer({
         });
       }
     }
+
+    // Online host: create the session from the relay roster so each guest's
+    // clientId is their game playerId. The bridge broadcasts the session
+    // start + deal events to all guests.
+    if (isOnlineHost && lobbyPlayers.length >= 2) {
+      const players = lobbyPlayers.map((p) => ({
+        id: p.clientId,
+        name: p.nickname,
+        avatarSeed: p.clientId,
+      }));
+      createSession({
+        mode: 'online-host',
+        presetId: activePreset.id,
+        players,
+        config: { includeJokers, fanStyle },
+        hostId: localClientId,
+      });
+      useProfileStore.getState().bumpGamesPlayed();
+      setViewMode('table');
+      return;
+    }
+
+    // Pass-and-play: local players on one device.
     const players = Array.from({ length: playerCount }, (_, idx) => ({
       id: idx === 0 ? 'you' : `p${idx + 1}`,
       name: idx === 0 ? nickname : `Player ${idx + 1}`,

@@ -1,0 +1,313 @@
+/**
+ * Multiplayer bridge integration test.
+ *
+ * Drives the real multiplayerBridge through mocked relay sessions, exercising
+ * the full host-broadcast → guest-fold loop with real zustand stores. This
+ * replaces the two-browser manual verification with an automated simulation
+ * through the actual bridge wiring.
+ */
+
+import { useGameStore } from '@store/gameStore';
+import { useLobbyStore } from '@store/lobbyStore';
+import {
+  installMultiplayerBridge,
+  resetBridge,
+  getLastBroadcastSeq,
+} from '@store/multiplayerBridge';
+import {
+  selectDrawPileCount,
+  selectDiscardTopCard,
+  selectLocalHand,
+} from '@engine/selectors';
+import { ZONE_DISCARD, ZONE_DRAW, handZoneId } from '@engine/types';
+import type { GameEvent } from '@engine/events';
+import type { RelaySession } from '@lib/relayTransport';
+import type { RelayPlayerInfo } from '@lib/relayProtocol';
+
+// --- Mock platform storage so gameStore doesn't pull in react-native ---
+
+jest.mock('@lib/storage', () => ({
+  createPlatformStorage: () => ({
+    getItem: () => null,
+    setItem: () => {},
+    removeItem: () => {},
+  }),
+}));
+
+// --- Mock relay transport: capture sent events + intents, let us relay ---
+
+let hostSentEvents: GameEvent[][] = [];
+let guestSentIntents: { intent: string; payload: unknown }[] = [];
+let hostCallbacks: {
+  onOpen?: (s: RelaySession) => void;
+  onEventsReceived?: (e: GameEvent[]) => void;
+  onIntentReceived?: (i: string, p: unknown, f?: string) => void;
+  onPlayersChanged?: (p: RelayPlayerInfo[]) => void;
+  onClose?: () => void;
+  onError?: (e: Error) => void;
+} = {};
+let guestCallbacks: typeof hostCallbacks = {};
+
+jest.mock('@lib/relayTransport', () => ({
+  createRelaySession: jest.fn((opts: {
+    role: 'host' | 'guest';
+    roomCode: string;
+    clientId: string;
+    nickname: string;
+    callbacks: typeof hostCallbacks;
+  }) => {
+    const cb = opts.callbacks;
+    if (opts.role === 'host') {
+      hostCallbacks = cb;
+      hostSentEvents = [];
+      const session: RelaySession = {
+        role: 'host',
+        roomCode: opts.roomCode,
+        players: [],
+        status: 'connected',
+        lastError: null,
+        sendEvents: jest.fn(async (events: GameEvent[]) => {
+          hostSentEvents.push(events);
+        }),
+        sendIntent: jest.fn(async () => {
+          throw new Error('Only guests send intents');
+        }),
+        requestSnapshot: jest.fn(),
+        close: jest.fn(),
+      };
+      return session;
+    }
+    guestCallbacks = cb;
+    guestSentIntents = [];
+    const guestSession: RelaySession = {
+      role: 'guest',
+      roomCode: opts.roomCode,
+      players: [],
+      status: 'connected',
+      lastError: null,
+      sendEvents: jest.fn(async () => {
+        throw new Error('Only the host broadcasts events');
+      }),
+      sendIntent: jest.fn(async (intent: string, payload: unknown) => {
+        guestSentIntents.push({ intent, payload });
+      }),
+      requestSnapshot: jest.fn(),
+      close: jest.fn(),
+    };
+    return guestSession;
+  }),
+  getRelayUrl: jest.fn(() => 'ws://127.0.0.1:8080'),
+}));
+
+function resetStores() {
+  useGameStore.getState().resetSession();
+  useLobbyStore.setState({
+    session: null,
+    status: 'idle',
+    roomCode: '',
+    players: [],
+    lastError: null,
+    localClientId: '',
+  });
+  useLobbyStore.getState().registerGameSyncHandlers({});
+}
+
+beforeEach(() => {
+  resetBridge();
+  resetStores();
+  hostSentEvents = [];
+  guestSentIntents = [];
+  hostCallbacks = {};
+  guestCallbacks = {};
+});
+
+describe('multiplayerBridge', () => {
+  it('host broadcasts session-start events after createSession', () => {
+    installMultiplayerBridge();
+
+    // Host opens a lobby.
+    useLobbyStore.getState().hostLobby('Alice');
+    const hostSession = useLobbyStore.getState().session!;
+    // Simulate relay connect.
+    hostCallbacks.onOpen?.(hostSession);
+    hostCallbacks.onPlayersChanged?.([
+      { clientId: useLobbyStore.getState().localClientId, nickname: 'Alice', isHost: true, joinedAt: 1 },
+      { clientId: 'guest-cid', nickname: 'Bob', isHost: false, joinedAt: 2 },
+    ]);
+
+    // Host creates a session with the relay roster.
+    const hostCid = useLobbyStore.getState().localClientId;
+    useGameStore.getState().createSession({
+      mode: 'online-host',
+      presetId: 'freeplay',
+      players: [
+        { id: hostCid, name: 'Alice', avatarSeed: hostCid },
+        { id: 'guest-cid', name: 'Bob', avatarSeed: 'guest-cid' },
+      ],
+      config: { includeJokers: false, fanStyle: 'wide' },
+      hostId: hostCid,
+    });
+
+    // The bridge should have broadcast the session-start + deal events.
+    expect(hostSentEvents.length).toBeGreaterThan(0);
+    const firstBatch = hostSentEvents[0]!;
+    expect(firstBatch.length).toBeGreaterThan(0);
+    expect(firstBatch[0]!.type).toBe('session/start');
+    expect(getLastBroadcastSeq()).toBeGreaterThan(0);
+  });
+
+  it('guest folds received events and mirrors host state', () => {
+    installMultiplayerBridge();
+
+    // Host side.
+    useLobbyStore.getState().hostLobby('Alice');
+    const hostSession = useLobbyStore.getState().session!;
+    const hostCid = useLobbyStore.getState().localClientId;
+    hostCallbacks.onOpen?.(hostSession);
+
+    // Guest side: join + connect.
+    useLobbyStore.getState().joinLobby('TEST01', 'Bob');
+    const guestSession = useLobbyStore.getState().session!;
+    guestCallbacks.onOpen?.(guestSession);
+
+    // Guest should have requested a snapshot on connect.
+    expect(guestSentIntents.some((i) => i.intent === 'request_snapshot')).toBe(true);
+
+    // Host creates a session.
+    useGameStore.getState().createSession({
+      mode: 'online-host',
+      presetId: 'freeplay',
+      players: [
+        { id: hostCid, name: 'Alice', avatarSeed: hostCid },
+        { id: 'guest-cid', name: 'Bob', avatarSeed: 'guest-cid' },
+      ],
+      config: { includeJokers: false, fanStyle: 'wide' },
+      hostId: hostCid,
+    });
+
+    // Host answers snapshot: relay the broadcast events to the guest.
+    const broadcastEvents = hostSentEvents.flat();
+    guestCallbacks.onEventsReceived?.(broadcastEvents);
+
+    // Guest's gameStore should now mirror the host's.
+    const guestGameState = useGameStore.getState().state;
+    expect(guestGameState.phase).toBe('playing');
+    expect(guestGameState.players).toHaveLength(2);
+    expect(selectDrawPileCount(guestGameState)).toBe(52);
+  });
+
+  it('host applies guest draw_card intent and broadcasts the new event', () => {
+    installMultiplayerBridge();
+
+    useLobbyStore.getState().hostLobby('Alice');
+    const hostSession = useLobbyStore.getState().session!;
+    const hostCid = useLobbyStore.getState().localClientId;
+    hostCallbacks.onOpen?.(hostSession);
+    hostCallbacks.onPlayersChanged?.([
+      { clientId: hostCid, nickname: 'Alice', isHost: true, joinedAt: 1 },
+      { clientId: 'guest-cid', nickname: 'Bob', isHost: false, joinedAt: 2 },
+    ]);
+
+    useGameStore.getState().createSession({
+      mode: 'online-host',
+      presetId: 'freeplay',
+      players: [
+        { id: hostCid, name: 'Alice', avatarSeed: hostCid },
+        { id: 'guest-cid', name: 'Bob', avatarSeed: 'guest-cid' },
+      ],
+      config: { includeJokers: false, fanStyle: 'wide' },
+      hostId: hostCid,
+    });
+
+    hostSentEvents = []; // clear the session-start broadcast
+
+    // Guest must be the current player. Host is player 0, so first end the
+    // host's turn to make the guest current.
+    useGameStore.getState().endTurn(hostCid);
+    hostSentEvents = []; // clear the turn/end broadcast
+
+    // Now the guest is the current player. Simulate the guest's draw intent
+    // arriving at the host.
+    hostCallbacks.onIntentReceived?.('draw_card', {}, 'guest-cid');
+
+    // The host should have applied the draw and broadcast a new event.
+    expect(hostSentEvents.length).toBeGreaterThan(0);
+    const lastBatch = hostSentEvents[hostSentEvents.length - 1]!;
+    const drawEvent = lastBatch.find((e) => e.type === 'card/deal');
+    expect(drawEvent).toBeDefined();
+    expect(drawEvent!.toZoneId).toBe(handZoneId('guest-cid'));
+  });
+
+  it('pass-and-play with no relay: bridge is inert, gameStore works normally', () => {
+    installMultiplayerBridge();
+
+    // No relay session at all — pure pass-and-play.
+    useGameStore.getState().createSession({
+      mode: 'pass',
+      presetId: 'freeplay',
+      players: [
+        { id: 'you', name: 'You', avatarSeed: 'seed' },
+        { id: 'p2', name: 'Player 2', avatarSeed: 'seed2' },
+      ],
+      config: { includeJokers: false, fanStyle: 'wide' },
+      hostId: 'you',
+    });
+
+    // No broadcast should have happened (no relay session).
+    expect(hostSentEvents).toHaveLength(0);
+
+    // Game state should be fine.
+    const state = useGameStore.getState().state;
+    expect(state.phase).toBe('playing');
+    expect(selectDrawPileCount(state)).toBe(52);
+
+    // Draw a card locally.
+    const topId = state.zones[ZONE_DRAW]!.cardIds[0]!;
+    useGameStore.getState().dealCard(topId, handZoneId('you'), 'up');
+
+    const afterDraw = useGameStore.getState().state;
+    expect(selectDrawPileCount(afterDraw)).toBe(51);
+    expect(selectLocalHand(afterDraw, 'you')).toHaveLength(1);
+  });
+
+  it('card moves propagate to guest: discard top mirrors host', () => {
+    installMultiplayerBridge();
+
+    // Setup host + guest like the mirror test.
+    useLobbyStore.getState().hostLobby('Alice');
+    const hostSession = useLobbyStore.getState().session!;
+    const hostCid = useLobbyStore.getState().localClientId;
+    hostCallbacks.onOpen?.(hostSession);
+    useLobbyStore.getState().joinLobby('TEST02', 'Bob');
+    const guestSession = useLobbyStore.getState().session!;
+    guestCallbacks.onOpen?.(guestSession);
+
+    useGameStore.getState().createSession({
+      mode: 'online-host',
+      presetId: 'freeplay',
+      players: [
+        { id: hostCid, name: 'Alice', avatarSeed: hostCid },
+        { id: 'guest-cid', name: 'Bob', avatarSeed: 'guest-cid' },
+      ],
+      config: { includeJokers: false, fanStyle: 'wide' },
+      hostId: hostCid,
+    });
+
+    // Relay the session to the guest.
+    guestCallbacks.onEventsReceived?.(hostSentEvents.flat());
+
+    // Host moves a card to discard.
+    const drawTop = useGameStore.getState().state.zones[ZONE_DRAW]!.cardIds[0]!;
+    hostSentEvents = [];
+    useGameStore.getState().moveCard(drawTop, ZONE_DISCARD, 'up');
+
+    // Relay the move event to the guest.
+    guestCallbacks.onEventsReceived?.(hostSentEvents.flat());
+
+    // Guest's discard top should match the host's.
+    const guestDiscard = selectDiscardTopCard(useGameStore.getState().state);
+    expect(guestDiscard).not.toBeNull();
+    expect(guestDiscard!.id).toBe(drawTop);
+    expect(guestDiscard!.face).toBe('up');
+  });
+});

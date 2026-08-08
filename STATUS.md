@@ -1,6 +1,6 @@
 # Deckd status
 
-Last update: 2026-08-08.
+Last update: 2026-08-08 (T2).
 
 ## Deployment
 
@@ -9,7 +9,7 @@ Last update: 2026-08-08.
 
 ## Current baseline
 
-Expo SDK 57, React Native 0.86, React 19, TypeScript strict. Expo Router app with layered surfaces: `home | hub | table | lobby | pass`. Zustand + MMKV local state. Event-sourced game engine. Pass-and-play flow with privacy veil, hand fan/stack, draw/discard/flip/pass-turn.
+Expo SDK 57, React Native 0.86, React 19, TypeScript strict. Expo Router app with layered surfaces: `home | hub | table | lobby | pass`. Zustand + MMKV local state. Event-sourced game engine. Pass-and-play flow with privacy veil, hand fan/stack, draw/discard/flip/pass-turn. **Multiplayer game-state sync over relay (T2): host broadcasts engine events, guests fold them; guest hands stay private; pass & play inert.**
 
 ## Product direction (2026-08-08)
 
@@ -21,22 +21,21 @@ Expo SDK 57, React Native 0.86, React 19, TypeScript strict. Expo Router app wit
 ## Verification
 
 - `npm run typecheck` passed.
-- `npm run lint` passed.
-- `npx expo-doctor` passed 18/18 checks.
-- `npm run dev:web` served `http://localhost:8081` with HTTP 200 and title `Deckd`.
-- `npm run dev:phone` served `http://localhost:8082` with HTTP 200.
+- `npm run lint` passed (0 errors, 0 warnings).
+- `npx jest` passed 44/44 tests (engine 14, lobbyStore 10, syncLogic 15, multiplayerBridge 5).
+- Bridge integration: host broadcasts session-start + deal events; guest folds them and mirrors host state (draw pile count, players, phase); guest draw_card intent → host applies + broadcasts; card moves propagate to guest discard; pass & play with no relay stays inert.
+- Guest privacy: guest sees own hand via viewerId-based selectors; host hand zone is private to host-cid (verified via selectLocalHand).
 
 Security note: `npm audit fix` removed the easy fixes. Remaining audit warnings require breaking upgrades to React Native 0.86 / Expo 56, so they are parked until an intentional SDK upgrade.
 
 ## Immediate next actions
 
-1. Wire game event sync over the relay (host broadcasts engine events; guests replay). Depends on the lobbyStore session from T1.
-2. Rebuild `components/layers/TableLayer.tsx` into a real table surface.
-3. Simplify `components/layers/HubLayer.tsx` into deck staging.
-4. Split real menu/history flows.
-5. Polish `components/layers/PrivacyVeil.tsx` and pass ritual.
-6. Wire the real HMAC masterToken (Deckd Master entitlement) into `hostLobby`.
-7. Keep desktop web and phone testing running during design iteration.
+1. Rebuild `components/layers/TableLayer.tsx` into a real table surface.
+2. Simplify `components/layers/HubLayer.tsx` into deck staging.
+3. Split real menu/history flows.
+4. Polish `components/layers/PrivacyVeil.tsx` and pass ritual.
+5. Wire the real HMAC masterToken (Deckd Master entitlement) into `hostLobby`.
+6. Keep desktop web and phone testing running during design iteration.
 
 ## Parked tracks
 

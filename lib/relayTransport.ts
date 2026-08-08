@@ -33,8 +33,8 @@ export interface RelaySession {
 export interface RelayCallbacks {
   onOpen: (session: RelaySession) => void;
   onEventsReceived: (events: GameEvent[]) => void;
-  onIntentReceived?: (intent: string, payload: unknown) => void;
-  onSnapshotRequested?: () => void;
+  onIntentReceived?: (intent: string, payload: unknown, fromClientId?: string) => void;
+  onSnapshotRequested?: (fromClientId?: string) => void;
   onPlayersChanged: (players: RelayPlayerInfo[]) => void;
   onPlayerJoined?: (player: RelayPlayerInfo) => void;
   onPlayerLeft?: (player: RelayPlayerInfo) => void;
@@ -162,7 +162,7 @@ class RelayTransport implements RelaySession {
           // Guest -> host: parse as intent.
           try {
             const parsed = JSON.parse(msg.payload) as { intent: string; payload: unknown };
-            this.callbacks.onIntentReceived?.(parsed.intent, parsed.payload);
+            this.callbacks.onIntentReceived?.(parsed.intent, parsed.payload, msg.from);
           } catch {
             this.callbacks.onError(new Error('Failed to parse guest intent'));
           }

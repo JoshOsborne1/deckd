@@ -20,6 +20,10 @@ import {
   mulberry32,
   shuffleInPlace,
 } from '@engine/index';
+import {
+  applySnapshotWithTail,
+  foldRemoteEvents,
+} from '@store/syncLogic';
 
 type EventBaseKey = 'id' | 'ts' | 'seq';
 type DistributiveOmit<T, K extends keyof GameEvent> = T extends GameEvent ? Omit<T, K> : never;
@@ -162,25 +166,21 @@ export const useGameStore = create<GameStoreState>()(
 
       ingestRemoteEvents: (incoming) => {
         const current = get();
-        const seen = new Set(current.events.map((event) => event.id));
-        const fresh = incoming
-          .filter((event) => !seen.has(event.id))
-          .sort((a, b) => a.seq - b.seq);
-        if (fresh.length === 0) {
+        const result = foldRemoteEvents(current.events, incoming);
+        if (result.applied === 0) {
           return { applied: 0, lastSeq: current.seq };
         }
-        const events = [...current.events, ...fresh].sort((a, b) => a.seq - b.seq);
-        const state = foldEvents(events);
-        const lastSeq = Math.max(current.seq, ...events.map((event) => event.seq));
-        set({ events, seq: lastSeq, state });
-        return { applied: fresh.length, lastSeq };
+        set({ events: result.events, seq: result.lastSeq, state: result.state });
+        return { applied: result.applied, lastSeq: result.lastSeq };
       },
 
       applyRemoteSnapshot: (snapshot, nextSeq, tail = []) => {
-        const freshTail = tail.filter((event) => event.seq >= nextSeq).sort((a, b) => a.seq - b.seq);
-        const state = freshTail.reduce((currentState, event) => applyEvent(currentState, event), snapshot);
-        const lastTailSeq = freshTail.reduce((max, event) => Math.max(max, event.seq), nextSeq - 1);
-        set({ events: freshTail, seq: Math.max(nextSeq - 1, lastTailSeq), state });
+        const result = applySnapshotWithTail(snapshot, nextSeq, tail);
+        set({
+          events: result.appliedTail,
+          seq: Math.max(nextSeq - 1, result.lastSeq),
+          state: result.state,
+        });
       },
 
       dealCard: (cardId, toZoneId, face = 'down') =>

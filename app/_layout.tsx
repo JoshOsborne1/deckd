@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { configureRevenueCat } from '@lib/revenuecat';
+import { installMultiplayerBridge } from '@store/multiplayerBridge';
 import { View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -25,6 +26,9 @@ export default function RootLayout() {
 
   useEffect(() => {
     configureRevenueCat();
+    // Wire gameStore <-> lobbyStore relay session for multiplayer sync.
+    // Inert when there is no relay session (pass & play stays unaffected).
+    installMultiplayerBridge();
   }, []);
 
   useEffect(() => {

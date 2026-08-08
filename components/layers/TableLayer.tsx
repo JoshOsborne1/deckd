@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { ChevronLeft, Clock, Flag, Menu, Shuffle } from 'lucide-react-native';
@@ -14,6 +14,7 @@ import { useMotion } from '@hooks/useMotion';
 import { useUiStore } from '@store/uiStore';
 import { useCosmeticsStore } from '@store/cosmeticsStore';
 import { useGameStore } from '@store/gameStore';
+import { useLobbyStore } from '@store/lobbyStore';
 import {
   parseCardId,
   parseJokerId,
@@ -71,14 +72,37 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
   const dispatch = useGameStore((s) => s.dispatch);
   const reorderHand = useGameStore((s) => s.reorderHand);
 
+  const lobbyStatus = useLobbyStore((s) => s.status);
+  const lobbySession = useLobbyStore((s) => s.session);
+  const localClientId = useLobbyStore((s) => s.localClientId);
+
+  /** True when there is an active relay session (online multiplayer). */
+  const isOnline = lobbySession !== null && (lobbyStatus === 'connected' || lobbyStatus === 'connecting');
+  /** Guest view: the relay session is a guest role. */
+  const isGuest = lobbySession?.role === 'guest';
+
+  // Return to hub cleanly when the relay room closes or the session ends.
+  useEffect(() => {
+    if (lobbyStatus === 'closed' && isOnline) {
+      setViewMode('hub');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lobbyStatus]);
+
   /** Device owner / session host — shuffle authority. */
   const hostPlayerId = state.meta.hostId || null;
   /**
    * Pass-and-play: the shared phone shows the **current** player's hand.
-   * Other modes: treat the host as the local viewer until BLE/online split.
+   * Online: the guest views as their own clientId (which is their playerId);
+   * the host views as the host playerId.
    */
-  const viewerId =
-    state.meta.mode === 'pass' && state.currentPlayerId ? state.currentPlayerId : hostPlayerId;
+  const viewerId = isOnline
+    ? isGuest
+      ? localClientId
+      : hostPlayerId
+    : state.meta.mode === 'pass' && state.currentPlayerId
+      ? state.currentPlayerId
+      : hostPlayerId;
   const hasSession = events.length > 0 && state.phase !== 'idle';
 
   // --- Selectors (memoized off state) ---
@@ -117,11 +141,15 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
   // --- Handlers ---
   const handleDrawCard = useCallback(() => {
     if (!isMyTurn || !viewerId) return;
+    if (isGuest && lobbySession) {
+      void lobbySession.sendIntent('draw_card', {});
+      return;
+    }
     const topCardId = selectDrawTopCardId(state);
     if (!topCardId) return;
     haptic('medium');
     dealCard(topCardId, handZoneId(viewerId), 'up');
-  }, [isMyTurn, viewerId, state, haptic, dealCard]);
+  }, [isMyTurn, viewerId, isGuest, lobbySession, state, haptic, dealCard]);
 
   const handleCardPress = useCallback(
     (cardId: string) => {
@@ -129,34 +157,49 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
       const card = state.cards[cardId];
       if (!card) return;
       if (card.zoneId === handZoneId(viewerId)) {
+        if (isGuest && lobbySession) {
+          void lobbySession.sendIntent('flip_card', { cardId });
+          return;
+        }
         haptic('light');
         flipCard(cardId);
       }
     },
-    [viewerId, state.cards, haptic, flipCard],
+    [viewerId, state.cards, isGuest, lobbySession, haptic, flipCard],
   );
 
   const handleCardLongPress = useCallback(
     (cardId: string) => {
+      if (isGuest && lobbySession) {
+        void lobbySession.sendIntent('move_card', { cardId, toZoneId: ZONE_DISCARD, face: 'up' });
+        return;
+      }
       haptic('medium');
       moveCard(cardId, ZONE_DISCARD, 'up');
     },
-    [haptic, moveCard],
+    [isGuest, lobbySession, haptic, moveCard],
   );
 
   const handlePassTurn = useCallback(() => {
     if (!viewerId || !nextPlayerId) return;
     const next = state.players.find((p) => p.id === nextPlayerId);
     if (!next) return;
+    if (isGuest && lobbySession) {
+      void lobbySession.sendIntent('end_turn', { playerId: viewerId });
+      return;
+    }
     haptic('success');
     endTurn(viewerId);
-    useGameStore.getState().enterPrivacy(next.id);
-    openPass({
-      recipientId: next.id,
-      recipientName: next.name,
-      recipientSeed: next.avatarSeed,
-    });
-  }, [viewerId, nextPlayerId, state.players, haptic, endTurn, openPass]);
+    // Online host: no privacy veil — each player is on their own device.
+    if (!isOnline) {
+      useGameStore.getState().enterPrivacy(next.id);
+      openPass({
+        recipientId: next.id,
+        recipientName: next.name,
+        recipientSeed: next.avatarSeed,
+      });
+    }
+  }, [viewerId, nextPlayerId, state.players, isGuest, lobbySession, isOnline, haptic, endTurn, openPass]);
 
   const handleShuffle = useCallback(() => {
     if (!isHost || !viewerId) return;
@@ -253,6 +296,12 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
         <Text style={styles.eyebrow}>
           {isMyTurn ? 'YOUR TURN' : `${currentPlayerName.toUpperCase()} · TO PLAY`}
         </Text>
+        {lobbyStatus === 'connected' && (
+          <View style={styles.syncChip}>
+            <View style={styles.syncDot} />
+            <Text style={styles.syncText}>SYNCED</Text>
+          </View>
+        )}
       </View>
 
       {/* Opponents */}
@@ -363,7 +412,7 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
           <Shuffle size={20} color={colors.inkMuted} />
         </Pressable>
 
-        {isPassMode ? (
+        {isPassMode || isOnline ? (
           <CardButton
             variant="primary"
             size="md"
@@ -491,6 +540,27 @@ const styles = StyleSheet.create({
     fontSize: fontSizes.caption,
     fontFamily: fonts.bold,
     color: colors.inkSubtle,
+    letterSpacing: letterSpacing.caps,
+  },
+  syncChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: alpha.brand10,
+    paddingHorizontal: space.sm,
+    paddingVertical: 2,
+    borderRadius: radii.pill,
+  },
+  syncDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: colors.brand,
+  },
+  syncText: {
+    fontSize: 9,
+    fontFamily: fonts.bold,
+    color: colors.brand,
     letterSpacing: letterSpacing.caps,
   },
   opponents: {
