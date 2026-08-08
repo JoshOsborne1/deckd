@@ -45,6 +45,17 @@ export interface RelayCallbacks {
 
 const DEFAULT_RELAY_URL = 'wss://relay.roxai.click/ws';
 
+/** Local relay server for development (cd server && node index.js). */
+const DEV_RELAY_URL = 'ws://127.0.0.1:8080';
+
+/**
+ * Resolve the relay WebSocket URL for the current build.
+ * In __DEV__ we talk to the local server; production uses the cloud relay.
+ */
+export function getRelayUrl(): string {
+  return typeof __DEV__ !== 'undefined' && __DEV__ ? DEV_RELAY_URL : DEFAULT_RELAY_URL;
+}
+
 class RelayTransport implements RelaySession {
   readonly role: RelayRole;
   readonly roomCode: string;
@@ -74,7 +85,7 @@ class RelayTransport implements RelaySession {
     this.nickname = opts.nickname;
     this.masterToken = opts.masterToken;
     this.callbacks = opts.callbacks;
-    this.connect(opts.url ?? DEFAULT_RELAY_URL);
+    this.connect(opts.url ?? getRelayUrl());
   }
 
   private connect(url: string): void {
@@ -117,7 +128,15 @@ class RelayTransport implements RelaySession {
 
   private handleServerMessage(msg: RelayServerMessage): void {
     switch (msg.type) {
-      case 'room_created':
+      case 'room_created': {
+        // Server assigns the final room code; capture it for the host.
+        (this as { roomCode: string }).roomCode = msg.roomCode;
+        this.status = 'connected';
+        this.players = msg.players;
+        this.callbacks.onOpen(this);
+        this.callbacks.onPlayersChanged(msg.players);
+        break;
+      }
       case 'room_joined': {
         this.status = 'connected';
         this.players = msg.players;

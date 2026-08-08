@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Alert, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, Platform, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { ChevronLeft, Copy, Crown, Radio, Users } from 'lucide-react-native';
+import * as Clipboard from 'expo-clipboard';
 import { CardButton } from '@components/CardButton';
 import { CardSection } from '@components/CardSection';
 import { useLayerSurfaceEntrance } from '@hooks/useLayerSurfaceEntrance';
@@ -9,6 +10,7 @@ import { useMotion } from '@hooks/useMotion';
 import { useUiStore } from '@store/uiStore';
 import { useProfileStore } from '@store/profileStore';
 import { useCosmeticsStore } from '@store/cosmeticsStore';
+import { useLobbyStore, type LobbyStatus } from '@store/lobbyStore';
 import { alpha, colors, fonts, letterSpacing, radii, shadow, space } from '@theme';
 
 interface LobbyLayerProps {
@@ -19,10 +21,25 @@ interface LobbyLayerProps {
 
 type LobbyScreen = 'landing' | 'create' | 'join' | 'room';
 
+function relayStatusText(status: LobbyStatus, lastError: string | null): string {
+  switch (status) {
+    case 'idle':
+      return 'disconnected';
+    case 'connecting':
+      return 'connecting…';
+    case 'connected':
+      return 'connected';
+    case 'error':
+      return lastError ? `error: ${lastError}` : 'error';
+    case 'closed':
+      return 'closed';
+  }
+}
+
 /**
  * Multiplayer lobby — cloud relay rooms.
  * Hosting requires a Deckd Master pass; guests join free with a code.
- * The relay transport lands in a later slice; this UI is the full flow.
+ * Relay session state lives in lobbyStore; this layer is the full flow.
  */
 export function LobbyLayer({ active, topInset, bottomInset }: LobbyLayerProps) {
   const { haptic } = useMotion();
@@ -30,16 +47,24 @@ export function LobbyLayer({ active, topInset, bottomInset }: LobbyLayerProps) {
   const nickname = useProfileStore((s) => s.nickname);
   const hasMasterPass = useCosmeticsStore((s) => s.hasMasterPass);
 
+  const lobbyStatus = useLobbyStore((s) => s.status);
+  const lobbyRoomCode = useLobbyStore((s) => s.roomCode);
+  const players = useLobbyStore((s) => s.players);
+  const lastError = useLobbyStore((s) => s.lastError);
+  const hostLobby = useLobbyStore((s) => s.hostLobby);
+  const joinLobby = useLobbyStore((s) => s.joinLobby);
+  const leaveLobby = useLobbyStore((s) => s.leaveLobby);
+
   const [screen, setScreen] = useState<LobbyScreen>('landing');
   const [joinCode, setJoinCode] = useState('');
-  const [roomCode, setRoomCode] = useState('');
 
   const surfaceStyle = useLayerSurfaceEntrance(active);
 
   const goHome = useCallback(() => {
     haptic('light');
+    leaveLobby();
     setViewMode('home');
-  }, [haptic, setViewMode]);
+  }, [haptic, leaveLobby, setViewMode]);
 
   const handleCreate = useCallback(() => {
     haptic('medium');
@@ -54,27 +79,38 @@ export function LobbyLayer({ active, topInset, bottomInset }: LobbyLayerProps) {
       );
       return;
     }
-    // Relay server slice: create room, get code.
-    setRoomCode('ABCDEF');
+    // Entitlement card wires the real HMAC masterToken later; the dev server
+    // accepts any host when MASTER_TOKEN_SECRET is unset.
+    hostLobby(nickname || 'Host', undefined);
     setScreen('room');
-  }, [haptic, hasMasterPass, setViewMode]);
+  }, [haptic, hasMasterPass, hostLobby, nickname, setViewMode]);
 
   const handleJoin = useCallback(() => {
     haptic('medium');
-    if (joinCode.trim().length < 4) {
+    const code = joinCode.trim().toUpperCase();
+    if (code.length < 4) {
       Alert.alert('Join code', 'Enter the code from the host.');
       return;
     }
-    // Relay server slice: join room, receive snapshot.
-    setRoomCode(joinCode.trim().toUpperCase());
+    joinLobby(code, nickname || 'Guest');
     setScreen('room');
-  }, [haptic, joinCode]);
+  }, [haptic, joinCode, joinLobby, nickname]);
 
-  const copyCode = useCallback(() => {
+  const copyCode = useCallback(async () => {
     haptic('light');
-    // Clipboard lands with the relay slice; for now just confirm.
-    Alert.alert('Room code', `${roomCode} — share it with your friends.`);
-  }, [haptic, roomCode]);
+    const code = lobbyRoomCode;
+    if (!code) return;
+    try {
+      if (Platform.OS === 'web') {
+        await navigator.clipboard.writeText(code);
+      } else {
+        await Clipboard.setStringAsync(code);
+      }
+      Alert.alert('Room code', `${code} — copied. Share it with your friends.`);
+    } catch {
+      Alert.alert('Room code', `${code} — share it with your friends.`);
+    }
+  }, [haptic, lobbyRoomCode]);
 
   useEffect(() => {
     if (!active) return;
@@ -85,6 +121,13 @@ export function LobbyLayer({ active, topInset, bottomInset }: LobbyLayerProps) {
     }, 0);
     return () => clearTimeout(t);
   }, [active]);
+
+  // Tear down the relay session when the layer is unmounted/inactive.
+  useEffect(() => {
+    if (active) return;
+    leaveLobby();
+    return () => leaveLobby();
+  }, [active, leaveLobby]);
 
   return (
     <Animated.View
@@ -213,7 +256,7 @@ export function LobbyLayer({ active, topInset, bottomInset }: LobbyLayerProps) {
 
             <CardSection variant="surface" padded style={styles.codeCard}>
               <Text style={styles.codeLabel}>ROOM CODE</Text>
-              <Text style={styles.codeValue}>{roomCode}</Text>
+              <Text style={styles.codeValue}>{lobbyRoomCode || '—'}</Text>
               <CardButton
                 variant="ghost"
                 size="sm"
@@ -229,8 +272,21 @@ export function LobbyLayer({ active, topInset, bottomInset }: LobbyLayerProps) {
 
             <CardSection variant="ghost" style={styles.statusCard} tab>
               <Text style={styles.statusEyebrow}>ROOM</Text>
-              <Text style={styles.statusRow}>Players: 1 (you)</Text>
-              <Text style={styles.statusRow}>Relay: connecting…</Text>
+              <Text style={styles.statusRow}>Players: {players.length || 0}</Text>
+              {players.length > 0 ? (
+                <View style={styles.playerList}>
+                  {players.map((p) => (
+                    <View key={p.clientId} style={styles.playerRow}>
+                      {p.isHost && <Crown size={14} color={colors.brand} style={{ marginRight: space.xs }} />}
+                      <Text style={styles.playerName}>
+                        {p.nickname}
+                        {p.nickname === (nickname || '') && !p.isHost ? ' (you)' : ''}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+              ) : null}
+              <Text style={styles.statusRow}>Relay: {relayStatusText(lobbyStatus, lastError)}</Text>
             </CardSection>
 
             <CardButton
@@ -404,6 +460,20 @@ const styles = StyleSheet.create({
     fontFamily: fonts.regular,
     color: colors.inkSoft,
     marginBottom: 4,
+  },
+  playerList: {
+    marginTop: space.xs,
+    marginBottom: space.sm,
+    gap: space.xs,
+  },
+  playerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  playerName: {
+    fontSize: 13,
+    fontFamily: fonts.regular,
+    color: colors.ink,
   },
 });
 

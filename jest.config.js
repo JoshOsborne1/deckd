@@ -6,6 +6,7 @@ module.exports = {
   moduleNameMapper: {
     '^@lib/(.*)$': '<rootDir>/lib/$1',
     '^@engine/(.*)$': '<rootDir>/src/engine/$1',
+    '^@store/(.*)$': '<rootDir>/src/store/$1',
     '^@theme$': '<rootDir>/src/lib/theme',
   },
   testMatch: ['**/*.test.ts'],
