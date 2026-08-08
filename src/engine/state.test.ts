@@ -82,7 +82,7 @@ describe('foldEvents / session start', () => {
 describe('turn flow', () => {
   it('end turn advances to the next player and back around', () => {
     const events = makeSessionEvents([{ id: 'p1', name: 'One' }, { id: 'p2', name: 'Two' }], 'freeplay');
-    const state = foldEvents(events);
+    foldEvents(events);
     const afterP1 = foldEvents([
       ...events,
       { type: 'turn/end', id: eventId(99), ts: Date.now(), actorId: 'p1', seq: 99, playerId: 'p1' },
