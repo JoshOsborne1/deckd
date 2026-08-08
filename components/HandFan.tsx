@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import Animated, {
   runOnJS,
@@ -13,7 +13,7 @@ import { SIZE_MAP } from '@components/PlayingCard';
 import { useMotion } from '@hooks/useMotion';
 import { parseCardId, parseJokerId } from '@engine/selectors';
 import { dealStagger, handFanTransform, dealEntryTransform } from '../src/animations/deal';
-import { motion } from '@theme';
+import { motion, space } from '@theme';
 import type { CardFace, CardId, CardInstance, PlayerId } from '@engine/types';
 
 export interface HandFanProps {
@@ -57,7 +57,6 @@ function FanCard({
   onSwipeDiscard,
   onReorderDx,
   reduceMotion,
-  isNew,
 }: {
   card: CardInstance;
   index: number;
@@ -70,19 +69,18 @@ function FanCard({
   onSwipeDiscard: (() => void) | undefined;
   onReorderDx: ((dx: number) => void) | undefined;
   reduceMotion: boolean;
-  isNew: boolean;
 }) {
   const { haptic } = useMotion();
   const cardWidth = SIZE_MAP[size].width;
   const fan = handFanTransform(index, total, spread, cardWidth);
-  const entry = useSharedValue(reduceMotion || !isNew ? 1 : 0);
+  const entry = useSharedValue(reduceMotion ? 1 : 0);
+  const initialDelay = useRef(dealStagger(index, total, motion.stagger.deal));
 
   useEffect(() => {
-    if (isNew && !reduceMotion) {
-      const delay = dealStagger(index, total);
-      entry.value = withDelay(delay, withSpring(1, motion.spring.card));
+    if (!reduceMotion) {
+      entry.value = withDelay(initialDelay.current, withSpring(1, motion.spring.card));
     }
-  }, [isNew, reduceMotion, index, total, entry]);
+  }, [entry, reduceMotion, initialDelay]);
 
   const animStyle = useAnimatedStyle(() => {
     'worklet';
@@ -181,13 +179,7 @@ export function HandFan({
 }: HandFanProps) {
   const { reduceMotion } = useMotion();
   const resolvedSpread = resolveSpread(spreadProp, fanStyle);
-  const [prevCount, setPrevCount] = useState(cards.length);
   const [containerWidth, setContainerWidth] = useState(0);
-
-  const newCardStartIndex = prevCount;
-  if (prevCount !== cards.length) {
-    setPrevCount(cards.length);
-  }
 
   const total = cards.length;
   const cardWidth = SIZE_MAP[size].width;
@@ -235,7 +227,6 @@ export function HandFan({
             onReorder && reorderEnabled ? (dx) => handleReorderDx(card.id, dx) : undefined
           }
           reduceMotion={reduceMotion}
-          isNew={index >= newCardStartIndex}
         />
       ))}
     </View>
@@ -251,6 +242,7 @@ const styles = StyleSheet.create({
   },
   cardSlot: {
     position: 'absolute',
+    bottom: space.lg,
   },
 });
 

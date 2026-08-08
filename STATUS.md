@@ -22,9 +22,11 @@ Expo SDK 57, React Native 0.86, React 19, TypeScript strict. Expo Router app wit
 
 - `npm run typecheck` passed.
 - `npm run lint` passed (0 errors, 0 warnings).
-- `npx jest` passed 44/44 tests (engine 14, lobbyStore 10, syncLogic 15, multiplayerBridge 5).
+- `npx jest` passed 62/62 tests (engine, lobby, sync, multiplayer, and entitlement suites).
 - Bridge integration: host broadcasts session-start + deal events; guest folds them and mirrors host state (draw pile count, players, phase); guest draw_card intent → host applies + broadcasts; card moves propagate to guest discard; pass & play with no relay stays inert.
 - Guest privacy: guest sees own hand via viewerId-based selectors; host hand zone is private to host-cid (verified via selectLocalHand).
+- T3 visual lift: SVG French suit glyphs, classic pip layouts, warm paper/grain card faces, court/ace frames, gold card-back inset, one-shot home mascot, deal-entry stagger, and draw/discard feedback are implemented.
+- Web QA: home and Deal 2 each table states were exercised on `npm run dev:web`; the dealt hand shows md card faces and the draw interaction moved 48 LEFT → 47 LEFT without console errors.
 
 Security note: `npm audit fix` removed the easy fixes. Remaining audit warnings require breaking upgrades to React Native 0.86 / Expo 56, so they are parked until an intentional SDK upgrade.
 

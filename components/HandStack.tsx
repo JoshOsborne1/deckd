@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef } from 'react';
 import { StyleSheet, View } from 'react-native';
 import Animated, {
   runOnJS,
@@ -14,7 +14,7 @@ import { useMotion } from '@hooks/useMotion';
 import { parseCardId, parseJokerId } from '@engine/selectors';
 import { dealStagger, dealEntryTransform } from '../src/animations/deal';
 import { handStackTransform } from '../src/animations/stack';
-import { motion } from '@theme';
+import { motion, space } from '@theme';
 import type { CardFace, CardId, CardInstance } from '@engine/types';
 
 export interface HandStackProps {
@@ -42,7 +42,6 @@ function StackCard({
   onSwipeDiscard,
   onReorderDx,
   reduceMotion,
-  isNew,
 }: {
   card: CardInstance;
   index: number;
@@ -54,19 +53,18 @@ function StackCard({
   onSwipeDiscard: (() => void) | undefined;
   onReorderDx: ((dx: number) => void) | undefined;
   reduceMotion: boolean;
-  isNew: boolean;
 }) {
   const { haptic } = useMotion();
   const cardWidth = SIZE_MAP[size].width;
   const stack = handStackTransform(index, total, cardWidth);
-  const entry = useSharedValue(reduceMotion || !isNew ? 1 : 0);
+  const entry = useSharedValue(reduceMotion ? 1 : 0);
+  const initialDelay = useRef(dealStagger(index, total, motion.stagger.deal));
 
   useEffect(() => {
-    if (isNew && !reduceMotion) {
-      const delay = dealStagger(index, total);
-      entry.value = withDelay(delay, withSpring(1, motion.spring.card));
+    if (!reduceMotion) {
+      entry.value = withDelay(initialDelay.current, withSpring(1, motion.spring.card));
     }
-  }, [isNew, reduceMotion, index, total, entry]);
+  }, [entry, reduceMotion, initialDelay]);
 
   const animStyle = useAnimatedStyle(() => {
     'worklet';
@@ -162,11 +160,6 @@ export function HandStack({
   highlightCardIds,
 }: HandStackProps) {
   const { reduceMotion } = useMotion();
-  const [prevCount, setPrevCount] = useState(cards.length);
-  const newCardStartIndex = prevCount;
-  if (prevCount !== cards.length) {
-    setPrevCount(cards.length);
-  }
 
   const cardWidth = SIZE_MAP[size].width;
 
@@ -205,7 +198,6 @@ export function HandStack({
             onReorder && reorderEnabled ? (dx) => handleReorderDx(card.id, dx) : undefined
           }
           reduceMotion={reduceMotion}
-          isNew={index >= newCardStartIndex}
         />
       ))}
     </View>
@@ -221,6 +213,7 @@ const styles = StyleSheet.create({
   },
   cardSlot: {
     position: 'absolute',
+    bottom: space.lg,
   },
 });
 

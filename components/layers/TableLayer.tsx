@@ -1,6 +1,11 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import Animated from 'react-native-reanimated';
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+  withTiming,
+} from 'react-native-reanimated';
 import { ChevronLeft, Clock, Flag, Menu, Shuffle } from 'lucide-react-native';
 import { AvatarPlaceholder } from '@components/AvatarPlaceholder';
 import { CardButton } from '@components/CardButton';
@@ -46,6 +51,7 @@ import {
   radii,
   shadow,
   space,
+  motion,
 } from '@theme';
 
 interface TableLayerProps {
@@ -55,7 +61,7 @@ interface TableLayerProps {
 }
 
 export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
-  const { haptic } = useMotion();
+  const { haptic, reduceMotion } = useMotion();
   const setViewMode = useUiStore((s) => s.setViewMode);
   const equippedBackId = useCosmeticsStore((s) => s.equippedBackId);
   const openPass = useUiStore((s) => s.openPass);
@@ -124,6 +130,60 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
   const nextPlayerId = useMemo(() => selectNextPlayerId(state), [state]);
   const isHost = Boolean(hostPlayerId && viewerId === hostPlayerId);
   const isPassMode = state.meta.mode === 'pass';
+
+  const drawScale = useSharedValue(1);
+  const drawOpacity = useSharedValue(1);
+  const discardScale = useSharedValue(1);
+  const discardOpacity = useSharedValue(1);
+  const previousDiscardId = useRef(discardTop?.id ?? null);
+
+  const drawMotionStyle = useAnimatedStyle(() => ({
+    opacity: drawOpacity.value,
+    transform: reduceMotion ? [] : [{ scale: drawScale.value }],
+  }));
+  const discardMotionStyle = useAnimatedStyle(() => ({
+    opacity: discardOpacity.value,
+    transform: reduceMotion ? [] : [{ scale: discardScale.value }],
+  }));
+
+  useEffect(() => {
+    const nextDiscardId = discardTop?.id ?? null;
+    const previousId = previousDiscardId.current;
+    previousDiscardId.current = nextDiscardId;
+    if (!nextDiscardId || nextDiscardId === previousId) return;
+
+    if (reduceMotion) {
+      // eslint-disable-next-line react-hooks/immutability
+      discardOpacity.value = withTiming(0.72, { duration: motion.duration.fast }, () => {
+        discardOpacity.value = withTiming(1, { duration: motion.duration.fast });
+      });
+      return;
+    }
+
+    // eslint-disable-next-line react-hooks/immutability
+    discardScale.value = withTiming(1.08, { duration: motion.duration.fast }, () => {
+      discardScale.value = withTiming(1, { duration: motion.duration.fast });
+    });
+  }, [discardOpacity, discardScale, discardTop?.id, previousDiscardId, reduceMotion]);
+
+  const handleDrawPressIn = useCallback(() => {
+    if (reduceMotion) {
+      // eslint-disable-next-line react-hooks/immutability
+      drawOpacity.value = withTiming(0.72, { duration: motion.duration.fast });
+      return;
+    }
+    // eslint-disable-next-line react-hooks/immutability
+    drawScale.value = withSpring(0.96, motion.spring.press);
+  }, [drawOpacity, drawScale, reduceMotion]);
+
+  const handleDrawPressOut = useCallback(() => {
+    // eslint-disable-next-line react-hooks/immutability
+    drawOpacity.value = withTiming(1, { duration: motion.duration.fast });
+    if (!reduceMotion) {
+      // eslint-disable-next-line react-hooks/immutability
+      drawScale.value = withSpring(1, motion.spring.press);
+    }
+  }, [drawOpacity, drawScale, reduceMotion]);
 
   const currentPlayerName = useMemo(() => {
     const p = state.players.find((pl) => pl.id === currentPlayerId);
@@ -335,22 +395,25 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
       {/* Table middle */}
       <View style={styles.table}>
         {/* Draw pile */}
-        <Pressable
-          onPress={handleDrawCard}
-          disabled={!isMyTurn || drawCount === 0}
-          style={({ pressed }) => [
-            styles.deckStack,
-            pressed && { opacity: 0.85 },
-            (!isMyTurn || drawCount === 0) && { opacity: 0.5 },
-          ]}
-        >
-          <PlayingCard face="down" size="md" back={equippedBackId} />
-          <Text style={styles.deckLeftText}>{drawCount} LEFT</Text>
-        </Pressable>
+        <Animated.View style={[styles.deckStack, drawMotionStyle]}>
+          <Pressable
+            onPress={handleDrawCard}
+            onPressIn={handleDrawPressIn}
+            onPressOut={handleDrawPressOut}
+            disabled={!isMyTurn || drawCount === 0}
+            style={[
+              styles.deckTrigger,
+              (!isMyTurn || drawCount === 0) && { opacity: 0.5 },
+            ]}
+          >
+            <PlayingCard face="down" size="md" back={equippedBackId} />
+            <Text style={styles.deckLeftText}>{drawCount} LEFT</Text>
+          </Pressable>
+        </Animated.View>
 
         {/* Discard slot */}
         {discardTop && discardParsed ? (
-          <View style={styles.activeSlot}>
+          <Animated.View style={[styles.activeSlot, discardMotionStyle]}>
             <PlayingCard
               rank={discardParsed.rank}
               suit={discardParsed.suit}
@@ -358,20 +421,20 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
               size="lg"
               elevated
             />
-          </View>
+          </Animated.View>
         ) : discardTop && discardJoker ? (
-          <View style={styles.activeSlot}>
+          <Animated.View style={[styles.activeSlot, discardMotionStyle]}>
             <PlayingCard
               jokerColor={discardJoker}
               face={discardTop.face}
               size="lg"
               elevated
             />
-          </View>
+          </Animated.View>
         ) : (
-          <View style={styles.discardSlot}>
+          <Animated.View style={[styles.discardSlot, discardMotionStyle]}>
             <Text style={styles.discardLabel}>DISCARD</Text>
-          </View>
+          </Animated.View>
         )}
       </View>
 
@@ -466,7 +529,7 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
             onCardLongPress={handleCardLongPress}
             onReorder={handleReorder}
             reorderEnabled={isMyTurn}
-            size="lg"
+            size="md"
           />
         ) : (
           <HandFan
@@ -478,7 +541,7 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
             onCardLongPress={handleCardLongPress}
             onReorder={handleReorder}
             reorderEnabled={isMyTurn}
-            size="lg"
+            size="md"
           />
         )}
         {!handLocked && localHand.length > 0 ? (
@@ -602,6 +665,9 @@ const styles = StyleSheet.create({
     gap: space.xxl,
   },
   deckStack: {
+    alignItems: 'center',
+  },
+  deckTrigger: {
     alignItems: 'center',
   },
   deckLeftText: {

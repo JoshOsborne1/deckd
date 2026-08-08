@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import Animated, {
   Extrapolation,
@@ -7,6 +7,9 @@ import Animated, {
   useAnimatedReaction,
   useAnimatedStyle,
   useSharedValue,
+  withDelay,
+  withSequence,
+  withSpring,
   withTiming,
 } from 'react-native-reanimated';
 import { useRouter } from 'expo-router';
@@ -90,6 +93,43 @@ export function HomeLayer({
   }, [layerVisible, layerOpacity, reduceMotionSystem]);
 
   const rootStyle = useAnimatedStyle(() => ({ opacity: layerOpacity.value }));
+
+  // The mascot is a mount-only hello: one springy rise, then one small bounce.
+  // It never loops or replays when the home layer is merely hidden by a route.
+  const mascotOpacity = useSharedValue(0);
+  const mascotTranslateY = useSharedValue(-20);
+  const mascotScale = useSharedValue(1);
+  const mascotPlayed = useRef(false);
+  useEffect(() => {
+    if (mascotPlayed.current) return;
+    mascotPlayed.current = true;
+    if (reduceMotionSystem) {
+      mascotOpacity.value = withTiming(1, { duration: motion.duration.fast });
+      mascotTranslateY.value = 0;
+      mascotScale.value = 1;
+      return;
+    }
+    mascotOpacity.value = withTiming(1, { duration: motion.duration.base });
+    mascotTranslateY.value = withSpring(0, motion.spring.card);
+    mascotScale.value = withDelay(
+      680,
+      withSequence(
+        withTiming(1.06, { duration: 160 }),
+        withTiming(1, { duration: 240 }),
+      ),
+    );
+  }, [mascotOpacity, mascotPlayed, mascotScale, mascotTranslateY, reduceMotionSystem]);
+
+  const mascotStyle = useAnimatedStyle(() => {
+    if (reduceMotionSystem) return { opacity: mascotOpacity.value };
+    return {
+      opacity: mascotOpacity.value,
+      transform: [
+        { translateY: mascotTranslateY.value },
+        { scale: mascotScale.value },
+      ],
+    };
+  });
 
   // Mirror the progress threshold onto a JS-side state so the scrollview's
   // `pointerEvents` / `scrollEnabled` props can flip without re-rendering on
@@ -276,6 +316,18 @@ export function HomeLayer({
         </Animated.View>
 
         <View style={styles.heroSection}>
+          <Animated.View style={styles.mascotWrap} pointerEvents="none">
+            <Animated.View style={mascotStyle}>
+              <PlayingCard
+                face="up"
+                rank="A"
+                suit="hearts"
+                size="sm"
+                elevated
+                style={styles.mascotCard}
+              />
+            </Animated.View>
+          </Animated.View>
           <Animated.View style={[styles.heroCta, heroCtaStyle]}>
             <CardButton
               variant="primary"
@@ -428,6 +480,16 @@ const styles = StyleSheet.create({
   heroSection: {
     marginBottom: space.x4l,
     alignItems: 'center',
+    position: 'relative',
+  },
+  mascotWrap: {
+    position: 'absolute',
+    right: space.xxl,
+    top: -18,
+    zIndex: 3,
+  },
+  mascotCard: {
+    transform: [{ rotate: '9deg' }],
   },
   heroCta: {
     width: '100%',
@@ -521,7 +583,7 @@ const styles = StyleSheet.create({
     marginBottom: space.lg,
     ...Platform.select({
       ios: {
-        shadowColor: '#000',
+        shadowColor: colors.ink,
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.15,
         shadowRadius: 10,

@@ -29,8 +29,8 @@ export const colors = {
   seatOffline: '#94A3B8',
   seatDealer: '#D4AF37',
   /** Card surface colors */
-  cardPaper: '#FFFFFF',
-  cardEdge: '#EAEAEA',
+  cardPaper: '#FDFCFA',
+  cardEdge: 'rgba(0,0,0,0.08)',
   /** Action semantic colors */
   actionSafe: '#22C55E',
   actionWarn: '#F59E0B',
@@ -49,6 +49,8 @@ export const alpha = {
   whiteOverlay20: 'rgba(255,255,255,0.20)',
   whiteOverlay45: 'rgba(255,255,255,0.45)',
   whiteOverlay80: 'rgba(255,255,255,0.80)',
+  gold40: 'rgba(212,175,55,0.40)',
+  inkOverlay02: 'rgba(0,0,0,0.02)',
   inkOverlay06: 'rgba(0,0,0,0.06)',
   inkOverlay08: 'rgba(0,0,0,0.08)',
   inkOverlay12: 'rgba(0,0,0,0.12)',

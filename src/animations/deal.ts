@@ -9,8 +9,12 @@
  */
 export function dealStagger(index: number, total: number, baseDelay = 60): number {
   'worklet';
-  void total;
-  return index * baseDelay;
+  if (total <= 1) return 0;
+  // Keep a five-card opening deal under roughly 600ms while preserving the
+  // token-defined rhythm for smaller hands.
+  const maxLeadIn = 180;
+  const safeDelay = Math.min(baseDelay, maxLeadIn / (total - 1));
+  return index * safeDelay;
 }
 
 export interface FanTransform {
@@ -70,18 +74,18 @@ export interface DealEntryValues {
 /**
  * Interpolates a deal-entry transform from `progress` 0→1.
  *
- * At 0: card is invisible, offset downward, slightly rotated and scaled down.
+ * At 0: card is invisible, offset above the hand, slightly rotated and scaled down.
  * At 1: card is in its final resting position.
  */
 export function dealEntryTransform(progress: number): DealEntryValues {
   'worklet';
   const p = progress < 0 ? 0 : progress > 1 ? 1 : progress;
-  const angleDeg = (1 - p) * -12;
+  const angleDeg = (1 - p) * -8;
   return {
     opacity: p,
-    translateY: (1 - p) * 80,
+    translateY: (1 - p) * -40,
     rotate: `${angleDeg}deg`,
     rotateDeg: angleDeg,
-    scale: 0.85 + p * 0.15,
+    scale: 0.95 + p * 0.05,
   };
 }
