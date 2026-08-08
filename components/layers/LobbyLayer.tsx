@@ -79,9 +79,9 @@ export function LobbyLayer({ active, topInset, bottomInset }: LobbyLayerProps) {
       );
       return;
     }
-    // Entitlement card wires the real HMAC masterToken later; the dev server
-    // accepts any host when MASTER_TOKEN_SECRET is unset.
-    hostLobby(nickname || 'Host', undefined);
+    // hostLobby computes the HMAC masterToken from the shared secret + clientId
+    // when configured; dev servers without MASTER_TOKEN_SECRET accept any host.
+    hostLobby(nickname || 'Host');
     setScreen('room');
   }, [haptic, hasMasterPass, hostLobby, nickname, setViewMode]);
 

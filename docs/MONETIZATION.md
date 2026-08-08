@@ -34,8 +34,12 @@ Deal/Draw/Shuffle = non-renewing subscriptions (consumable-style, one purchase p
 
 ## Not yet wired (next build slice)
 
-- **Entitlement listener**: `Purchases.addCustomerInfoUpdateListener` → set `hasMasterPass` from `entitlements.active['master']`. Currently the flag is only set manually.
-- **Host auth token**: the relay server verifies a Master pass via `MASTER_TOKEN_SECRET` HMAC. The app must mint that token from the RevenueCat entitlement (server-side verification via RevenueCat webhook is the proper path; HMAC is the v1 shortcut).
+- ~~**Entitlement listener**: `Purchases.addCustomerInfoUpdateListener` → set `hasMasterPass` from `entitlements.active['master']`.~~ **Wired (T4)** — `lib/entitlement.ts` + `app/_layout.tsx` install a customer-info listener and refresh on startup; `app/store.tsx` restore also re-syncs.
+- ~~**Host auth token**: the relay server verifies a Master pass via `MASTER_TOKEN_SECRET` HMAC.~~ **Wired (T4)** — `computeMasterToken(clientId)` in `lib/entitlement.ts` mints `HMAC-SHA256(secret, clientId)` hex from `EXPO_PUBLIC_DECKD_MASTER_SECRET`; `lobbyStore.hostLobby` sends it by default. Dev (no secret) sends `undefined`.
+
+### Server-side verification (production follow-up)
+
+The HMAC token is a v1 shortcut: it proves the client knows a shared secret, not that the user has a live entitlement. Production should verify entitlements server-side via a **RevenueCat webhook** that grants the host a short-lived JWT upon receiving a validated `master` entitlement event. The HMAC path remains useful as a fallback or for trusted-client builds, but the webhook is the proper trust boundary. Out of scope for this card.
 
 ## Relay server env
 

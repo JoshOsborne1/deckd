@@ -20,6 +20,7 @@ import {
   type RelaySession,
 } from '@lib/relayTransport';
 import { makeRoomCode, type RelayPlayerInfo } from '@lib/relayProtocol';
+import { computeMasterToken } from '@lib/entitlement';
 import type { GameSyncHandlers } from '@store/syncLogic';
 
 export type LobbyStatus = 'idle' | 'connecting' | 'connected' | 'error' | 'closed';
@@ -33,7 +34,9 @@ export interface LobbyState {
   /** This client's relay clientId (set on host/join). Guests use it as viewerId. */
   localClientId: string;
 
-  /** Host: open a new relay room. Pass masterToken only when the server enforces it. */
+  /** Host: open a new relay room. masterToken defaults to the HMAC computed
+   *  from the shared secret + clientId when configured; pass undefined to use
+   *  that default. Dev servers without MASTER_TOKEN_SECRET accept any host. */
   hostLobby: (nickname: string, masterToken?: string) => void;
   /** Guest: join an existing room with a code. */
   joinLobby: (roomCode: string, nickname: string) => void;
@@ -105,6 +108,11 @@ export const useLobbyStore = create<LobbyState>()((set, get) => ({
     const roomCode = makeRoomCode();
     const clientId = makeClientId();
 
+    // Compute the host token the relay server expects when MASTER_TOKEN_SECRET
+    // is set. The caller may pass an explicit token to override (tests); when
+    // undefined we use the computed HMAC, which is undefined in dev (no secret).
+    const token = masterToken ?? computeMasterToken(clientId);
+
     set({
       session: null,
       status: 'connecting',
@@ -119,7 +127,7 @@ export const useLobbyStore = create<LobbyState>()((set, get) => ({
       roomCode,
       clientId,
       nickname: nickname || 'Host',
-      masterToken,
+      masterToken: token,
       callbacks: buildCallbacks(set),
     });
 

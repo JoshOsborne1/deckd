@@ -1,6 +1,6 @@
 # Deckd status
 
-Last update: 2026-08-08 (T2).
+Last update: 2026-08-08 (T4).
 
 ## Deployment
 
@@ -34,7 +34,7 @@ Security note: `npm audit fix` removed the easy fixes. Remaining audit warnings 
 2. Simplify `components/layers/HubLayer.tsx` into deck staging.
 3. Split real menu/history flows.
 4. Polish `components/layers/PrivacyVeil.tsx` and pass ritual.
-5. Wire the real HMAC masterToken (Deckd Master entitlement) into `hostLobby`.
+5. ~~Wire the real HMAC masterToken (Deckd Master entitlement) into `hostLobby`.~~ Done (T4): `lib/entitlement.ts` mints `HMAC-SHA256(secret, clientId)` from `EXPO_PUBLIC_DECKD_MASTER_SECRET`; `lobbyStore.hostLobby` sends it; `app/_layout.tsx` installs a RevenueCat customer-info listener mapping the `master` entitlement to `hasMasterPass`.
 6. Keep desktop web and phone testing running during design iteration.
 
 ## Parked tracks

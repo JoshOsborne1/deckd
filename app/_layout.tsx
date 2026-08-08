@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
-import { configureRevenueCat } from '@lib/revenuecat';
+import { configureRevenueCat, isRevenueCatConfigured, Purchases } from '@lib/revenuecat';
+import { syncMasterPassFromCustomerInfo } from '@lib/entitlement';
 import { installMultiplayerBridge } from '@store/multiplayerBridge';
 import { View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -26,9 +27,32 @@ export default function RootLayout() {
 
   useEffect(() => {
     configureRevenueCat();
+
+    // Entitlement listener: map RevenueCat `master` entitlement to hasMasterPass.
+    // Purchases.addCustomerInfoUpdateListener fires on purchase/restore/refresh,
+    // and we also pull the latest customerInfo on startup so a returning Master
+    // keeps hosting rights without a new purchase.
+    let listener: ((info: import('react-native-purchases').CustomerInfo) => void) | null = null;
+    if (isRevenueCatConfigured()) {
+      listener = (info) => syncMasterPassFromCustomerInfo(info);
+      Purchases.addCustomerInfoUpdateListener(listener);
+      void Purchases.getCustomerInfo()
+        .then((info) => syncMasterPassFromCustomerInfo(info))
+        .catch(() => {
+          // Offline / first launch: the listener will fire when info arrives.
+        });
+    }
+
     // Wire gameStore <-> lobbyStore relay session for multiplayer sync.
     // Inert when there is no relay session (pass & play stays unaffected).
     installMultiplayerBridge();
+
+    return () => {
+      if (listener) {
+        Purchases.removeCustomerInfoUpdateListener(listener);
+        listener = null;
+      }
+    };
   }, []);
 
   useEffect(() => {

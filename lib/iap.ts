@@ -4,7 +4,7 @@
  * `EXPO_PUBLIC_REVENUECAT_IOS_KEY` / `EXPO_PUBLIC_REVENUECAT_ANDROID_KEY` at build time.
  */
 
-import type { PurchasesPackage } from 'react-native-purchases';
+import type { PurchasesPackage, CustomerInfo } from 'react-native-purchases';
 
 import { isRevenueCatConfigured, Purchases } from './revenuecat';
 
@@ -44,9 +44,9 @@ export async function purchaseProduct(productId: string): Promise<void> {
   await Purchases.purchasePackage(chosen);
 }
 
-export async function restorePurchases(): Promise<void> {
+export async function restorePurchases(): Promise<CustomerInfo> {
   if (!isRevenueCatConfigured()) {
     throw new Error('IAP not configured — add RevenueCat API keys (see app.json extra).');
   }
-  await Purchases.restorePurchases();
+  return Purchases.restorePurchases();
 }

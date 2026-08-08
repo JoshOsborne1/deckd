@@ -8,6 +8,7 @@ import { FlipCard } from '@components/FlipCard';
 import { PlayingCard } from '@components/PlayingCard';
 import { useMotion } from '@hooks/useMotion';
 import { isIapConfigured, purchaseProduct, restorePurchases } from '@lib/iap';
+import { syncMasterPassFromCustomerInfo } from '@lib/entitlement';
 import { useProfileStore } from '@store/profileStore';
 import { useCosmeticsStore } from '@store/cosmeticsStore';
 import { BUILTIN_CARD_BACKS, BUILTIN_TABLE_THEMES } from '@engine/visuals';
@@ -74,7 +75,11 @@ export default function StoreScreen() {
 
   const onRestore = async () => {
     try {
-      await restorePurchases();
+      const customerInfo = await restorePurchases();
+      // Re-sync hasMasterPass from the restored entitlement. The
+      // customer-info listener also fires, but we do it here too so the
+      // flag is correct before the user dismisses the alert.
+      syncMasterPassFromCustomerInfo(customerInfo);
       Alert.alert('Store', 'Restore completed.');
     } catch (e) {
       Alert.alert('Store', e instanceof Error ? e.message : 'Restore failed');

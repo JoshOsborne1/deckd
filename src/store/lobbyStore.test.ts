@@ -5,6 +5,7 @@
  */
 
 import { useLobbyStore } from '@store/lobbyStore';
+import { computeMasterToken } from '@lib/entitlement';
 import type { RelaySession } from '@lib/relayTransport';
 import type { RelayPlayerInfo } from '@lib/relayProtocol';
 
@@ -43,6 +44,12 @@ jest.mock('@lib/relayTransport', () => ({
   getRelayUrl: jest.fn(() => 'ws://127.0.0.1:8080'),
 }));
 
+// Mock the entitlement token computation so lobbyStore's hostLobby default
+// path is deterministic and doesn't depend on the env var.
+jest.mock('@lib/entitlement', () => ({
+  computeMasterToken: jest.fn(() => undefined),
+}));
+
 beforeEach(() => {
   useLobbyStore.setState({
     session: null,
@@ -54,6 +61,7 @@ beforeEach(() => {
   });
   useLobbyStore.getState().registerGameSyncHandlers({});
   capturedCallbacks = null;
+  jest.mocked(computeMasterToken).mockReset();
 });
 
 describe('lobbyStore', () => {
@@ -158,5 +166,33 @@ describe('lobbyStore', () => {
     useLobbyStore.getState().hostLobby('Alice');
     capturedCallbacks!.onIntentReceived?.('request_snapshot', {}, 'guest-1');
     expect(intents).toEqual([{ intent: 'request_snapshot', from: 'guest-1' }]);
+  });
+
+  it('hostLobby computes masterToken from clientId via computeMasterToken', () => {
+    const mockCompute = computeMasterToken as jest.MockedFunction<typeof computeMasterToken>;
+    mockCompute.mockReturnValueOnce('fake-hmac-token');
+    // Capture the opts passed to createRelaySession by spying on the mock.
+    const { createRelaySession } = jest.requireMock('@lib/relayTransport') as {
+      createRelaySession: jest.Mock;
+    };
+    createRelaySession.mockClear();
+    useLobbyStore.getState().hostLobby('Alice');
+    expect(createRelaySession).toHaveBeenCalledTimes(1);
+    const opts = createRelaySession.mock.calls[0][0] as { masterToken?: string; clientId: string };
+    expect(opts.masterToken).toBe('fake-hmac-token');
+    // computeMasterToken must have been called with the generated clientId.
+    expect(mockCompute).toHaveBeenCalledWith(opts.clientId);
+  });
+
+  it('hostLobby uses an explicit masterToken override over the computed default', () => {
+    const mockCompute = computeMasterToken as jest.MockedFunction<typeof computeMasterToken>;
+    mockCompute.mockReturnValue('computed-default');
+    const { createRelaySession } = jest.requireMock('@lib/relayTransport') as {
+      createRelaySession: jest.Mock;
+    };
+    createRelaySession.mockClear();
+    useLobbyStore.getState().hostLobby('Alice', 'explicit-token');
+    const opts = createRelaySession.mock.calls[0][0] as { masterToken?: string };
+    expect(opts.masterToken).toBe('explicit-token');
   });
 });
