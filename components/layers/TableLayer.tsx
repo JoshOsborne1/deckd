@@ -1,7 +1,7 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Animated from 'react-native-reanimated';
-import { ChevronLeft, Clock, Menu, Shuffle } from 'lucide-react-native';
+import { ChevronLeft, Clock, Flag, Menu, Shuffle } from 'lucide-react-native';
 import { AvatarPlaceholder } from '@components/AvatarPlaceholder';
 import { CardButton } from '@components/CardButton';
 import { CardSection } from '@components/CardSection';
@@ -67,6 +67,7 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
   const flipCard = useGameStore((s) => s.flipCard);
   const moveCard = useGameStore((s) => s.moveCard);
   const endTurn = useGameStore((s) => s.endTurn);
+  const endSession = useGameStore((s) => s.endSession);
   const dispatch = useGameStore((s) => s.dispatch);
   const reorderHand = useGameStore((s) => s.reorderHand);
 
@@ -177,6 +178,11 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
     haptic('light');
     setHistoryOpen(true);
   }, [haptic]);
+
+  const handleEndSession = useCallback(() => {
+    haptic('heavy');
+    endSession(viewerId ?? undefined);
+  }, [haptic, endSession, viewerId]);
 
   const handleBackToHub = useCallback(() => {
     haptic('light');
@@ -320,6 +326,29 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
         )}
       </View>
 
+      {/* Ended banner */}
+      {state.phase === 'ended' && (
+        <View style={styles.endedBanner} pointerEvents="box-none">
+          <View style={styles.endedCard}>
+            <Text style={styles.endedEyebrow}>SESSION OVER</Text>
+            <Text style={styles.endedTitle}>
+              {state.winnerId
+                ? `${state.players.find((p) => p.id === state.winnerId)?.name ?? 'Winner'} takes the table`
+                : 'Table cleared'}
+            </Text>
+            <CardButton
+              variant="primary"
+              size="md"
+              haptic="medium"
+              onPress={() => setViewMode('hub')}
+              style={styles.endedCta}
+            >
+              <Text style={styles.endedCtaText}>Back to setup</Text>
+            </CardButton>
+          </View>
+        </View>
+      )}
+
       {/* Action bar */}
       <View style={[styles.actionBar, { marginBottom: bottomInset > 0 ? 0 : space.lg }]}>
         <Pressable
@@ -363,6 +392,15 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
         >
           <Clock size={20} color={colors.inkMuted} />
         </Pressable>
+
+        {isHost && (
+          <Pressable
+            onPress={handleEndSession}
+            style={({ pressed }) => [styles.iconBtn, pressed && { opacity: 0.85 }]}
+          >
+            <Flag size={20} color={colors.brand} />
+          </Pressable>
+        )}
       </View>
 
       {/* Local hand */}
@@ -538,6 +576,44 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: space.xl,
     paddingTop: space.md,
+  },
+  endedBanner: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: '30%',
+    alignItems: 'center',
+    zIndex: 50,
+  },
+  endedCard: {
+    backgroundColor: colors.surface,
+    borderRadius: radii.lg,
+    paddingHorizontal: space.xxl,
+    paddingVertical: space.xl,
+    alignItems: 'center',
+    ...shadow.ctaLift,
+  },
+  endedEyebrow: {
+    fontSize: fontSizes.micro,
+    fontFamily: fonts.bold,
+    color: colors.brand,
+    letterSpacing: letterSpacing.caps,
+    marginBottom: space.xs,
+  },
+  endedTitle: {
+    fontSize: fontSizes.h3,
+    fontFamily: fonts.extra,
+    color: colors.ink,
+    textAlign: 'center',
+    marginBottom: space.lg,
+  },
+  endedCta: {
+    alignSelf: 'stretch',
+  },
+  endedCtaText: {
+    color: colors.surface,
+    fontSize: fontSizes.small + 1,
+    fontFamily: fonts.bold,
   },
   iconBtn: {
     width: 48,

@@ -91,6 +91,22 @@ function CardBackFace({ back, spec }: { back: PlayingCardBack; spec: SizeSpec })
     <View style={[styles.backFill, { backgroundColor: style.base, borderRadius: spec.radius }]}>
       <View style={[styles.backInset, { borderColor: style.rings[2] ?? alpha.whiteOverlay20, borderRadius: Math.max(2, spec.radius - 3) }]} />
       <View style={[styles.backDiagonal, { backgroundColor: style.accent }]} />
+      {/* Diamond lattice pattern */}
+      <View style={styles.backLattice}>
+        {Array.from({ length: 4 }).map((_, r) => (
+          <View key={r} style={styles.backLatticeRow}>
+            {Array.from({ length: 4 }).map((_, c) => (
+              <View
+                key={c}
+                style={[
+                  styles.backLatticeCell,
+                  { borderColor: style.rings[2] ?? alpha.whiteOverlay20 },
+                ]}
+              />
+            ))}
+          </View>
+        ))}
+      </View>
       <Image
         source={brand.logo}
         resizeMode="contain"
@@ -283,6 +299,26 @@ const styles = StyleSheet.create({
     height: '26%',
     opacity: 0.28,
     transform: [{ rotate: '-18deg' }],
+  },
+  backLattice: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
+    padding: 10,
+    justifyContent: 'space-between',
+    opacity: 0.22,
+  },
+  backLatticeRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  backLatticeCell: {
+    width: 8,
+    height: 8,
+    borderWidth: 1,
+    transform: [{ rotate: '45deg' }],
   },
   cornerTop: {
     alignItems: 'flex-start',

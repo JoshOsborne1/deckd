@@ -127,10 +127,20 @@ export default function Surface() {
 function FeltBackground() {
   const themeId = useCosmeticsStore((s) => s.equippedTableThemeId);
   const tableTheme = findTableThemeById(themeId);
+  const base = tableTheme?.surfaceBase ?? colors.bg;
+  const rail = tableTheme?.railColor ?? alpha.inkOverlay12;
+  const well = tableTheme?.wellColor ?? alpha.brand10;
   return (
-    <View style={[styles.felt, { backgroundColor: tableTheme?.surfaceBase ?? colors.bg }]} pointerEvents="none">
-      <View style={[styles.tableRail, { borderColor: tableTheme?.railColor ?? alpha.inkOverlay12 }]} />
-      <View style={[styles.tableWell, { backgroundColor: tableTheme?.wellColor ?? alpha.brand10 }]} />
+    <View style={[styles.felt, { backgroundColor: base }]} pointerEvents="none">
+      {/* Radial light from the centre of the table */}
+      <View style={[styles.feltGlow, { backgroundColor: well }]} />
+      {/* Rail ring */}
+      <View style={[styles.tableRail, { borderColor: rail }]} />
+      {/* Inner well */}
+      <View style={[styles.tableWell, { backgroundColor: well }]} />
+      {/* Weave texture: fine horizontal + vertical hairlines */}
+      <View style={styles.weaveH} />
+      <View style={styles.weaveV} />
       <View style={styles.feltVignetteTop} />
       <View style={styles.feltVignetteBottom} />
     </View>
@@ -144,6 +154,15 @@ const styles = StyleSheet.create({
   },
   felt: {
     ...StyleSheet.absoluteFill,
+  },
+  feltGlow: {
+    position: 'absolute',
+    left: '12%',
+    right: '12%',
+    top: '18%',
+    height: '64%',
+    borderRadius: 999,
+    opacity: 0.5,
   },
   tableRail: {
     position: 'absolute',
@@ -163,6 +182,30 @@ const styles = StyleSheet.create({
     height: '34%',
     borderRadius: 190,
     opacity: 0.34,
+  },
+  weaveH: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
+    opacity: 0.05,
+    backgroundColor: 'transparent',
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderColor: '#FFFFFF',
+  },
+  weaveV: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
+    opacity: 0.04,
+    backgroundColor: 'transparent',
+    borderLeftWidth: StyleSheet.hairlineWidth,
+    borderRightWidth: StyleSheet.hairlineWidth,
+    borderColor: '#000000',
   },
   feltVignetteTop: {
     position: 'absolute',
