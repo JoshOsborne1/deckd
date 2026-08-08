@@ -23,6 +23,7 @@
 
 import type { GameEvent } from '@engine/events';
 import type { CardId, ZoneId, CardFace, PlayerId } from '@engine/types';
+import { handZoneId, tableZoneId } from '@engine/types';
 import { useGameStore } from '@store/gameStore';
 import { useLobbyStore } from '@store/lobbyStore';
 import { selectBroadcastDelta } from '@store/syncLogic';
@@ -111,6 +112,16 @@ function applyGuestAction(
     face?: CardFace;
   };
 
+  // A guest may only touch cards in zones they own (hand:<id> or table:<id>).
+  // This is the privacy gate: without it a guest could flip another player's
+  // hidden card or move cards out of someone else's hand.
+  const card = p.cardId ? game.state.cards[p.cardId] : undefined;
+  const ownsCard = (): boolean => {
+    if (!card) return false;
+    const z = card.zoneId;
+    return z === handZoneId(playerId) || z === tableZoneId(playerId);
+  };
+
   switch (intent) {
     case 'draw_card': {
       // Guest draws the top card to their hand.
@@ -123,12 +134,18 @@ function applyGuestAction(
       break;
     }
     case 'move_card': {
+      // Only the current turn holder may move, and only their own cards.
+      if (game.state.currentPlayerId !== playerId) return;
       if (!p.cardId || !p.toZoneId) return;
+      if (!ownsCard()) return;
       game.moveCard(p.cardId, p.toZoneId, p.face);
       break;
     }
     case 'flip_card': {
+      // Flipping is only allowed on your own cards (privacy: never reveal
+      // another player's hidden card).
       if (!p.cardId) return;
+      if (!ownsCard()) return;
       game.flipCard(p.cardId);
       break;
     }

@@ -310,4 +310,50 @@ describe('multiplayerBridge', () => {
     expect(guestDiscard!.id).toBe(drawTop);
     expect(guestDiscard!.face).toBe('up');
   });
+
+  it('privacy gate: guest cannot flip another player hidden card', () => {
+    installMultiplayerBridge();
+
+    useLobbyStore.getState().hostLobby('Alice');
+    const hostSession = useLobbyStore.getState().session!;
+    const hostCid = useLobbyStore.getState().localClientId;
+    hostCallbacks.onOpen?.(hostSession);
+    hostCallbacks.onPlayersChanged?.([
+      { clientId: hostCid, nickname: 'Alice', isHost: true, joinedAt: 1 },
+      { clientId: 'guest-cid', nickname: 'Bob', isHost: false, joinedAt: 2 },
+    ]);
+
+    useGameStore.getState().createSession({
+      mode: 'online-host',
+      presetId: 'freeplay',
+      players: [
+        { id: hostCid, name: 'Alice', avatarSeed: hostCid },
+        { id: 'guest-cid', name: 'Bob', avatarSeed: 'guest-cid' },
+      ],
+      config: { includeJokers: false, fanStyle: 'wide' },
+      hostId: hostCid,
+    });
+
+    // Deal a card into the HOST's hand — hidden from the guest.
+    const drawTop = useGameStore.getState().state.zones[ZONE_DRAW]!.cardIds[0]!;
+    useGameStore.getState().dealCard(drawTop, handZoneId(hostCid), 'down');
+    const hostHand = useGameStore.getState().state.zones[handZoneId(hostCid)]!;
+    expect(hostHand.cardIds.length).toBeGreaterThan(0);
+    const hostCardId = hostHand.cardIds[0]!;
+    const faceBefore = useGameStore.getState().state.cards[hostCardId]!.face;
+
+    hostSentEvents = [];
+
+    // Malicious guest tries to flip the host's hidden card.
+    hostCallbacks.onIntentReceived?.(
+      'flip_card',
+      { cardId: hostCardId },
+      'guest-cid',
+    );
+
+    // The card must be untouched and nothing broadcast.
+    const faceAfter = useGameStore.getState().state.cards[hostCardId]!.face;
+    expect(faceAfter).toBe(faceBefore);
+    expect(hostSentEvents).toHaveLength(0);
+  });
 });
