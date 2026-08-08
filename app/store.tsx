@@ -109,7 +109,7 @@ export default function StoreScreen() {
             variant="secondary"
             size="md"
             haptic={buttonHaptic}
-            onPress={showPlaceholder}
+            onPress={() => showPlaceholder('deckd_master')}
             style={styles.heroCta}
             innerStyle={{ backgroundColor: alpha.whiteOverlay20, borderColor: 'transparent' }}
           >
