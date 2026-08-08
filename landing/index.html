@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Deckd — The card table in your pocket</title>
+  <meta name="description" content="One phone, one deck, everyone plays. Pass & play card games with friends, or host a lobby and they join free from anywhere." />
+  <link rel="icon" type="image/png" href="./favicon.png" />
+  <style>
+    :root {
+      --bg: #FAF7F2;
+      --surface: #FFFFFF;
+      --ink: #1A1A1A;
+      --ink-muted: #5C5C5C;
+      --brand: #B02020;
+      --brand-dark: #901A1A;
+      --border: #E8E2D8;
+      --radius: 16px;
+      --shadow: 0 8px 24px rgba(26, 26, 26, 0.08);
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html { -webkit-text-size-adjust: 100%; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--ink);
+      line-height: 1.5;
+    }
+    .wrap { max-width: 640px; margin: 0 auto; padding: 0 20px; }
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 20px 0;
+    }
+    .logo { font-weight: 800; font-size: 22px; letter-spacing: -0.5px; }
+    .logo span { color: var(--brand); }
+    .store-link { font-size: 14px; font-weight: 600; color: var(--brand); text-decoration: none; }
+    .hero { text-align: center; padding: 48px 0 40px; }
+    .hero h1 { font-size: 40px; line-height: 1.1; letter-spacing: -1px; font-weight: 800; }
+    .hero p { margin-top: 16px; font-size: 17px; color: var(--ink-muted); }
+    .cta-row { display: flex; flex-direction: column; gap: 12px; margin-top: 28px; }
+    .cta {
+      display: block;
+      text-align: center;
+      padding: 16px 24px;
+      border-radius: var(--radius);
+      font-size: 16px;
+      font-weight: 700;
+      text-decoration: none;
+      background: var(--brand);
+      color: #fff;
+      box-shadow: var(--shadow);
+    }
+    .cta.secondary { background: var(--surface); color: var(--ink); border: 1px solid var(--border); box-shadow: none; }
+    .card-preview {
+      margin: 40px auto 0;
+      width: 120px;
+      height: 170px;
+      border-radius: 12px;
+      background: var(--brand);
+      position: relative;
+      box-shadow: var(--shadow);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .card-preview::before {
+      content: "";
+      position: absolute;
+      inset: 8px;
+      border: 1px solid rgba(255,255,255,0.35);
+      border-radius: 8px;
+    }
+    .card-preview::after {
+      content: "D";
+      font-size: 48px;
+      font-weight: 800;
+      color: rgba(255,255,255,0.85);
+    }
+    .pillars { padding: 40px 0; display: flex; flex-direction: column; gap: 16px; }
+    .pillar {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px;
+      box-shadow: var(--shadow);
+    }
+    .pillar h3 { font-size: 18px; font-weight: 700; margin-bottom: 6px; }
+    .pillar p { font-size: 15px; color: var(--ink-muted); }
+    .faq { padding: 24px 0 48px; }
+    .faq h2 { font-size: 24px; font-weight: 800; margin-bottom: 16px; }
+    .faq-item { border-bottom: 1px solid var(--border); padding: 14px 0; }
+    .faq-item h4 { font-size: 15px; font-weight: 700; }
+    .faq-item p { font-size: 14px; color: var(--ink-muted); margin-top: 4px; }
+    footer { text-align: center; padding: 24px 0 40px; font-size: 13px; color: var(--ink-muted); }
+    @media (min-width: 640px) {
+      .hero h1 { font-size: 52px; }
+      .cta-row { flex-direction: row; justify-content: center; }
+      .cta { min-width: 200px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div class="logo">Deck<span>d</span></div>
+      <a class="store-link" href="#get">Get the app</a>
+    </header>
+
+    <section class="hero">
+      <h1>The card table in your pocket.</h1>
+      <p>One phone, one deck, everyone plays. Pass &amp; play with friends, or host a lobby and they join free from anywhere.</p>
+      <div class="card-preview" aria-hidden="true"></div>
+      <div class="cta-row">
+        <a class="cta" href="#get">Get Deckd</a>
+        <a class="cta secondary" href="#how">How it works</a>
+      </div>
+    </section>
+
+    <section class="pillars" id="how">
+      <div class="pillar">
+        <h3>Pass &amp; play</h3>
+        <p>One phone, one deck, everyone plays. The privacy veil keeps every hand secret until it's your turn. Perfect for a pub table, a sofa, or a long train ride.</p>
+      </div>
+      <div class="pillar">
+        <h3>Host a lobby</h3>
+        <p>A Deckd Master hosts and gets a room code. Friends join free from their own phones, wherever they are. No accounts, no waiting for downloads.</p>
+      </div>
+      <div class="pillar">
+        <h3>Your table</h3>
+        <p>Pick a preset or deal it your way. Freeplay, deal two each, blackjack-style, poker-style. Custom card backs and table felts.</p>
+      </div>
+    </section>
+
+    <section class="faq">
+      <h2>Questions</h2>
+      <div class="faq-item">
+        <h4>Do guests need to pay?</h4>
+        <p>No. Only the host needs a Master pass. One Master brings the whole table.</p>
+      </div>
+      <div class="faq-item">
+        <h4>Do we need accounts?</h4>
+        <p>No. Join with a code. That's it.</p>
+      </div>
+      <div class="faq-item">
+        <h4>Does it work offline?</h4>
+        <p>Pass &amp; play works fully offline. Lobbies need a connection.</p>
+      </div>
+      <div class="faq-item">
+        <h4>How many players?</h4>
+        <p>2-6 pass &amp; play on one phone, up to 8 in a lobby.</p>
+      </div>
+    </section>
+
+    <section id="get" style="text-align:center; padding-bottom: 24px;">
+      <a class="cta" href="#" style="max-width: 320px; margin: 0 auto;">Get Deckd</a>
+      <p style="margin-top: 12px; font-size: 13px; color: var(--ink-muted);">App Store and Google Play links land at launch.</p>
+    </section>
+
+    <footer>Deckd &copy; 2026. No ads, no tracking, no accounts.</footer>
+  </div>
+</body>
+</html>
