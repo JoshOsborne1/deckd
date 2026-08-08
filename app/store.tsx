@@ -24,7 +24,7 @@ interface StoreItem {
 const CATALOGUE_ITEMS: StoreItem[] = BUILTIN_CARD_BACKS.map((back) => ({
   id: back.id,
   title: back.name,
-  price: back.unlockedByDefault ? 'FREE' : '$1.99',
+  price: back.unlockedByDefault ? 'FREE' : '£1.99',
   back: back.id,
   tint: back.palette?.[0] ?? alpha.brand20,
 }));
@@ -32,15 +32,15 @@ const CATALOGUE_ITEMS: StoreItem[] = BUILTIN_CARD_BACKS.map((back) => ({
 const TABLE_THEME_ITEMS = BUILTIN_TABLE_THEMES.map((theme) => ({
   id: theme.id,
   title: theme.name,
-  price: theme.unlockedByDefault ? 'FREE' : '$2.99',
+  price: theme.unlockedByDefault ? 'FREE' : '£2.99',
   theme,
 }));
 
 const BUNDLES = [
-  { id: 'deal-pass', title: 'Deal Pass', summary: 'Host lobbies for 24 hours', price: '£0.99' },
-  { id: 'draw-pass', title: 'Draw Pass', summary: 'Host lobbies for 3 days', price: '£2.99' },
-  { id: 'shuffle-pass', title: 'Shuffle Pass', summary: 'Host lobbies for 30 days', price: '£5.99' },
-  { id: 'master-pass', title: 'Master Pass', summary: 'Host lobbies forever', price: '£24.99' },
+  { id: 'deckd_pass_deal', title: 'Deal Pass', summary: 'Host lobbies for 24 hours', price: '£0.99' },
+  { id: 'deckd_pass_draw', title: 'Draw Pass', summary: 'Host lobbies for 3 days', price: '£2.99' },
+  { id: 'deckd_pass_shuffle', title: 'Shuffle Pass', summary: 'Host lobbies for 30 days', price: '£5.99' },
+  { id: 'deckd_master', title: 'Master Pass', summary: 'Host lobbies forever', price: '£24.99' },
 ];
 
 export default function StoreScreen() {
@@ -60,13 +60,13 @@ export default function StoreScreen() {
   const [previewBack, setPreviewBack] = useState<string | null>(null);
   const [previewFace, setPreviewFace] = useState<'up' | 'down'>('down');
 
-  const showPlaceholder = async () => {
+  const showPlaceholder = async (productId: string) => {
     if (!isIapConfigured()) {
       Alert.alert('Store', 'In-app purchases are not configured yet. Add RevenueCat keys in app.json extra.');
       return;
     }
     try {
-      await purchaseProduct('deckd_master');
+      await purchaseProduct(productId);
     } catch (e) {
       Alert.alert('Store', e instanceof Error ? e.message : 'Purchase failed');
     }
@@ -221,7 +221,7 @@ export default function StoreScreen() {
                   size="sm"
                   elevated={false}
                   haptic={buttonHaptic}
-                  onPress={showPlaceholder}
+                  onPress={() => showPlaceholder(bundle.id)}
                   style={styles.bundleButton}
                 >
                   <Text style={styles.bundleButtonLabel}>Get pass</Text>
