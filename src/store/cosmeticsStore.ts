@@ -16,13 +16,13 @@ const DEFAULT_DECK_ID = 'deck-standard-52';
 export interface CosmeticsState extends RuntimeVisualConfig {
   ownedBackIds: string[];
   ownedTableThemeIds: string[];
-  hasDeckdPlus: boolean;
+  hasMasterPass: boolean;
 
   equipBack: (backId: string) => boolean;
   equipTableTheme: (themeId: string) => boolean;
   unlockBack: (backId: string) => void;
   unlockTableTheme: (themeId: string) => void;
-  setDeckdPlus: (enabled: boolean) => void;
+  setMasterPass: (enabled: boolean) => void;
   resetCosmetics: () => void;
 }
 
@@ -36,7 +36,7 @@ function defaultOwnedThemes(): string[] {
 
 function defaultCosmetics(): Pick<
   CosmeticsState,
-  'equippedBackId' | 'equippedTableThemeId' | 'equippedDeckId' | 'ownedBackIds' | 'ownedTableThemeIds' | 'hasDeckdPlus'
+  'equippedBackId' | 'equippedTableThemeId' | 'equippedDeckId' | 'ownedBackIds' | 'ownedTableThemeIds' | 'hasMasterPass'
 > {
   return {
     equippedBackId: DEFAULT_BACK_ID,
@@ -44,7 +44,7 @@ function defaultCosmetics(): Pick<
     equippedDeckId: DEFAULT_DECK_ID,
     ownedBackIds: defaultOwnedBacks(),
     ownedTableThemeIds: defaultOwnedThemes(),
-    hasDeckdPlus: false,
+    hasMasterPass: false,
   };
 }
 
@@ -75,7 +75,7 @@ export const useCosmeticsStore = create<CosmeticsState>()(
         if (!findTableThemeById(themeId)) return;
         set((s) => ({ ownedTableThemeIds: unique([...s.ownedTableThemeIds, themeId]) }));
       },
-      setDeckdPlus: (enabled) => set({ hasDeckdPlus: enabled }),
+      setMasterPass: (enabled) => set({ hasMasterPass: enabled }),
       resetCosmetics: () => set(defaultCosmetics()),
     }),
     {
@@ -88,7 +88,7 @@ export const useCosmeticsStore = create<CosmeticsState>()(
         equippedDeckId: s.equippedDeckId,
         ownedBackIds: s.ownedBackIds,
         ownedTableThemeIds: s.ownedTableThemeIds,
-        hasDeckdPlus: s.hasDeckdPlus,
+        hasMasterPass: s.hasMasterPass,
       }),
       migrate: (persisted): ReturnType<typeof defaultCosmetics> => {
         const next = defaultCosmetics();
@@ -108,7 +108,7 @@ export const useCosmeticsStore = create<CosmeticsState>()(
           equippedDeckId: old.equippedDeckId ?? DEFAULT_DECK_ID,
           ownedBackIds,
           ownedTableThemeIds,
-          hasDeckdPlus: old.hasDeckdPlus ?? false,
+          hasMasterPass: old.hasMasterPass ?? false,
         };
       },
     },

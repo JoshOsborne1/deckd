@@ -27,7 +27,6 @@
     "build:android-preview": "eas build --platform android --profile preview"
   },
   "dependencies": {
-    "deckd-ble": "file:./modules/deckd-ble",
     "expo": "^57.0.0",
     "expo-asset": "~57.0.9",
     "expo-audio": "~57.0.3",
@@ -45,7 +44,6 @@
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "react-native": "0.86.2",
-    "react-native-ble-plx": "^3.5.1",
     "react-native-gesture-handler": "~2.32.0",
     "react-native-mmkv": "^4.3.0",
     "react-native-purchases": "^10.0.1",

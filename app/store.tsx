@@ -62,7 +62,7 @@ export default function StoreScreen() {
 
   const showPlaceholder = async () => {
     if (!isIapConfigured()) {
-      Alert.alert('Store', 'In-app purchases are not configured yet. See MONETIZATION.md.');
+      Alert.alert('Store', 'In-app purchases are not configured yet. Add RevenueCat keys in app.json extra.');
       return;
     }
     try {
@@ -224,7 +224,7 @@ export default function StoreScreen() {
                   onPress={showPlaceholder}
                   style={styles.bundleButton}
                 >
-                  <Text style={styles.bundleButtonLabel}>View bundle</Text>
+                  <Text style={styles.bundleButtonLabel}>Get pass</Text>
                 </CardButton>
               </CardSection>
             ))}

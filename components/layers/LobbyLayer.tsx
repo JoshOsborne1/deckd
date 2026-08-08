@@ -1,14 +1,15 @@
-import React, { useCallback, useEffect } from 'react';
-import { Alert, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
+import React, { useCallback, useEffect, useState } from 'react';
+import { Alert, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import Animated from 'react-native-reanimated';
-import { ChevronLeft, Radio, Search, Square } from 'lucide-react-native';
+import { ChevronLeft, Copy, Crown, Radio, Users } from 'lucide-react-native';
 import { CardButton } from '@components/CardButton';
 import { CardSection } from '@components/CardSection';
 import { useLayerSurfaceEntrance } from '@hooks/useLayerSurfaceEntrance';
 import { useMotion } from '@hooks/useMotion';
-import { useBleStore } from '@store/bleStore';
 import { useUiStore } from '@store/uiStore';
-import { alpha, colors, fonts, letterSpacing, shadow, space } from '@theme';
+import { useProfileStore } from '@store/profileStore';
+import { useCosmeticsStore } from '@store/cosmeticsStore';
+import { alpha, colors, fonts, letterSpacing, radii, shadow, space } from '@theme';
 
 interface LobbyLayerProps {
   active: boolean;
@@ -16,46 +17,74 @@ interface LobbyLayerProps {
   bottomInset: number;
 }
 
+type LobbyScreen = 'landing' | 'create' | 'join' | 'room';
+
 /**
- * BLE lobby — central scan via `react-native-ble-plx` + `bleStore`.
- * Peripheral host mode remains Phase 5 (native module).
+ * Multiplayer lobby — cloud relay rooms.
+ * Hosting requires a Deckd Master pass; guests join free with a code.
+ * The relay transport lands in a later slice; this UI is the full flow.
  */
 export function LobbyLayer({ active, topInset, bottomInset }: LobbyLayerProps) {
   const { haptic } = useMotion();
   const setViewMode = useUiStore((s) => s.setViewMode);
+  const nickname = useProfileStore((s) => s.nickname);
+  const hasMasterPass = useCosmeticsStore((s) => s.hasMasterPass);
 
-  const attach = useBleStore((s) => s.attach);
-  const connectionState = useBleStore((s) => s.connectionState);
-  const devices = useBleStore((s) => s.devices);
-  const lastError = useBleStore((s) => s.lastError);
-  const startScan = useBleStore((s) => s.startScan);
-  const stopScan = useBleStore((s) => s.stopScan);
-  const clearError = useBleStore((s) => s.clearError);
-
-  useEffect(() => {
-    if (!active) return;
-    attach();
-  }, [active, attach]);
-
-  const startScanSafe = useCallback(async () => {
-    haptic('medium');
-    clearError();
-    try {
-      await startScan();
-    } catch {
-      haptic('error');
-    }
-  }, [haptic, clearError, startScan]);
-
-  const stopScanSafe = useCallback(() => {
-    haptic('light');
-    stopScan();
-  }, [haptic, stopScan]);
+  const [screen, setScreen] = useState<LobbyScreen>('landing');
+  const [joinCode, setJoinCode] = useState('');
+  const [roomCode, setRoomCode] = useState('');
 
   const surfaceStyle = useLayerSurfaceEntrance(active);
 
-  const scanning = connectionState === 'scanning';
-  const centralReady = Platform.OS !== 'web';
+  const goHome = useCallback(() => {
+    haptic('light');
+    setViewMode('home');
+  }, [haptic, setViewMode]);
+
+  const handleCreate = useCallback(() => {
+    haptic('medium');
+    if (!hasMasterPass) {
+      Alert.alert(
+        'Deckd Master required',
+        'Hosting a lobby needs a Deckd Master pass. Guests always join free.',
+        [
+          { text: 'Not now', style: 'cancel' },
+          { text: 'View passes', onPress: () => setViewMode('home') },
+        ],
+      );
+      return;
+    }
+    // Relay server slice: create room, get code.
+    setRoomCode('ABCDEF');
+    setScreen('room');
+  }, [haptic, hasMasterPass, setViewMode]);
+
+  const handleJoin = useCallback(() => {
+    haptic('medium');
+    if (joinCode.trim().length < 4) {
+      Alert.alert('Join code', 'Enter the code from the host.');
+      return;
+    }
+    // Relay server slice: join room, receive snapshot.
+    setRoomCode(joinCode.trim().toUpperCase());
+    setScreen('room');
+  }, [haptic, joinCode]);
+
+  const copyCode = useCallback(() => {
+    haptic('light');
+    // Clipboard lands with the relay slice; for now just confirm.
+    Alert.alert('Room code', `${roomCode} — share it with your friends.`);
+  }, [haptic, roomCode]);
+
+  useEffect(() => {
+    if (!active) return;
+    // Reset transient lobby state when the layer becomes active.
+    const t = setTimeout(() => {
+      setScreen('landing');
+      setJoinCode('');
+    }, 0);
+    return () => clearTimeout(t);
+  }, [active]);
 
   return (
     <Animated.View
@@ -72,13 +101,13 @@ export function LobbyLayer({ active, topInset, bottomInset }: LobbyLayerProps) {
           size="sm"
           elevated={false}
           haptic="light"
-          onPress={() => setViewMode('home')}
+          onPress={goHome}
           style={styles.backChip}
         >
           <ChevronLeft size={18} color={colors.inkMuted} />
           <Text style={styles.backText}>Home</Text>
         </CardButton>
-        <Text style={styles.eyebrow}>DEAL · BLE LOBBY</Text>
+        <Text style={styles.eyebrow}>MULTIPLAYER</Text>
       </View>
 
       <ScrollView
@@ -86,94 +115,135 @@ export function LobbyLayer({ active, topInset, bottomInset }: LobbyLayerProps) {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.pulseWrap}>
-          <Radio size={48} color={colors.brand} />
-        </View>
-        <Text style={styles.title}>Nearby tables</Text>
-        <Text style={styles.copy}>
-          Scan finds hosts advertising a Deckd-compatible name prefix. Full offline host mode
-          (peripheral + GATT server) ships with the iOS native module in Phase 5.
-        </Text>
-
-        <CardSection variant="ghost" style={styles.statusCard} tab>
-          <Text style={styles.statusEyebrow}>TRANSPORT</Text>
-          <Text style={styles.statusRow}>
-            Central (scan / connect) · {centralReady ? 'ready' : 'n/a on this platform'}
-          </Text>
-          <Text style={styles.statusRow}>Peripheral (advertise as host) · native module pending</Text>
-          <Text style={[styles.statusRow, { marginTop: space.sm }]}>
-            State:{' '}
-            <Text style={styles.statusEmph}>{connectionState}</Text>
-          </Text>
-        </CardSection>
-
-        {lastError ? (
-          <CardSection variant="ghost" style={styles.errorCard}>
-            <Text style={styles.errorEyebrow}>LAST ERROR</Text>
-            <Text style={styles.errorText}>{lastError}</Text>
-          </CardSection>
-        ) : null}
-
-        <View style={styles.actions}>
-          <CardButton
-            variant="primary"
-            size="md"
-            haptic="select"
-            onPress={scanning ? stopScanSafe : startScanSafe}
-            style={styles.scanBtn}
-          >
-            <Search size={18} color={colors.surface} style={{ marginRight: space.sm }} />
-            <Text style={styles.scanBtnText}>{scanning ? 'Stop scan' : 'Scan for hosts'}</Text>
-          </CardButton>
-
-          <CardButton
-            variant="secondary"
-            size="md"
-            haptic="light"
-            onPress={() =>
-              Alert.alert(
-                'Host this table',
-                'Advertising as a BLE peripheral requires the Deckd native module (Phase 5). Until then, use Pass & Play on one device.',
-              )
-            }
-            style={styles.hostBtn}
-          >
-            <Square size={18} color={colors.ink} style={{ marginRight: space.sm }} />
-            <Text style={styles.hostBtnText}>Host (BLE) — Phase 5</Text>
-          </CardButton>
-        </View>
-
-        <CardSection variant="surface" padded style={styles.listCard}>
-          <Text style={styles.listEyebrow}>DISCOVERED ({devices.length})</Text>
-          {devices.length === 0 ? (
-            <Text style={styles.listEmpty}>
-              {scanning
-                ? 'Listening… move devices closer or start a scan on another phone running Deckd.'
-                : 'Tap Scan for hosts to search for Deckd-Host-* advertisements.'}
+        {screen === 'landing' && (
+          <>
+            <View style={styles.pulseWrap}>
+              <Users size={48} color={colors.brand} />
+            </View>
+            <Text style={styles.title}>Play with friends</Text>
+            <Text style={styles.copy}>
+              One Master hosts the table. Everyone else joins free with a code, from anywhere.
             </Text>
-          ) : (
-            devices.map((d) => (
-              <View key={d.id} style={styles.deviceRow}>
-                <Text style={styles.deviceName} numberOfLines={1}>
-                  {d.label}
-                </Text>
-                <Text style={styles.deviceId} numberOfLines={1}>
-                  {d.id}
-                </Text>
-              </View>
-            ))
-          )}
-        </CardSection>
 
-        <CardButton
-          variant="primary"
-          size="lg"
-          haptic="medium"
-          onPress={() => setViewMode('hub')}
-          style={styles.fallback}
-        >
-          <Text style={styles.fallbackText}>Play locally for now</Text>
-        </CardButton>
+            <View style={styles.actions}>
+              <CardButton
+                variant="primary"
+                size="md"
+                haptic="select"
+                onPress={handleCreate}
+                style={styles.fullBtn}
+              >
+                <Crown size={18} color={colors.surface} style={{ marginRight: space.sm }} />
+                <Text style={styles.primaryBtnText}>Host a lobby</Text>
+              </CardButton>
+
+              <CardButton
+                variant="secondary"
+                size="md"
+                haptic="light"
+                onPress={() => setScreen('join')}
+                style={styles.fullBtn}
+              >
+                <Radio size={18} color={colors.ink} style={{ marginRight: space.sm }} />
+                <Text style={styles.secondaryBtnText}>Join with a code</Text>
+              </CardButton>
+            </View>
+
+            {!hasMasterPass && (
+              <CardSection variant="ghost" style={styles.masterCard} tab>
+                <Text style={styles.masterEyebrow}>DECKD MASTER</Text>
+                <Text style={styles.masterCopy}>
+                  Hosting needs a Master pass. Guests always join free.
+                </Text>
+              </CardSection>
+            )}
+          </>
+        )}
+
+        {screen === 'create' && (
+          <>
+            <Text style={styles.title}>Host a lobby</Text>
+            <Text style={styles.copy}>
+              You&apos;ll get a code to share. Friends join free from anywhere.
+            </Text>
+            <CardButton
+              variant="primary"
+              size="lg"
+              haptic="medium"
+              onPress={handleCreate}
+              style={styles.fullBtn}
+            >
+              <Text style={styles.primaryBtnText}>Create room</Text>
+            </CardButton>
+          </>
+        )}
+
+        {screen === 'join' && (
+          <>
+            <Text style={styles.title}>Join a lobby</Text>
+            <Text style={styles.copy}>Enter the code from the host.</Text>
+            <TextInput
+              value={joinCode}
+              onChangeText={(t) => setJoinCode(t.toUpperCase())}
+              placeholder="CODE"
+              placeholderTextColor={colors.inkSubtle}
+              autoCapitalize="characters"
+              autoCorrect={false}
+              maxLength={8}
+              style={styles.codeInput}
+            />
+            <CardButton
+              variant="primary"
+              size="lg"
+              haptic="medium"
+              onPress={handleJoin}
+              style={styles.fullBtn}
+            >
+              <Text style={styles.primaryBtnText}>Join room</Text>
+            </CardButton>
+          </>
+        )}
+
+        {screen === 'room' && (
+          <>
+            <Text style={styles.title}>Room ready</Text>
+            <Text style={styles.copy}>
+              {hasMasterPass ? 'You are the Master. Share the code.' : `Joined as ${nickname || 'Guest'}.`}
+            </Text>
+
+            <CardSection variant="surface" padded style={styles.codeCard}>
+              <Text style={styles.codeLabel}>ROOM CODE</Text>
+              <Text style={styles.codeValue}>{roomCode}</Text>
+              <CardButton
+                variant="ghost"
+                size="sm"
+                elevated={false}
+                haptic="light"
+                onPress={copyCode}
+                style={styles.copyBtn}
+              >
+                <Copy size={16} color={colors.inkMuted} style={{ marginRight: 6 }} />
+                <Text style={styles.copyBtnText}>Copy code</Text>
+              </CardButton>
+            </CardSection>
+
+            <CardSection variant="ghost" style={styles.statusCard} tab>
+              <Text style={styles.statusEyebrow}>ROOM</Text>
+              <Text style={styles.statusRow}>Players: 1 (you)</Text>
+              <Text style={styles.statusRow}>Relay: connecting…</Text>
+            </CardSection>
+
+            <CardButton
+              variant="primary"
+              size="lg"
+              haptic="medium"
+              onPress={() => setViewMode('hub')}
+              style={styles.fullBtn}
+            >
+              <Text style={styles.primaryBtnText}>Start the table</Text>
+            </CardButton>
+          </>
+        )}
       </ScrollView>
     </Animated.View>
   );
@@ -242,10 +312,85 @@ const styles = StyleSheet.create({
     fontFamily: fonts.regular,
     paddingHorizontal: space.lg,
   },
+  actions: {
+    width: '100%',
+    gap: space.md,
+    marginTop: space.md,
+  },
+  fullBtn: {
+    width: '100%',
+    flexDirection: 'row',
+    justifyContent: 'center',
+  },
+  primaryBtnText: {
+    color: colors.surface,
+    fontSize: 15,
+    fontFamily: fonts.bold,
+  },
+  secondaryBtnText: {
+    color: colors.ink,
+    fontSize: 14,
+    fontFamily: fonts.semibold,
+  },
+  masterCard: {
+    width: '100%',
+    borderColor: alpha.brand20,
+    borderWidth: 1,
+  },
+  masterEyebrow: {
+    fontSize: 10,
+    fontFamily: fonts.bold,
+    color: colors.brand,
+    letterSpacing: letterSpacing.caps,
+    marginBottom: space.xs,
+  },
+  masterCopy: {
+    fontSize: 13,
+    fontFamily: fonts.regular,
+    color: colors.inkMuted,
+    lineHeight: 19,
+  },
+  codeInput: {
+    width: '100%',
+    height: 56,
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
+    backgroundColor: colors.surface,
+    textAlign: 'center',
+    fontSize: 24,
+    fontFamily: fonts.bold,
+    letterSpacing: 6,
+    color: colors.ink,
+  },
+  codeCard: {
+    width: '100%',
+    alignItems: 'center',
+  },
+  codeLabel: {
+    fontSize: 10,
+    fontFamily: fonts.bold,
+    color: colors.inkSubtle,
+    letterSpacing: letterSpacing.caps,
+    marginBottom: space.sm,
+  },
+  codeValue: {
+    fontSize: 40,
+    fontFamily: fonts.extra,
+    color: colors.ink,
+    letterSpacing: 8,
+  },
+  copyBtn: {
+    marginTop: space.md,
+  },
+  copyBtnText: {
+    fontSize: 13,
+    fontFamily: fonts.semibold,
+    color: colors.inkMuted,
+  },
   statusCard: {
     width: '100%',
     padding: space.lg,
-    marginTop: space.md,
   },
   statusEyebrow: {
     fontSize: 11,
@@ -259,91 +404,6 @@ const styles = StyleSheet.create({
     fontFamily: fonts.regular,
     color: colors.inkSoft,
     marginBottom: 4,
-  },
-  statusEmph: {
-    fontFamily: fonts.bold,
-    color: colors.brand,
-  },
-  errorCard: {
-    width: '100%',
-    borderColor: alpha.brand20,
-    borderWidth: 1,
-  },
-  errorEyebrow: {
-    fontSize: 10,
-    fontFamily: fonts.bold,
-    color: colors.brand,
-    letterSpacing: letterSpacing.caps,
-    marginBottom: space.xs,
-  },
-  errorText: {
-    fontSize: 12,
-    fontFamily: fonts.regular,
-    color: colors.inkMuted,
-  },
-  actions: {
-    width: '100%',
-    gap: space.md,
-  },
-  scanBtn: {
-    width: '100%',
-    flexDirection: 'row',
-  },
-  scanBtnText: {
-    color: colors.surface,
-    fontSize: 15,
-    fontFamily: fonts.bold,
-  },
-  hostBtn: {
-    width: '100%',
-    flexDirection: 'row',
-  },
-  hostBtnText: {
-    color: colors.ink,
-    fontSize: 14,
-    fontFamily: fonts.semibold,
-  },
-  listCard: {
-    width: '100%',
-    alignSelf: 'stretch',
-  },
-  listEyebrow: {
-    fontSize: 11,
-    fontFamily: fonts.bold,
-    color: colors.inkSubtle,
-    letterSpacing: letterSpacing.caps,
-    marginBottom: space.md,
-  },
-  listEmpty: {
-    fontSize: 13,
-    fontFamily: fonts.regular,
-    color: colors.inkMuted,
-    lineHeight: 20,
-  },
-  deviceRow: {
-    paddingVertical: space.sm,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.border,
-  },
-  deviceName: {
-    fontSize: 15,
-    fontFamily: fonts.semibold,
-    color: colors.ink,
-  },
-  deviceId: {
-    fontSize: 11,
-    fontFamily: fonts.regular,
-    color: colors.inkSubtle,
-    marginTop: 2,
-  },
-  fallback: {
-    marginTop: space.lg,
-    width: '100%',
-  },
-  fallbackText: {
-    color: colors.surface,
-    fontSize: 15,
-    fontFamily: fonts.bold,
   },
 });
 
