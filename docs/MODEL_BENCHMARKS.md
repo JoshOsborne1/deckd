@@ -43,8 +43,9 @@ are as retrieved 2026-08-08. "OURS" = models on Josh's approved route table.
 
 ## Implications for deckd routing
 
-- Luna is the right builder lane: 93% agentic, $0.40/M, 1.1M ctx. Confirmed by two independent sources.
-- Kimi K3 is the surprise frontend king — if the per-token budget allows, route visual/UI polish through crof/kimi-k3, not just Luna. Sol's 1620 is close; K3's 1675 with 88.3 terminal makes it the strongest all-rounder after Sol on paper. Keep it UI/frontend-only per policy.
+- Luna is the right builder lane: 93% agentic, $0.40/M, 1.1M ctx. Confirmed by two independent sources. This includes UI/frontend: 1523 WebDev Arena vs Sol's 1620 is only ~6% behind at 1/25th of the price.
+- Kimi K3 tops WebDev Arena (1675) but is NOT in the pool: per-token, not available on Josh's plan, expensive. Do not route to it.
+- UI/visual work goes to Luna first. Sol only if Luna visibly fails on a task (Sol stays reserved for architecture/arbitration where it is genuinely 25x better).
 - GLM-5.2's LiveBench coding 79.7 confirms Josh's read: it is genuinely strong at UI & code. Weak spot: Terminal-Bench 2.1 24.5 — do NOT assign GLM unguided ops/deploy work; the T5 deploy card is heavily runbook-guided so it should hold, but if it fails, reassign to builder.
 - DeepSeek V4 Flash 0731: 82.7 terminal at $0.11/M — the token-brunt is a legit agentic worker; cheap lane for mechanical terminal work.
 - Sol remains reserved for serious intelligence; do not burn it on routine builds.

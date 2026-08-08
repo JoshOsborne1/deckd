@@ -6,12 +6,14 @@ Status: 2026-08-08. Product: pass & play (free) + multiplayer lobbies (Deckd Mas
 
 | Model | Role in this project |
 |---|---|
-| **Luna** (gpt-5.6-luna, Codex) | All UI/frontend build work, component work, animation code, store screens. This is the executor. |
-| **Sol** (gpt-5.6-sol, Codex) | Architecture decisions, multiplayer protocol design, final review of big slices. |
-| **DeepSeek V4 Flash** (default) | Chat, planning, docs, research, quick fixes, this roadmap. |
+| **Luna** (gpt-5.6-luna, Codex) | All UI/frontend build work, component work, animation code, store screens. This is the executor. Best value top tier: 93% agentic coding, 84.3 terminal at $0.40/M. |
+| **Sol** (gpt-5.6-sol, Codex) | Architecture decisions, multiplayer protocol design, final review of big slices. Reserved for serious intelligence, NOT routine UI (6% better than Luna on WebDev at 25x the price). |
+| **DeepSeek V4 Flash** (default) | Chat, planning, docs, research, quick fixes, this roadmap. Legit agentic worker (82.7 terminal) at $0.11/M. |
 | **Grok 4.5** | Market research, competitor analysis, app store copy research, pricing validation. |
-| **GLM-5.2** | Backup for chat/planning when DeepSeek has issues. |
+| **GLM-5.2** | Backup for chat/planning when DeepSeek has issues. Strong at pure code gen (79.7 LiveBench coding). Weak at unguided terminal work (24.5 Terminal-Bench) — keep ops runbook-guided or reassign to Luna. |
 | **Rive** (external tool) | Personified character animations. Not a model, but the animation runtime we adopt. |
+
+Kimi K3 is NOT in the pool (per-token, not available on our plan). UI ranking that matters: Luna first for price/quality, Sol only if Luna visibly fails.
 
 ## Category: UI
 
