@@ -56,6 +56,24 @@ function fillDrawZone(zones: Zone[], deckOrder: string[]): Zone[] {
   );
 }
 
+/**
+ * Fold initial deals into the zone layout so `session/start` materialises the
+ * dealt cards. Without this, dealt cards exist in no zone, `canApplyEvent`
+ * rejects the follow-up `card/deal` events, and presets silently deal nothing.
+ */
+function applyDealsToZones(zones: Zone[], deals: PresetSetupResult['initialDeals']): Zone[] {
+  const byZone = new Map<string, string[]>();
+  for (const deal of deals) {
+    const list = byZone.get(deal.toZoneId) ?? [];
+    list.push(deal.cardId);
+    byZone.set(deal.toZoneId, list);
+  }
+  return zones.map((zone) => {
+    const extra = byZone.get(zone.id);
+    return extra ? { ...zone, cardIds: [...zone.cardIds, ...extra] } : zone;
+  });
+}
+
 export const freeplayPreset: Preset = {
   id: 'freeplay',
   name: 'Freeplay',
@@ -90,7 +108,7 @@ export const dealTwoEachPreset: Preset = {
     const withDraw = zones.map((zone) =>
       zone.id === ZONE_DRAW ? { ...zone, cardIds: queue } : zone,
     );
-    return { zones: withDraw, initialDeals: deals };
+    return { zones: applyDealsToZones(withDraw, deals), initialDeals: deals };
   },
 };
 
@@ -127,7 +145,7 @@ export const blackjackStylePreset: Preset = {
     const withDraw = zones.map((zone) =>
       zone.id === ZONE_DRAW ? { ...zone, cardIds: queue } : zone,
     );
-    return { zones: withDraw, initialDeals: deals };
+    return { zones: applyDealsToZones(withDraw, deals), initialDeals: deals };
   },
   helpers: { showHandSum: true },
 };
@@ -153,7 +171,7 @@ export const pokerStylePreset: Preset = {
     const withDraw = zones.map((zone) =>
       zone.id === ZONE_DRAW ? { ...zone, cardIds: queue } : zone,
     );
-    return { zones: withDraw, initialDeals: deals };
+    return { zones: applyDealsToZones(withDraw, deals), initialDeals: deals };
   },
 };
 
