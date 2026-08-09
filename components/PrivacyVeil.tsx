@@ -15,7 +15,7 @@ import { Eye } from 'lucide-react-native';
 import { AvatarPlaceholder } from '@components/AvatarPlaceholder';
 import { useMotion } from '@hooks/useMotion';
 import { EASING_EMPHASIZED, PASS_VEIL_OFFSET_Y } from '@lib/motion';
-import { colors, fonts, letterSpacing, motion, radii, shadow, space, textStyles } from '@theme';
+import { alpha, colors, fonts, letterSpacing, motion, radii, shadow, space, textStyles } from '@theme';
 
 export interface PrivacyVeilProps {
   visible: boolean;
@@ -143,6 +143,14 @@ export function PrivacyVeil({
       pointerEvents={visible ? 'auto' : 'none'}
       style={[styles.root, rootStyle]}
     >
+      <View pointerEvents="none" style={styles.tableAtmosphere}>
+        <View style={styles.tableGlow} />
+        <View style={styles.outerRail} />
+        <View style={styles.innerRail} />
+        <View style={styles.tableWell} />
+        <View style={styles.topRule} />
+        <View style={styles.bottomRule} />
+      </View>
       <View style={styles.content}>
         <Animated.View style={[styles.hero, heroPulseStyle]}>
           <Text style={styles.turnLabel}>Player turn</Text>
@@ -183,9 +191,74 @@ export function PrivacyVeil({
 const styles = StyleSheet.create({
   root: {
     ...StyleSheet.absoluteFill,
-    backgroundColor: colors.bg,
+    backgroundColor: colors.surfaceAlt,
     zIndex: 100,
     elevation: 24,
+  },
+  tableAtmosphere: {
+    ...StyleSheet.absoluteFill,
+  },
+  tableGlow: {
+    position: 'absolute',
+    left: '12%',
+    right: '12%',
+    top: '18%',
+    height: '64%',
+    borderRadius: 999,
+    backgroundColor: colors.surface,
+    opacity: 0.62,
+  },
+  outerRail: {
+    position: 'absolute',
+    left: -70,
+    right: -70,
+    top: '21%',
+    height: '64%',
+    borderRadius: 280,
+    borderWidth: 18,
+    borderColor: colors.borderStrong,
+    opacity: 0.42,
+  },
+  innerRail: {
+    position: 'absolute',
+    left: -28,
+    right: -28,
+    top: '29%',
+    height: '50%',
+    borderRadius: 240,
+    borderWidth: 1,
+    borderColor: alpha.brand20,
+    opacity: 0.55,
+  },
+  tableWell: {
+    position: 'absolute',
+    left: 38,
+    right: 38,
+    top: '34%',
+    height: '38%',
+    borderRadius: 220,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    opacity: 0.42,
+  },
+  topRule: {
+    position: 'absolute',
+    top: 88,
+    left: space.xxxl,
+    right: space.xxxl,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: alpha.brand20,
+    opacity: 0.7,
+  },
+  bottomRule: {
+    position: 'absolute',
+    bottom: 104,
+    left: space.xxxl,
+    right: space.xxxl,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: alpha.brand20,
+    opacity: 0.7,
   },
   content: {
     flex: 1,

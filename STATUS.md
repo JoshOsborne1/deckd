@@ -30,6 +30,7 @@ Expo SDK 57, React Native 0.86, React 19, TypeScript strict. Expo Router app wit
 - T9 motion polish: session-start keyed deck-origin deal stagger, 0.96 draw press spring, 1.05 discard pulse, reduced-motion-safe mascot intro, and sliding pass veil are implemented.
 - Mobile action rail polish: shuffle/history/end controls retain 44px targets, and the pass CTA is shrink-safe inside the 320–375px content width instead of clipping at the edges.
 - Setup material pass: the Hub options rail now uses the same warm ivory rule surface as the table instead of a generic white card; nav corner-suit decoration was removed so the center control stays focused on the Deckd logo.
+- Pass ritual material pass: the privacy veil now keeps the warm ivory stock, restrained crimson rules, and table rail/well atmosphere behind the hold-to-reveal step instead of switching to a flat white page.
 - Web QA: the exported public preview was exercised at 375×812 through home → setup → Deal 2 each → dealt table → pass veil. Nav, Hub CTA, and all four table action children stayed inside the viewport; browser console/page errors were empty.
 - Preview deployment: `app-serve` was rebuilt from the current export and PM2 `deckd-app` restarted; `https://deckd-app.roxai.click/` returned the current web bundle and passed the same 375px interaction script.
 
