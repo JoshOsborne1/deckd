@@ -1,6 +1,6 @@
 # Deckd LOOP plan
 
-Last updated: 2026-08-09 · living directives re-plan: continuous nav rail
+Last updated: 2026-08-09 · final visual verification: clean table-world handoff
 
 ## Visual standard
 
@@ -13,6 +13,7 @@ Deckd is a warm ivory card table with crimson ink: quiet stock, 1px rule divider
 - Setup morphs from home through `SurfaceMorphContext` and reads as deck staging on the same table rather than a generic settings page.
 - The table action rail is constrained to the phone width, retains 44px controls, and the pass ritual is clear at the end of a dealt flow.
 - The exact 375px audit exposed blue/green/gold avatar swatches as the last chromatic mismatch; `AvatarPlaceholder` now stays on ivory, crimson, and ink tokens.
+- Theme fallbacks for remote seats, safe actions, and sync states are now warm crimson/ink tokens as well, so dormant status paths cannot reintroduce blue/green chrome.
 - A fresh 375×812 Playwright run through Home → setup → Deal 2 each → table → pass confirms geometry and browser errors are clean. The pass veil now keeps the same warm stock, table rail, well, and crimson rule language through the handoff instead of becoming a flat page.
 - The same exact-width run then exposed two release-quality defects hidden by wide screenshots: the decorative table rail expanded the document to 445px on a 375px viewport, and the dev event counter made the dealt table read like a debug build. Both are now treated as hard visual defects, not acceptable development residue.
 - Josh's living directives now supersede the earlier polish order: card rendering is P0, the committed Deckd back must be the default, the vendored front sources are the source of truth for scalable RN-SVG faces, setup must stage a deck rather than present a form, and the continuous nav/transition system must work across every surface.
@@ -54,6 +55,7 @@ The previous LOOP slices are present in the working tree, including the canvas c
 - Fresh 375px audit: Home, setup, dealt Deal 2 each, table, and pass controls stay inside the viewport with no browser errors; the live public preview returned HTTP 200 and completed the same interaction flow.
 - Re-run audit: a fresh 375×812 Playwright context completed Home → setup → Deal 2 each → table → eight draws (40 left); document width stayed at 375px and console/page error arrays were empty. The two-card hand remained upright with a deliberate gap, and the ten-card fan stayed bounded inside the table rail.
 - Nav redesign audit: the exported local build and deployed public preview both returned HTTP 200 at 375×812; Home, Store, Deal the deck, Presets, and Profile targets measured inside x=8–367/y=748–806, document width stayed 375px, and the interaction flow produced no browser console/page errors.
+- Final deterministic 375×812 run: after waiting for the RN Web shell to attach Pressable handlers and settle the nav stagger, Home → Deal the deck → setup → Deal 2 each → Deal now → table → PASS TURN completed with `scrollWidth=375`, all settled nav targets inside x=8–367/y=748–806, no console/page errors, and the pass veil still on the same ivory/crimson canvas.
 
 ## Acceptance checks
 

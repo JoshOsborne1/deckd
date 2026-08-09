@@ -1,6 +1,6 @@
 # Deckd status
 
-Last update: 2026-08-09 (LOOP visual pass).
+Last update: 2026-08-09 (LOOP final visual verification).
 
 ## Deployment
 
@@ -34,6 +34,8 @@ Expo SDK 57, React Native 0.86, React 19, TypeScript strict. Expo Router app wit
 - P0 card pass: `HandFan` now measures the real container and card aspect ratio; two-card hands are upright with a deliberate 12px gap, while ten-card hands stay bounded with controlled overlap. Branded backs and scalable SVG fronts are wired through the same `PlayingCard` shell.
 - Web QA: the exported preview was exercised at 375×812 through home → setup → Deal 2 each → dealt table → eight draws (40 left) with zero browser console/page errors. Fresh screenshots confirmed the nav, Hub CTA, two-card hand, ten-card hand, and all table action children stay inside the viewport.
 - Re-run evidence: a fresh Playwright context at 375×812 produced Home, setup, Deal 2 each, and ten-card screenshots from the public preview; `scrollWidth` and `bodyScrollWidth` stayed 375px and no console/page errors were recorded.
+- Final palette hardening: dormant remote-seat, safe-action, and sync fallbacks now use warm crimson/ink tokens; no active source token retains the retired blue/green status swatches.
+- Final deterministic flow: a fresh 375×812 context waited for RN Web Pressable handlers, then completed Home → setup → Deal 2 each → table → pass veil with `scrollWidth=375`, settled nav bounds x=8–367/y=748–806, and empty console/page-error arrays.
 - Transition decision: setup/table remain a single-surface morph with physical card motion only; the route-wide rotateY page turn was not shipped because Josh's brief explicitly rejects page-like handoffs.
 - Preview deployment: `app-serve` was rebuilt from the final export and PM2 `deckd-app` restarted; `https://deckd-app.roxai.click/` returned the current web bundle and passed the same 375px interaction script.
 - Nav redesign evidence: the exported and deployed 375×812 builds expose Home, Store, Deal the deck, Presets, and Profile inside x=8–367/y=748–806, with one ivory rail/top rule and no browser console/page errors; the full pass-and-play flow still reaches the pass veil.

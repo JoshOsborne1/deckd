@@ -22,21 +22,21 @@ export const colors = {
   tableFelt: '#7A2424',
   tableRail: '#3C1111',
   tableWell: '#5A1B1B',
-  /** Seat state colors */
+  /** Seat state colors: warm table semantics, not traffic-light UI chrome */
   seatActive: '#B02020',
   seatWaiting: '#F59E0B',
-  seatRemote: '#3B82F6',
-  seatOffline: '#94A3B8',
+  seatRemote: '#901A1A',
+  seatOffline: '#958C83',
   seatDealer: '#D4AF37',
   /** Card surface colors */
   cardPaper: '#FDFCFA',
   cardEdge: 'rgba(0,0,0,0.08)',
-  /** Action semantic colors */
-  actionSafe: '#22C55E',
+  /** Action semantic colors: keep status affordances inside the table palette */
+  actionSafe: '#B02020',
   actionWarn: '#F59E0B',
   /** Sync state colors */
-  syncConnected: '#22C55E',
-  syncScanning: '#3B82F6',
+  syncConnected: '#B02020',
+  syncScanning: '#665F59',
   syncLost: '#EF4444',
   syncHost: '#B02020',
 } as const;

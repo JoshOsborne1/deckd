@@ -12,8 +12,8 @@ export interface AvatarPlaceholderProps {
 
 /**
  * Avatars stay inside the same card-table ink family as the active surface.
- * The previous blue/green/purple swatches made the home and table chrome read
- * like a different product, especially at small sizes where the avatar is a
+ * The previous chromatic swatches made the home and table chrome read like a
+ * different product, especially at small sizes where the avatar is a
  * high-contrast color block.
  */
 const PALETTE: { bg: string; fg: string }[] = [
