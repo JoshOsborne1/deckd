@@ -118,12 +118,12 @@ export const BUILTIN_TABLE_THEMES: TableThemeDefinition[] = [
   },
   {
     id: 'theme-classic-felt',
-    name: 'Classic Felt',
+    name: 'Crimson Felt',
     family: 'felt',
-    surfaceBase: '#2D5A3D',
-    railColor: '#1E3D2A',
-    wellColor: '#234A33',
-    glowTint: 'rgba(45,90,61,0.4)',
+    surfaceBase: '#7A2424',
+    railColor: '#3C1111',
+    wellColor: '#5A1B1B',
+    glowTint: 'rgba(176,32,32,0.3)',
     unlockedByDefault: true,
   },
   {

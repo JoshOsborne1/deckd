@@ -1,6 +1,6 @@
 # Deckd status
 
-Last update: 2026-08-08 (T4).
+Last update: 2026-08-09 (LOOP visual pass).
 
 ## Deployment
 
@@ -26,6 +26,8 @@ Expo SDK 57, React Native 0.86, React 19, TypeScript strict. Expo Router app wit
 - Bridge integration: host broadcasts session-start + deal events; guest folds them and mirrors host state (draw pile count, players, phase); guest draw_card intent → host applies + broadcasts; card moves propagate to guest discard; pass & play with no relay stays inert.
 - Guest privacy: guest sees own hand via viewerId-based selectors; host hand zone is private to host-cid (verified via selectLocalHand).
 - T3 visual lift: SVG French suit glyphs, classic pip layouts, warm paper/grain card faces, court/ace frames, gold card-back inset, one-shot home mascot, deal-entry stagger, and draw/discard feedback are implemented.
+- LOOP visual pass: home nav is shrink-safe at phone widths with the center Deckd logo isolated from static suit particles; the default ivory table and the alternate formerly-green felt theme now stay in the warm-white/crimson language.
+- T9 motion polish: session-start keyed deck-origin deal stagger, 0.96 draw press spring, 1.05 discard pulse, reduced-motion-safe mascot intro, and sliding pass veil are implemented.
 - Web QA: home and Deal 2 each table states were exercised on `npm run dev:web`; the dealt hand shows md card faces and the draw interaction moved 48 LEFT → 47 LEFT without console errors.
 
 Security note: `npm audit fix` removed the easy fixes. Remaining audit warnings require breaking upgrades to React Native 0.86 / Expo 56, so they are parked until an intentional SDK upgrade.

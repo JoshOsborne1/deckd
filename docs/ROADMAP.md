@@ -25,7 +25,7 @@ Kimi K3 is NOT in the pool (per-token, not available on our plan). UI ranking th
 - Privacy veil + pass ritual: polished, hold-to-reveal.
 - Store screen: catalogue, themes, passes (renamed to Deckd Master).
 - Profile, settings, list (presets) screens. Global nav bar.
-- Theme tokens: Plus Jakarta Sans, off-white/crimson, felt greens, radii/space/shadows.
+- Theme tokens: Plus Jakarta Sans, warm ivory/crimson table surfaces, radii/space/shadows/motion.
 
 ### What needs to exist
 1. **Aesthetic lift** (the vision check called it "utilitarian, not premium"). Felt needs texture/depth, cards need richer faces, home needs the clipped grey circle fixed and store preview spacing fixed.
@@ -112,8 +112,8 @@ Kimi K3 is NOT in the pool (per-token, not available on our plan). UI ranking th
 
 ### What exists
 - Theme tokens (colors, fonts, radii, space, shadows, motion).
-- Felt background with rail/well/vignette.
-- Card backs (brand, ink, premium gold), table themes (classic felt, dark oak, crimson luxe).
+- Ivory/crimson table background with rail/well/vignette.
+- Card backs (brand, ink, premium gold), table themes (ivory, crimson felt, dark oak, crimson luxe).
 - Logo assets (Logo.png, Gameboard.png, Pass.png — Gameboard and Pass are unused).
 
 ### What needs to exist

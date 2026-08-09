@@ -18,10 +18,10 @@ export const colors = {
   neutral300: '#94A3B8',
   /** Bottom nav paper strip, kept in the same warm stock family as Ivory Table */
   navStrip: '#F3F0EA',
-  /** Table surface colors */
-  tableFelt: '#2D5A3D',
-  tableRail: '#1E3D2A',
-  tableWell: '#234A33',
+  /** Table surface colors: ivory default with a crimson alternate */
+  tableFelt: '#7A2424',
+  tableRail: '#3C1111',
+  tableWell: '#5A1B1B',
   /** Seat state colors */
   seatActive: '#B02020',
   seatWaiting: '#F59E0B',
