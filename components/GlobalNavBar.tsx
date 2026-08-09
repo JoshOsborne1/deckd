@@ -6,7 +6,7 @@ import { Home, ShoppingBag, User } from 'lucide-react-native';
 import { brand } from '@lib/assets';
 import { useMotion } from '@hooks/useMotion';
 import { useUiStore } from '@store/uiStore';
-import { alpha, colors, fonts, radii, shadow } from '@theme';
+import { alpha, colors, fonts, radii, shadow, space } from '@theme';
 
 type NavIcon = React.ComponentType<{
   size?: number;
@@ -22,8 +22,6 @@ type CardNavItem = {
   suit: string | null;
   rotateDeg: string;
 };
-
-const FLOAT_SUITS = ['\u2660', '\u2665', '\u2666', '\u2663'] as const;
 
 const navCards: CardNavItem[] = [
   { id: 'home', href: '/', label: 'Home', icon: Home, suit: null, rotateDeg: '-5deg' },
@@ -103,7 +101,7 @@ export const GlobalNavBar: React.FC = () => {
     setViewMode('hub');
   };
 
-  const stripHeight = 124 + bottomPad;
+  const stripHeight = 112 + bottomPad;
 
   if (hidden) {
     return null;
@@ -111,14 +109,7 @@ export const GlobalNavBar: React.FC = () => {
 
   return (
     <View pointerEvents="box-none" style={styles.wrapper}>
-      <View pointerEvents="none" style={[styles.paperStrip, { height: stripHeight }]}>
-        <View style={styles.decorFade} />
-        <View style={styles.decorArrows}>
-          <View style={[styles.arrowWing, styles.arrowLeft]} />
-          <View style={[styles.arrowWing, styles.arrowRight]} />
-        </View>
-        <View style={styles.braidHint} />
-      </View>
+      <View pointerEvents="none" style={[styles.paperStrip, { height: stripHeight }]} />
 
       <View style={[styles.row, { paddingBottom: Math.max(bottomPad, 8) }]}>
         {navCards.slice(0, 2).map((item) => (
@@ -140,13 +131,6 @@ export const GlobalNavBar: React.FC = () => {
             pressed && { transform: [{ scale: 0.97 }] },
           ]}
         >
-          <View pointerEvents="none" style={styles.floatSuitsLayer}>
-            {FLOAT_SUITS.map((s, i) => (
-              <Text key={`${s}-${i}`} style={[styles.floatSuit, FLOAT_SUIT_SLOTS[i]]}>
-                {s}
-              </Text>
-            ))}
-          </View>
           <Image source={brand.logo} style={styles.logo} resizeMode="contain" />
         </Pressable>
 
@@ -197,13 +181,6 @@ function NavCard({
   );
 }
 
-const FLOAT_SUIT_SLOTS = [
-  { top: 4, left: -6, fontSize: 15, opacity: 0.38, transform: [{ rotate: '-12deg' }] },
-  { top: 0, right: -8, fontSize: 13, opacity: 0.32, transform: [{ rotate: '8deg' }] },
-  { bottom: 16, left: -4, fontSize: 14, opacity: 0.28, transform: [{ rotate: '6deg' }] },
-  { bottom: 8, right: -2, fontSize: 12, opacity: 0.34, transform: [{ rotate: '-10deg' }] },
-];
-
 const styles = StyleSheet.create({
   wrapper: {
     position: 'absolute',
@@ -222,65 +199,34 @@ const styles = StyleSheet.create({
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: alpha.inkOverlay08,
   },
-  decorFade: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    top: 0,
-    height: 36,
-    backgroundColor: alpha.whiteOverlay45,
-  },
-  decorArrows: {
-    position: 'absolute',
-    bottom: 44,
-    left: 0,
-    right: 0,
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: 72,
-  },
-  arrowWing: {
-    width: 36,
-    height: StyleSheet.hairlineWidth * 2,
-    backgroundColor: alpha.navLine,
-    borderRadius: 1,
-  },
-  arrowLeft: { transform: [{ rotate: '-18deg' }] },
-  arrowRight: { transform: [{ rotate: '18deg' }] },
-  braidHint: {
-    position: 'absolute',
-    bottom: 28,
-    alignSelf: 'center',
-    width: 48,
-    height: 3,
-    borderRadius: 2,
-    backgroundColor: alpha.navBraid,
-  },
+
   row: {
     position: 'relative',
     zIndex: 2,
     flexDirection: 'row',
     alignItems: 'flex-end',
-    justifyContent: 'space-between',
-    paddingHorizontal: 10,
+    justifyContent: 'center',
+    alignSelf: 'center',
+    maxWidth: 420,
+    paddingHorizontal: space.sm,
+    gap: space.xs,
     width: '100%',
   },
   cardShell: {
     flex: 1,
     maxWidth: 74,
-    minHeight: 76,
+    minHeight: 68,
     backgroundColor: colors.surface,
     borderTopLeftRadius: radii.lg,
     borderTopRightRadius: radii.lg,
     borderWidth: 1,
     borderColor: alpha.inkOverlay06,
     borderBottomWidth: 0,
-    paddingTop: 22,
-    paddingBottom: 10,
+    paddingTop: 16,
+    paddingBottom: 8,
     alignItems: 'center',
     justifyContent: 'center',
-    marginHorizontal: 3,
+
     ...Platform.select({
       ios: {
         shadowColor: '#000',
@@ -332,32 +278,19 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
   },
   centerWrap: {
-    width: 92,
+    width: 72,
+    height: 82,
     alignItems: 'center',
     justifyContent: 'flex-end',
-    marginBottom: 18,
-    marginHorizontal: 2,
+    marginBottom: 6,
     zIndex: 30,
   },
   centerWrapActive: {
     transform: [{ scale: 1.03 }],
   },
-  floatSuitsLayer: {
-    position: 'absolute',
-    width: 120,
-    height: 110,
-    alignSelf: 'center',
-    bottom: 28,
-    zIndex: 0,
-  },
-  floatSuit: {
-    position: 'absolute',
-    color: colors.brand,
-    fontFamily: fonts.regular,
-  },
   logo: {
-    width: 88,
-    height: 88,
+    width: 68,
+    height: 68,
     zIndex: 2,
     ...shadow.cta,
   },

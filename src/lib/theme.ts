@@ -16,8 +16,8 @@ export const colors = {
   warn: '#F59E0B',
   neutral500: '#475569',
   neutral300: '#94A3B8',
-  /** Bottom nav paper strip (lifted from felt) */
-  navStrip: '#EBEBED',
+  /** Bottom nav paper strip, kept in the same warm stock family as Ivory Table */
+  navStrip: '#F3F0EA',
   /** Table surface colors */
   tableFelt: '#2D5A3D',
   tableRail: '#1E3D2A',
@@ -57,9 +57,9 @@ export const alpha = {
   inkOverlay20: 'rgba(0,0,0,0.20)',
   /** Modal / sheet scrims */
   inkOverlay45: 'rgba(0,0,0,0.45)',
-  /** Bottom-nav decorative lines (muted cool gray) */
-  navLine: 'rgba(100,100,110,0.12)',
-  navBraid: 'rgba(100,100,110,0.08)',
+  /** Bottom-nav rule accents (warm ink, not cool UI chrome) */
+  navLine: 'rgba(176,32,32,0.14)',
+  navBraid: 'rgba(176,32,32,0.08)',
 } as const;
 
 export const radii = {
