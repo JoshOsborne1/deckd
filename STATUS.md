@@ -29,16 +29,18 @@ Expo SDK 57, React Native 0.86, React 19, TypeScript strict. Expo Router app wit
 - LOOP visual pass: home nav is shrink-safe at phone widths with the center Deckd logo isolated from static suit particles; the default ivory table and the alternate formerly-green felt theme now stay in the warm-white/crimson language.
 - T9 motion polish: session-start keyed deck-origin deal stagger, 0.96 draw press spring, 1.05 discard pulse, reduced-motion-safe mascot intro, and sliding pass veil are implemented.
 - Mobile action rail polish: shuffle/history/end controls retain 44px targets, and the pass CTA is shrink-safe inside the 320–375px content width instead of clipping at the edges.
-- Web QA: home and Deal 2 each table states were exercised on `npm run dev:web`; the dealt hand shows md card faces and the draw interaction moved 48 LEFT → 47 LEFT without console errors.
+- Setup material pass: the Hub options rail now uses the same warm ivory rule surface as the table instead of a generic white card; nav corner-suit decoration was removed so the center control stays focused on the Deckd logo.
+- Web QA: the exported public preview was exercised at 375×812 through home → setup → Deal 2 each → dealt table → pass veil. Nav, Hub CTA, and all four table action children stayed inside the viewport; browser console/page errors were empty.
+- Preview deployment: `app-serve` was rebuilt from the current export and PM2 `deckd-app` restarted; `https://deckd-app.roxai.click/` returned the current web bundle and passed the same 375px interaction script.
 
 Security note: `npm audit fix` removed the easy fixes. Remaining audit warnings require breaking upgrades to React Native 0.86 / Expo 56, so they are parked until an intentional SDK upgrade.
 
 ## Immediate next actions
 
-1. Rebuild `components/layers/TableLayer.tsx` into a real table surface.
-2. Simplify `components/layers/HubLayer.tsx` into deck staging.
-3. Split real menu/history flows.
-4. Polish `components/layers/PrivacyVeil.tsx` and pass ritual.
+1. Run a real device touch/safe-area pass on the native build.
+2. Complete the real 2-device lobby test against the deployed relay.
+3. Split real menu/history flows behind the existing table actions.
+4. Keep the pass veil and table surface polish aligned while native feedback lands.
 5. ~~Wire the real HMAC masterToken (Deckd Master entitlement) into `hostLobby`.~~ Done (T4): `lib/entitlement.ts` mints `HMAC-SHA256(secret, clientId)` from `EXPO_PUBLIC_DECKD_MASTER_SECRET`; `lobbyStore.hostLobby` sends it; `app/_layout.tsx` installs a RevenueCat customer-info listener mapping the `master` entitlement to `hasMasterPass`.
 6. Keep desktop web and phone testing running during design iteration.
 

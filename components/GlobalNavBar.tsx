@@ -1,12 +1,12 @@
 import React from 'react';
-import { Image, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Image, Pressable, StyleSheet, View } from 'react-native';
 import { usePathname, useRouter, type Href } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Home, ShoppingBag, User } from 'lucide-react-native';
 import { brand } from '@lib/assets';
 import { useMotion } from '@hooks/useMotion';
 import { useUiStore } from '@store/uiStore';
-import { alpha, colors, fonts, radii, shadow, space } from '@theme';
+import { alpha, colors, radii, shadow, space } from '@theme';
 
 type NavIcon = React.ComponentType<{
   size?: number;
@@ -19,15 +19,14 @@ type CardNavItem = {
   href: Href;
   label: string;
   icon?: NavIcon;
-  suit: string | null;
   rotateDeg: string;
 };
 
 const navCards: CardNavItem[] = [
-  { id: 'home', href: '/', label: 'Home', icon: Home, suit: null, rotateDeg: '-5deg' },
-  { id: 'store', href: '/store', label: 'Store', icon: ShoppingBag, suit: '\u2666', rotateDeg: '-2deg' },
-  { id: 'games', href: '/list', label: 'Presets', suit: '\u2660', rotateDeg: '2deg' },
-  { id: 'profile', href: '/profile', label: 'Profile', icon: User, suit: '\u2665', rotateDeg: '5deg' },
+  { id: 'home', href: '/', label: 'Home', icon: Home, rotateDeg: '-5deg' },
+  { id: 'store', href: '/store', label: 'Store', icon: ShoppingBag, rotateDeg: '-2deg' },
+  { id: 'games', href: '/list', label: 'Presets', rotateDeg: '2deg' },
+  { id: 'profile', href: '/profile', label: 'Profile', icon: User, rotateDeg: '5deg' },
 ];
 
 function isActivePath(pathname: string, href: string): boolean {
@@ -101,7 +100,7 @@ export const GlobalNavBar: React.FC = () => {
     setViewMode('hub');
   };
 
-  const stripHeight = 112 + bottomPad;
+  const stripHeight = 96 + bottomPad;
 
   if (hidden) {
     return null;
@@ -111,7 +110,7 @@ export const GlobalNavBar: React.FC = () => {
     <View pointerEvents="box-none" style={styles.wrapper}>
       <View pointerEvents="none" style={[styles.paperStrip, { height: stripHeight }]} />
 
-      <View style={[styles.row, { paddingBottom: Math.max(bottomPad, 8) }]}>
+      <View style={[styles.row, { paddingBottom: Math.max(bottomPad, 10) }]}>
         {navCards.slice(0, 2).map((item) => (
           <NavCard
             key={item.id}
@@ -167,9 +166,6 @@ function NavCard({
         pressed && { transform: [{ translateY: -1 }, { rotate: item.rotateDeg }, { scale: 0.98 }] },
       ]}
     >
-      {item.suit ? (
-        <Text style={[styles.cornerSuit, active && styles.cornerSuitActive]}>{item.suit}</Text>
-      ) : null}
       <View style={styles.cardIconArea}>
         {item.id === 'games' ? (
           <FannedCardsIcon active={active} />
@@ -214,51 +210,25 @@ const styles = StyleSheet.create({
   },
   cardShell: {
     flex: 1,
+    minWidth: 0,
     maxWidth: 74,
-    minHeight: 68,
+    minHeight: 64,
     backgroundColor: colors.surface,
     borderTopLeftRadius: radii.lg,
     borderTopRightRadius: radii.lg,
     borderWidth: 1,
     borderColor: alpha.inkOverlay06,
     borderBottomWidth: 0,
-    paddingTop: 16,
-    paddingBottom: 8,
+    paddingTop: 12,
+    paddingBottom: 10,
     alignItems: 'center',
     justifyContent: 'center',
-
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: -3 },
-        shadowOpacity: 0.12,
-        shadowRadius: 8,
-      },
-      android: { elevation: 5 },
-    }),
+    ...shadow.nav,
   },
   cardShellActive: {
     backgroundColor: colors.bg,
     borderColor: alpha.brand20,
-    ...Platform.select({
-      ios: {
-        shadowColor: colors.brand,
-        shadowOpacity: 0.18,
-      },
-      android: { elevation: 6 },
-    }),
-  },
-  cornerSuit: {
-    position: 'absolute',
-    top: 8,
-    left: 10,
-    fontSize: 12,
-    color: colors.neutral300,
-    fontFamily: fonts.medium,
-  },
-  cornerSuitActive: {
-    color: colors.brand,
-    opacity: 0.75,
+    ...shadow.navActive,
   },
   cardIconArea: {
     flex: 1,
@@ -278,19 +248,19 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
   },
   centerWrap: {
-    width: 72,
-    height: 82,
+    width: 64,
+    height: 72,
     alignItems: 'center',
     justifyContent: 'flex-end',
-    marginBottom: 6,
+    marginBottom: 2,
     zIndex: 30,
   },
   centerWrapActive: {
     transform: [{ scale: 1.03 }],
   },
   logo: {
-    width: 68,
-    height: 68,
+    width: 60,
+    height: 60,
     zIndex: 2,
     ...shadow.cta,
   },

@@ -193,7 +193,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
     borderTopWidth: StyleSheet.hairlineWidth,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderColor: '#FFFFFF',
+    borderColor: colors.surface,
   },
   weaveV: {
     position: 'absolute',
@@ -205,7 +205,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
     borderLeftWidth: StyleSheet.hairlineWidth,
     borderRightWidth: StyleSheet.hairlineWidth,
-    borderColor: '#000000',
+    borderColor: colors.ink,
   },
   feltVignetteTop: {
     position: 'absolute',

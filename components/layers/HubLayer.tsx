@@ -491,7 +491,7 @@ export function HubLayer({
           Options
         </Animated.Text>
         <Animated.View style={optionsCardStyle}>
-          <CardSection variant="surface" style={styles.optionCard}>
+          <CardSection variant="ghost" style={styles.optionCard}>
             <View style={styles.optionRow}>
               <View style={{ flex: 1 }}>
                 <Text style={styles.optionLabel}>Include jokers</Text>
@@ -770,6 +770,8 @@ const styles = StyleSheet.create({
   },
   optionCard: {
     padding: space.lg,
+    backgroundColor: alpha.inkOverlay02,
+    borderColor: alpha.brand20,
   },
   optionRow: {
     flexDirection: 'row',

@@ -5,17 +5,17 @@ export const colors = {
   brandDark: '#901A1A',
   brandSoft: '#FDE8E8',
   bg: '#FAFAFA',
-  surface: '#FFFFFF',
-  surfaceAlt: '#F7F7F8',
+  surface: '#FDFCFA',
+  surfaceAlt: '#F6F1E9',
   ink: '#1A1A1A',
   inkSoft: '#333333',
-  inkMuted: '#666666',
-  inkSubtle: '#999999',
-  border: '#F0F0F0',
-  borderStrong: '#EAEAEA',
+  inkMuted: '#665F59',
+  inkSubtle: '#958C83',
+  border: '#EAE5DC',
+  borderStrong: '#D8D2C6',
   warn: '#F59E0B',
-  neutral500: '#475569',
-  neutral300: '#94A3B8',
+  neutral500: '#5B5550',
+  neutral300: '#A49A90',
   /** Bottom nav paper strip, kept in the same warm stock family as Ivory Table */
   navStrip: '#F3F0EA',
   /** Table surface colors: ivory default with a crimson alternate */
@@ -159,6 +159,14 @@ export const shadow = {
   ctaLift: makeShadow(
     { shadowColor: colors.brand, shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.35, shadowRadius: 20 },
     10,
+  ),
+  nav: makeShadow(
+    { shadowColor: colors.ink, shadowOffset: { width: 0, height: -3 }, shadowOpacity: 0.12, shadowRadius: 8 },
+    5,
+  ),
+  navActive: makeShadow(
+    { shadowColor: colors.brand, shadowOffset: { width: 0, height: -3 }, shadowOpacity: 0.18, shadowRadius: 8 },
+    6,
   ),
   passGlow: makeShadow(
     { shadowColor: colors.brand, shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.08, shadowRadius: 24 },
