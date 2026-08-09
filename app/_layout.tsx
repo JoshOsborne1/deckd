@@ -8,8 +8,10 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useFonts } from 'expo-font';
+import { useAssets } from 'expo-asset';
 import * as SplashScreen from 'expo-splash-screen';
 import { GlobalNavBar } from '@components/GlobalNavBar';
+import { brand } from '@lib/assets';
 import { colors } from '@theme';
 
 SplashScreen.preventAutoHideAsync().catch(() => {
@@ -24,6 +26,12 @@ export default function RootLayout() {
     'PlusJakartaSans-Bold': require('@assets/fonts/PlusJakartaSans-Bold.ttf'),
     'PlusJakartaSans-ExtraBold': require('@assets/fonts/PlusJakartaSans-ExtraBold.ttf'),
   });
+  const [cardAssets, cardAssetError] = useAssets([
+    brand.logo,
+    brand.cardBack,
+    brand.cardBackNoir,
+    brand.cardBackCrimson,
+  ]);
 
   useEffect(() => {
     configureRevenueCat();
@@ -56,12 +64,12 @@ export default function RootLayout() {
   }, []);
 
   useEffect(() => {
-    if (fontsLoaded || fontError) {
+    if ((fontsLoaded || fontError) && (cardAssets || cardAssetError)) {
       SplashScreen.hideAsync().catch(() => {});
     }
-  }, [fontsLoaded, fontError]);
+  }, [cardAssetError, cardAssets, fontError, fontsLoaded]);
 
-  if (!fontsLoaded && !fontError) {
+  if ((!fontsLoaded && !fontError) || (!cardAssets && !cardAssetError)) {
     return null;
   }
 

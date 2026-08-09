@@ -1,6 +1,6 @@
 # Deckd LOOP plan
 
-Last updated: 2026-08-09 · current run: P0 branded-back visibility audit
+Last updated: 2026-08-09 · current run: P0 card-asset readiness audit
 
 ## Visual standard
 
@@ -18,6 +18,7 @@ Deckd is a warm ivory card table with crimson ink: quiet stock, 1px rule divider
 - The same exact-width run then exposed two release-quality defects hidden by wide screenshots: the decorative table rail expanded the document to 445px on a 375px viewport, and the dev event counter made the dealt table read like a debug build. Both are now treated as hard visual defects, not acceptable development residue.
 - Josh's living directives now supersede the earlier polish order: card rendering is P0, the committed Deckd back must be the default, the vendored front sources are the source of truth for scalable RN-SVG faces, setup must stage a deck rather than present a form, and the continuous nav/transition system must work across every surface.
 - The latest nav directive rejects the prior five floating card shells. The rail now reads as the table edge: one ivory surface, one top rule, labelled controls, an unboxed center logo anchor, and no per-item shadow or rotation.
+- A cold 375px first-paint audit showed the committed card-back PNGs arriving after the shell, leaving blank paper cards during the first few seconds. Root layout now warms the logo and three card-back assets before hiding the splash, so the first visible Home frame contains the real branded backs without a layout or z-order flicker.
 
 ## Live audit re-plan
 
@@ -43,6 +44,7 @@ The previous LOOP slices are present in the working tree, including the canvas c
 16. **Done — P0 RN Web card-back visibility.** The first fresh exact-width audit found the image asset loaded but hidden behind the opaque paper fallback because RN Web placed the visual image background at `z-index: -1`. The card shell now explicitly raises the branded image layer; fresh screenshots show all three home preview backs, the hub staged back, and the table draw pile with the real logo/borders.
 17. **Done — setup action reach.** HubLayer now keeps the Host/Deal action in a warm table-edge dock above the persistent nav while setup notes remain scrollable; the primary deal move is visible at 320×720, 375×812, and desktop widths.
 18. **Done — final table-world pass and release verification.** Home, setup, table, and pass ritual screenshots remain warm ivory/crimson with no release-blocking clipping or overlap; the live static preview was rebuilt, restarted, and exercised at the acceptance width.
+19. **Done — cold-load card readiness.** `_layout.tsx` preloads the canonical logo and all three branded back assets before revealing the app, removing the blank-card first-paint window while preserving the existing branded image layer.
 
 ## Verified slices
 
@@ -61,6 +63,7 @@ The previous LOOP slices are present in the working tree, including the canvas c
 - Final deterministic 375×812 run: after waiting for the RN Web shell to attach Pressable handlers and settle the nav stagger, Home → Deal the deck → setup → Deal 2 each → Deal now → table → PASS TURN completed with `scrollWidth=375`, all settled nav targets inside x=8–367/y=748–806, no console/page errors, and the pass veil still on the same ivory/crimson canvas.
 - Current card-back fix: the exact PNGs load successfully in the web bundle, the image layer now sits above the fallback, and fresh 375×812 screenshots visibly show Deckd Crimson, Noir, and Crimson marks in Home, the staged hub pile, and the table draw pile. Full gates remain green: typecheck, lint, 62 Jest tests, and Expo Doctor 20/20.
 - Setup action reach: the Hub `Host a lobby` / `Deal now` pair now lives in a warm table-edge dock above the persistent nav. Fresh 320×720 and 375×812 screenshots keep both targets inside the viewport with `scrollWidth` equal to the viewport; the desktop dock stays above the labelled nav rail and the deal click still reaches the dealt table.
+- Cold-load card readiness: the local static build exposed Home after `useAssets` completed with all six rendered image nodes at `naturalWidth > 0`; the first 375×812 screenshot showed the hero stack, three store backs, and logo with no blank shells. The deployed public flow reached setup → Deal 2 each → table → pass at 375×812 with `scrollWidth=375`, `bodyScrollWidth=375`, empty console/page errors, and settled nav bounds x=8–367/y=748–806.
 - Pass ritual: a fresh 375×812 flow clicked `PASS TURN` and rendered the same warm privacy veil with `Player 2`, `PASS DEVICE TO`, and the `Hold to reveal` action fully in bounds; `scrollWidth` and `bodyScrollWidth` remained 375 with no console/page errors.
 - Live release: `npx expo export --platform web` completed, `deckd-app` restarted online under PM2, the public preview returned HTTP 200, and the deployed 375×812 Home → setup → Deal 2 each → Deal now → table → PASS TURN flow completed without browser errors.
 
