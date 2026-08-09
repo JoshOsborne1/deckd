@@ -1,6 +1,6 @@
 # Deckd LOOP plan
 
-Last updated: 2026-08-09 · final visual verification: clean table-world handoff
+Last updated: 2026-08-09 · current run: P0 branded-back visibility audit
 
 ## Visual standard
 
@@ -34,18 +34,20 @@ The previous LOOP slices are present in the working tree, including the canvas c
 7. **Done — pass material continuity.** Preserve the veil's deliberate hold-to-reveal ritual while adding a low-contrast table rail/well and paper-stock treatment so the pass handoff belongs to the same game space.
 8. **Done — release hardening.** Clip the persistent canvas to the viewport and remove the dev event counter so exact-width QA measures a clean, player-facing table.
 9. **Done — P0 card geometry.** The fan derives slot step from measured container width and card aspect ratio; two-card hands stay upright with a 12px paper gap, and larger hands remain bounded with controlled overlap.
-10. **Done — P0 branded back.** `assets/card-back-deckd.png` is the default `back-brand` face at every card size; procedural backs remain selectable by explicit back id.
+10. **Done — P0 branded back source.** `assets/card-back-deckd.png` is the default `back-brand` face at every card size; procedural backs remain selectable by explicit back id.
 11. **Done — P0 proven fronts.** Public-domain notpeter/hayeah-derived faces now render through scalable RN-SVG components under `components/`, with Deckd palette tokens and both corner indices.
 12. **Done — setup/presets.** HubLayer stages a deck on the shared table; every preset has a one-line outcome plus visible player-count/deal consequence.
 13. **Done — continuous nav rail.** GlobalNavBar now uses one ivory table-edge rail with a 1px rule, labelled Home/Store/Presets/Profile controls, 44px+ targets, and no per-item shells, shadows, or rotation; the center logo remains the Deal anchor.
 14. **Not pursued by directive — page flip.** Setup and table stay a single-surface morph with no route-level 3D page turn; physical card motion remains in deal, draw, discard, flip, and pass interactions.
 15. **Done — release loop.** Exact 375px screenshot/interaction QA, typecheck, lint, Jest, Expo Doctor, static export, preview deploy, and live verification all pass.
+16. **In progress — P0 RN Web card-back visibility.** The first fresh exact-width audit found the image asset loaded but hidden behind the opaque paper fallback because RN Web placed the visual image background at `z-index: -1`. The card shell now explicitly raises the branded image layer; fresh screenshots show all three home preview backs, the hub staged back, and the table draw pile with the real logo/borders.
+17. **Next — setup action reach.** The settled Hub screenshot at 375×812 still puts `Deal now` below the first viewport after options. Rework the setup action geometry without introducing a route or breaking the shared table canvas.
 
 ## Verified slices
 
 - Nav/logo: GlobalNavBar now uses a continuous ivory table-edge rail with a 1px top rule, labelled Home/Store/Presets/Profile controls, animated active rule, spring press states, and a deal-in center logo. The fresh 375×812 public-preview run kept all five controls inside the viewport with no per-item shells, shadows, or rotation.
 - Table palette: the active token fallbacks and the persisted `theme-classic-felt` cosmetic no longer use green; the default remains `theme-ivory`, while the alternate is now crimson felt with the same physical table geometry.
-- Setup material: the Hub options rail now uses a warm ivory rule surface, the hand-layout controls stack cleanly on narrow phones, and the Host/Deal row remains reachable at 375px.
+- Setup material: the Hub options rail now uses a warm ivory rule surface, the hand-layout controls stack cleanly on narrow phones, and the Host/Deal row remains reachable at 375px after normal scroll.
 - Table actions: the mobile action rail now uses a constrained full-width row, 44px icon controls, and a shrink-safe pass CTA; the previous 375px screenshot showed shuffle and end-session controls clipped off both edges.
 - Avatar material: the shared avatar palette now uses theme tokens from the ivory/crimson/ink table world; the 375px dealt-table screenshot no longer shows blue, green, or gold opponent chrome.
 - Pass material: the privacy veil now uses warm ivory stock, a low-contrast table rail/well, and crimson rules behind the recipient and hold-to-reveal action; visual review found the ritual calmer and more continuous without decorative noise.
@@ -56,6 +58,7 @@ The previous LOOP slices are present in the working tree, including the canvas c
 - Re-run audit: a fresh 375×812 Playwright context completed Home → setup → Deal 2 each → table → eight draws (40 left); document width stayed at 375px and console/page error arrays were empty. The two-card hand remained upright with a deliberate gap, and the ten-card fan stayed bounded inside the table rail.
 - Nav redesign audit: the exported local build and deployed public preview both returned HTTP 200 at 375×812; Home, Store, Deal the deck, Presets, and Profile targets measured inside x=8–367/y=748–806, document width stayed 375px, and the interaction flow produced no browser console/page errors.
 - Final deterministic 375×812 run: after waiting for the RN Web shell to attach Pressable handlers and settle the nav stagger, Home → Deal the deck → setup → Deal 2 each → Deal now → table → PASS TURN completed with `scrollWidth=375`, all settled nav targets inside x=8–367/y=748–806, no console/page errors, and the pass veil still on the same ivory/crimson canvas.
+- Current card-back fix: the exact PNGs load successfully in the web bundle, the image layer now sits above the fallback, and fresh 375×812 screenshots visibly show Deckd Crimson, Noir, and Crimson marks in Home, the staged hub pile, and the table draw pile. Full gates remain green: typecheck, lint, 62 Jest tests, and Expo Doctor 20/20.
 
 ## Acceptance checks
 
@@ -85,3 +88,12 @@ The previous LOOP slices are present in the working tree, including the canvas c
 - Use `vendor/card-fronts/` as the in-repo source of truth; do not import external filesystem paths or add raw SVG files as runtime assets.
 - Keep the existing Reanimated 4.5 motion stack for the shared morph and physical card interactions; do not add a route-level page-turn layer.
 - Treat the bottom rail as table material rather than a floating widget row; use only the shared theme tokens and Reanimated motion for the active rule, press states, stagger, and center deal gesture.
+- For the current P0 defect, prefer a narrow z-order correction over replacing the proven image assets or introducing a new rendering library.
+- For the next setup slice, prefer an in-world action strip over a sticky browser-like footer or a new screen; the deal action should feel like the next physical move on the table.
+
+## Current run verification and delivery
+
+- Baseline: `npm run typecheck`, `npm run lint`, `npx jest --runInBand`, and `npx expo-doctor` all passed before the slice.
+- Slice 1: the same gates passed after the `PlayingCard` image-layer fix; the Jest run remains 62/62 and Expo Doctor remains 20/20.
+- Deterministic local QA: Playwright at 375×812 completed Home → setup → Deal 2 each → table with `scrollWidth=375`, `bodyScrollWidth=375`, and empty console/page error arrays. Screenshots were inspected for Home, setup, and table.
+- Deployment is intentionally deferred until the next meaningful setup slice is complete, per the LOOP order; the existing public preview remains the previous verified build.

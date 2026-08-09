@@ -159,6 +159,10 @@ const styles = StyleSheet.create({
     bottom: 0,
     width: '100%',
     height: '100%',
+    // RN Web renders the visual image as a background layer and puts its
+    // accessibility <img> at z-index -1. Keep the real card stock above the
+    // paper fallback so previews cannot collapse into blank white shells.
+    zIndex: 1,
   },
 });
 
