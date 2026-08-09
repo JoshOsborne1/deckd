@@ -32,11 +32,14 @@ import {
   selectDiscardTopCard,
   selectDrawPileCount,
   selectDrawTopCardId,
+  selectAvailableActions,
+  selectGuidanceState,
   selectIsMyTurn,
   selectLocalHand,
   selectNextPlayerId,
   selectOpponentHandSize,
   selectOpponents,
+  selectSuggestedAction,
 } from '@engine/selectors';
 import {
   ZONE_DISCARD,
@@ -45,6 +48,7 @@ import {
   type CardId,
   type CardInstance,
 } from '@engine/types';
+import type { GuidancePhase, TableAction } from '@engine/selectors';
 import { makeSeed, mulberry32, shuffleInPlace, ZONE_DRAW } from '@engine/index';
 import {
   alpha,
@@ -62,6 +66,22 @@ interface TableLayerProps {
   active: boolean;
   topInset: number;
   bottomInset: number;
+}
+
+const ACTION_LABELS: Record<TableAction, string> = {
+  draw: 'DRAW',
+  flip: 'FLIP',
+  discard: 'DISCARD',
+  reorder: 'REORDER',
+  pass: 'PASS',
+  shuffle: 'SHUFFLE',
+  end: 'END TABLE',
+};
+
+interface GuidanceCopy {
+  eyebrow: string;
+  title: string;
+  detail: string;
 }
 
 export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
@@ -128,6 +148,18 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
   const currentPlayerId = useMemo(() => selectCurrentPlayerId(state), [state]);
   const isMyTurn = useMemo(
     () => (viewerId ? selectIsMyTurn(state, viewerId) : false),
+    [state, viewerId],
+  );
+  const availableActions = useMemo<ReadonlySet<TableAction>>(
+    () => (viewerId ? selectAvailableActions(state, viewerId) : new Set<TableAction>()),
+    [state, viewerId],
+  );
+  const suggestedAction = useMemo(
+    () => (viewerId ? selectSuggestedAction(state, viewerId) : null),
+    [state, viewerId],
+  );
+  const guidanceState = useMemo<GuidancePhase>(
+    () => (viewerId ? selectGuidanceState(state, viewerId) : 'waiting'),
     [state, viewerId],
   );
   const nextPlayerId = useMemo(() => selectNextPlayerId(state), [state]);
@@ -201,6 +233,73 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
     const p = state.players.find((pl) => pl.id === currentPlayerId);
     return p?.name ?? '';
   }, [state.players, currentPlayerId]);
+
+  const guidanceCopy = useMemo<GuidanceCopy>(() => {
+    const alternatives = Array.from(availableActions)
+      .filter((action) => action !== suggestedAction)
+      .map((action) => ACTION_LABELS[action].toLowerCase());
+    const visibleAlternatives = alternatives.slice(0, 3);
+    const remainingAlternatives = alternatives.length - visibleAlternatives.length;
+    const alternativeCopy = visibleAlternatives.length > 0
+      ? `Also open: ${visibleAlternatives.join(' · ')}${remainingAlternatives > 0 ? ` +${remainingAlternatives} more` : ''}.`
+      : '';
+    const withAlternatives = (detail: string) =>
+      alternativeCopy ? `${detail} ${alternativeCopy}` : detail;
+
+    switch (guidanceState) {
+      case 'draw':
+        return {
+          eyebrow: 'NEXT USEFUL MOVE',
+          title: 'Draw a card',
+          detail: withAlternatives('Take the top card, then choose what to do with it.'),
+        };
+      case 'flip':
+        return {
+          eyebrow: 'NEXT USEFUL MOVE',
+          title: 'Reveal a card',
+          detail: withAlternatives('Tap a face-down card, or follow another open move.'),
+        };
+      case 'discard':
+        return {
+          eyebrow: 'NEXT USEFUL MOVE',
+          title: 'Play from your hand',
+          detail: withAlternatives('Swipe a card up to discard it, or choose another move.'),
+        };
+      case 'pass':
+        return {
+          eyebrow: 'NEXT USEFUL MOVE',
+          title: 'Pass the table',
+          detail: withAlternatives('The draw pile is empty; pass to keep the round moving.'),
+        };
+      case 'end':
+        return {
+          eyebrow: 'TABLE CLEAR',
+          title: 'End or reset the table',
+          detail: withAlternatives('Return to setup when you are ready to deal again.'),
+        };
+      case 'waiting': {
+        const waitingFor = currentPlayerName || 'The next player';
+        return {
+          eyebrow: 'PASS THE TABLE',
+          title: `${waitingFor} is choosing`,
+          detail: alternativeCopy || 'Review the table; your hand will be ready after the pass.',
+        };
+      }
+      case 'ended':
+        return {
+          eyebrow: 'SESSION OVER',
+          title: 'Choose what comes next',
+          detail: 'Return to setup or inspect the event log.',
+        };
+      case 'idle':
+      default:
+        return {
+          eyebrow: 'READY TO DEAL',
+          title: 'Set up the table',
+          detail: 'Deal a session to see the next useful move.',
+        };
+    }
+  }, [availableActions, currentPlayerName, guidanceState, suggestedAction]);
 
   const surfaceStyle = useLayerSurfaceEntrance(active);
 
@@ -406,48 +505,64 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
 
       {/* Table middle */}
       <View style={styles.table}>
-        {/* Draw pile */}
-        <Animated.View style={[styles.deckStack, drawMotionStyle]}>
-          <Pressable
-            onPress={handleDrawCard}
-            onPressIn={handleDrawPressIn}
-            onPressOut={handleDrawPressOut}
-            disabled={!isMyTurn || drawCount === 0}
+        <View style={styles.tablePiles}>
+          {/* Draw pile */}
+          <Animated.View
             style={[
-              styles.deckTrigger,
-              (!isMyTurn || drawCount === 0) && { opacity: 0.5 },
+              styles.deckStack,
+              drawMotionStyle,
+              suggestedAction === 'draw' && styles.suggestedDeck,
             ]}
           >
-            <PlayingCard face="down" size="md" back={equippedBackId} />
-            <Text style={styles.deckLeftText}>{drawCount} LEFT</Text>
-          </Pressable>
-        </Animated.View>
+            <Pressable
+              onPress={handleDrawCard}
+              onPressIn={handleDrawPressIn}
+              onPressOut={handleDrawPressOut}
+              disabled={!isMyTurn || drawCount === 0}
+              accessibilityRole="button"
+              accessibilityLabel={`Draw pile, ${drawCount} cards left`}
+              accessibilityHint={
+                suggestedAction === 'draw'
+                  ? 'Suggested next move. Tap to draw a card.'
+                  : 'Tap to draw a card when it is your turn.'
+              }
+              style={[
+                styles.deckTrigger,
+                (!isMyTurn || drawCount === 0) && { opacity: 0.5 },
+              ]}
+            >
+              <PlayingCard face="down" size="md" back={equippedBackId} />
+              <Text style={styles.deckLeftText}>{drawCount} LEFT</Text>
+            </Pressable>
+          </Animated.View>
 
-        {/* Discard slot */}
-        {discardTop && discardParsed ? (
-          <Animated.View style={[styles.activeSlot, discardMotionStyle]}>
-            <PlayingCard
-              rank={discardParsed.rank}
-              suit={discardParsed.suit}
-              face={discardTop.face}
-              size="lg"
-              elevated
-            />
-          </Animated.View>
-        ) : discardTop && discardJoker ? (
-          <Animated.View style={[styles.activeSlot, discardMotionStyle]}>
-            <PlayingCard
-              jokerColor={discardJoker}
-              face={discardTop.face}
-              size="lg"
-              elevated
-            />
-          </Animated.View>
-        ) : (
-          <Animated.View style={[styles.discardSlot, discardMotionStyle]}>
-            <Text style={styles.discardLabel}>DISCARD</Text>
-          </Animated.View>
-        )}
+          {/* Discard slot */}
+          {discardTop && discardParsed ? (
+            <Animated.View style={[styles.activeSlot, discardMotionStyle]}>
+              <PlayingCard
+                rank={discardParsed.rank}
+                suit={discardParsed.suit}
+                face={discardTop.face}
+                size="lg"
+                elevated
+              />
+            </Animated.View>
+          ) : discardTop && discardJoker ? (
+            <Animated.View style={[styles.activeSlot, discardMotionStyle]}>
+              <PlayingCard
+                jokerColor={discardJoker}
+                face={discardTop.face}
+                size="lg"
+                elevated
+              />
+            </Animated.View>
+          ) : (
+            <Animated.View style={[styles.discardSlot, discardMotionStyle]}>
+              <Text style={styles.discardLabel}>DISCARD</Text>
+            </Animated.View>
+          )}
+        </View>
+
       </View>
 
       {/* Ended banner */}
@@ -496,6 +611,7 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
             disabled={!isMyTurn}
             style={{
               ...styles.passBtn,
+              ...(suggestedAction === 'pass' ? styles.suggestedPass : undefined),
               ...(isMyTurn ? undefined : { opacity: 0.5 }),
             }}
             innerStyle={styles.passBtnInner}
@@ -565,6 +681,27 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
           </Text>
         ) : null}
       </View>
+
+      {hasSession && guidanceState !== 'ended' && (
+        <View
+          style={styles.guidance}
+          pointerEvents="none"
+          accessible
+          accessibilityRole="text"
+          accessibilityLabel={`${guidanceCopy.title}. ${guidanceCopy.detail}`}
+        >
+          <View style={styles.guidanceMark} />
+          <View style={styles.guidanceCopy}>
+            <Text style={styles.guidanceEyebrow}>{guidanceCopy.eyebrow}</Text>
+            <Text style={styles.guidanceTitle} numberOfLines={1}>
+              {guidanceCopy.title}
+            </Text>
+            <Text style={styles.guidanceDetail} numberOfLines={2}>
+              {guidanceCopy.detail}
+            </Text>
+          </View>
+        </View>
+      )}
 
       <EventHistoryModal
         visible={historyOpen}
@@ -660,14 +797,27 @@ const styles = StyleSheet.create({
   },
   table: {
     flex: 1,
-    flexDirection: 'row',
+    flexDirection: 'column',
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: space.xl,
+    gap: space.md,
+    minHeight: 0,
+  },
+  tablePiles: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
     gap: space.xxl,
   },
   deckStack: {
     alignItems: 'center',
+  },
+  suggestedDeck: {
+    borderWidth: 1,
+    borderColor: alpha.brand30,
+    borderRadius: radii.lg,
+    padding: space.xs,
   },
   deckTrigger: {
     alignItems: 'center',
@@ -707,6 +857,54 @@ const styles = StyleSheet.create({
     fontFamily: fonts.bold,
     color: colors.inkSubtle,
     letterSpacing: letterSpacing.caps,
+  },
+  guidance: {
+    position: 'absolute',
+    left: space.md,
+    right: space.md,
+    bottom: 0,
+    alignSelf: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
+    maxWidth: 320,
+    minHeight: 58,
+    paddingHorizontal: space.md,
+    paddingVertical: space.sm,
+    gap: space.sm,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderColor: alpha.inkOverlay12,
+    backgroundColor: alpha.whiteOverlay45,
+  },
+  guidanceMark: {
+    width: 3,
+    height: 34,
+    borderRadius: radii.xs,
+    backgroundColor: colors.brand,
+  },
+  guidanceCopy: {
+    flex: 1,
+    minWidth: 0,
+  },
+  guidanceEyebrow: {
+    fontSize: 9,
+    lineHeight: 12,
+    fontFamily: fonts.bold,
+    color: colors.brand,
+    letterSpacing: letterSpacing.cap,
+  },
+  guidanceTitle: {
+    marginTop: 1,
+    fontSize: fontSizes.small,
+    lineHeight: 17,
+    fontFamily: fonts.extra,
+    color: colors.ink,
+  },
+  guidanceDetail: {
+    fontSize: fontSizes.micro,
+    lineHeight: 16,
+    fontFamily: fonts.regular,
+    color: colors.inkMuted,
   },
   actionBar: {
     flexDirection: 'row',
@@ -769,6 +967,10 @@ const styles = StyleSheet.create({
     minWidth: 128,
     maxWidth: 168,
     flexShrink: 1,
+  },
+  suggestedPass: {
+    borderWidth: 1,
+    borderColor: alpha.whiteOverlay80,
   },
   passBtnInner: {
     minWidth: 0,

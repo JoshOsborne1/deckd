@@ -27,6 +27,7 @@ Expo SDK 57, React Native 0.86, React 19, TypeScript strict. Expo Router app wit
 - Guest privacy: guest sees own hand via viewerId-based selectors; host hand zone is private to host-cid (verified via selectLocalHand).
 - T3 visual lift: SVG French suit glyphs, classic pip layouts, warm paper/grain card faces, court/ace frames, gold card-back inset, one-shot home mascot, deal-entry stagger, and draw/discard feedback are implemented.
 - LOOP visual pass: the home nav is now one continuous ivory table-edge rail at phone widths, with labelled controls and the center Deckd logo isolated from static suit particles; the default ivory table and alternate formerly-green felt theme stay in the warm-white/crimson language.
+- Table material pass: `FeltBackground` now replaces the flat four-edge weave with one deterministic, non-repeating RN-SVG paper/felt grain path tinted from the equipped table theme, shared across Home, Hub, Table, and Pass.
 - T9 motion polish: session-start keyed deck-origin deal stagger, 0.96 draw press spring, 1.05 discard pulse, reduced-motion-safe mascot intro, and sliding pass veil are implemented.
 - Mobile action rail polish: shuffle/history/end controls retain 44px targets, and the pass CTA is shrink-safe inside the 320–375px content width instead of clipping at the edges.
 - Setup material pass: the Hub options rail now uses the same warm ivory rule surface as the table instead of a generic white card; the nav is an unboxed labelled rail so the center control stays focused on the Deckd logo.
@@ -42,6 +43,7 @@ Expo SDK 57, React Native 0.86, React 19, TypeScript strict. Expo Router app wit
 - Transition decision: setup/table remain a single-surface morph with physical card motion only; the route-wide rotateY page turn was not shipped because Josh's brief explicitly rejects page-like handoffs.
 - Preview deployment: `app-serve` was rebuilt from the final export and PM2 `deckd-app` restarted; `https://deckd-app.roxai.click/` returned the current web bundle and passed the same 375px interaction script.
 - Nav redesign evidence: the exported and deployed 375×812 builds expose Home, Store, Deal the deck, Presets, and Profile inside x=8–367/y=748–806, with one ivory rail/top rule and no browser console/page errors; the full pass-and-play flow still reaches the pass veil.
+- Goal-driven guidance pass: pure selectors now derive valid draw/flip/discard/reorder/pass/shuffle/end actions and a single non-blocking suggested move; the table shows the next useful move above the nav and keeps alternate controls live.
 
 Security note: `npm audit fix` removed the easy fixes. Remaining audit warnings require breaking upgrades to React Native 0.86 / Expo 56, so they are parked until an intentional SDK upgrade.
 

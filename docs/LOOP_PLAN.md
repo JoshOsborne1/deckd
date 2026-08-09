@@ -1,6 +1,6 @@
 # Deckd LOOP plan
 
-Last updated: 2026-08-09 · current run: directive audit + highest-impact slice definition
+Last updated: 2026-08-09 · current run: directive audit + guidance slice verification
 
 ## Visual standard
 
@@ -35,10 +35,10 @@ the working tree at commit `8534788` (62/62 tests green, typecheck/lint/doctor p
    The table surface is a flat fill with 4 hairlines; it does not read as warm
    paper or felt. This is the largest tactile gap and affects every surface
    (`FeltBackground` is the ambient layer behind home, hub, table, and pass).
-2. **Goal-driven — no engine guidance.** `src/engine/selectors.ts` (177 lines)
-   has no `canDraw`/`canPass`/`availableActions`/next-action logic. The table
-   disables controls via `isMyTurn` but never suggests the next useful move.
-   This is the largest "self-directed" gap.
+2. **Goal-driven guidance.** Resolved by the fallback gameplay slice below:
+   `src/engine/selectors.ts` now derives valid actions and a single suggested
+   move from `canApplyEvent`; `TableLayer` renders advisory copy and a calm
+   affordance without hiding or gating any valid control.
 
 ## Prioritized implementation slice (UI worker — t_b0862610)
 
@@ -101,6 +101,22 @@ subtle, no pattern tiles, no greens. Apply in `components/layers/TableLayer.tsx`
   scatter (approach A) which is non-repeating by construction.
 - Tint must not reintroduce green. Derive from theme tokens only.
 
+### Delivery note — warm paper-grain surface
+
+Delivered 2026-08-09 in `app/index.tsx`: replaced the old four-edge weave with one
+deterministic 360-stroke RN-SVG scatter path. It sits behind the table geometry and
+content, uses `vectorEffect="non-scaling-stroke"`, and takes its tint from each
+equipped theme's rail token, so Ivory Table, Crimson Felt, and Dark Oak all receive
+the same material treatment without a repeating asset or new dependency. Static web
+export, Home → Hub → dealt Table flow, store theme spot-checks, and the full gates
+(typecheck, lint, 62 Jest tests, Expo Doctor) passed; the wide browser QA showed no
+new overflow and the grain stays subordinate to cards and controls.
+
+Remaining mismatch: the browser harness could not change its native viewport from
+1264px, so exact 375px device screenshot/touch verification remains for the
+integration/device pass. Goal-driven action guidance is still the separate gameplay
+slice below.
+
 ## Fallback next slice (gameplay worker — t_533e3665)
 
 ### Slice: Engine guidance selectors + table next-action affordance
@@ -110,8 +126,8 @@ self-directed (assisted freedom: help, don't restrict).
 
 **Scope:**
 - Add `selectAvailableActions(state, viewerId)` to `src/engine/selectors.ts`:
-  returns the set of currently valid moves (`draw`, `pass`, `flip`, `discard`,
-  `shuffle`, `end`) derived from `canApplyEvent` + phase + turn state. Pure,
+  returns the set of currently valid moves (`draw`, `flip`, `discard`, `reorder`,
+  `pass`, `shuffle`, `end`) derived from `canApplyEvent` + phase + turn state. Pure,
   deterministic, framework-free — matches the existing selector style.
 - Add `selectSuggestedAction(state, viewerId)`: the single highest-value next
   move (e.g. `draw` when hand is empty and it's your turn; `pass` when you've
@@ -143,6 +159,23 @@ self-directed (assisted freedom: help, don't restrict).
   calm — a slow opacity breathe, not a bounce. Respect reduce-motion (fade only).
 - Avoid coupling to the texture worker's files; the two workers edit different
   surfaces (`app/index.tsx` vs `TableLayer.tsx` interaction layer).
+
+### Delivery note — goal-driven guidance
+
+Delivered 2026-08-09 in `src/engine/selectors.ts`,
+`src/engine/selectors.test.ts`, and `components/layers/TableLayer.tsx`.
+`selectAvailableActions` validates draw, flip, discard, reorder, pass, shuffle,
+and end candidates with the existing event reducer; `selectSuggestedAction` and
+`selectGuidanceState` choose the next useful move without changing event flow or
+blocking alternate controls. The table now exposes a quiet `NEXT USEFUL MOVE`
+strip, accessible draw-pile guidance, and a suggested pass/deck outline while
+keeping the action rail live; mixed face-up/face-down hands are covered as a
+recovery case.
+
+Focused selector coverage is 9/9 green. A fresh 375×812 Playwright flow confirmed
+`scrollWidth === bodyScrollWidth === 375`, visible guidance before and after a
+draw, PASS remains visible, and no console/page errors. The full integration
+gates remain with the integrator slice below.
 
 ## Integration slice (t_2a4d3147 — generalist)
 

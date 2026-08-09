@@ -63,8 +63,10 @@ const BASE_URL = process.env.DECKD_QA_URL ?? 'http://127.0.0.1:8082';
     hasTableSurface: bodyText.includes('YOUR HAND') || bodyText.includes('Draw') || bodyText.includes('TABLE'),
     hasTwoCardHand: bodyText.includes('2 CARDS'),
     hasTenCardDrawState: bodyText.includes('40 LEFT'),
+    hasGuidance: bodyText.includes('NEXT USEFUL MOVE'),
     errors,
   };
   process.stdout.write(JSON.stringify(result, null, 2));
   await browser.close();
+  if (!result.hasGuidance || result.errors.length > 0) process.exitCode = 2;
 })();

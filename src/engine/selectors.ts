@@ -1,4 +1,5 @@
 import type { Rank, Suit } from '@lib/types';
+import type { GameEvent } from './events';
 import type {
   CardFace,
   CardId,
@@ -9,7 +10,7 @@ import type {
   PlayerId,
 } from './types';
 import { ZONE_DISCARD, ZONE_DRAW, handZoneId } from './types';
-import { visibleCardsForPlayer } from './state';
+import { canApplyEvent, visibleCardsForPlayer } from './state';
 
 const GLYPH_TO_SUIT: Record<string, Suit> = {
   H: 'hearts',
@@ -17,6 +18,43 @@ const GLYPH_TO_SUIT: Record<string, Suit> = {
   S: 'spades',
   C: 'clubs',
 };
+
+/**
+ * Table actions are deliberately broader than the single suggested move.
+ * Guidance can point at one useful next step without hiding any other move
+ * the current state allows.
+ */
+export const TABLE_ACTIONS = [
+  'draw',
+  'flip',
+  'discard',
+  'reorder',
+  'pass',
+  'shuffle',
+  'end',
+] as const;
+
+export type TableAction = (typeof TABLE_ACTIONS)[number];
+
+export type GuidancePhase =
+  | 'idle'
+  | 'waiting'
+  | 'draw'
+  | 'flip'
+  | 'discard'
+  | 'pass'
+  | 'end'
+  | 'ended';
+
+export type GuidanceState = GuidancePhase;
+
+function selectorEventBase(actorId: PlayerId): Pick<GameEvent, 'id' | 'ts' | 'actorId' | 'seq'> {
+  return { id: 'selector-preview', ts: 0, actorId, seq: 0 };
+}
+
+function hasPlayer(state: GameState, playerId: PlayerId): boolean {
+  return state.players.some((player) => player.id === playerId);
+}
 
 /**
  * Parse a standard card ID (e.g. `"H-A"`, `"S-10"`) into rank + suit.
@@ -137,6 +175,152 @@ export function selectIsSessionEnded(state: GameState): boolean {
  */
 export function selectIsMyTurn(state: GameState, localPlayerId: PlayerId): boolean {
   return state.currentPlayerId === localPlayerId;
+}
+
+/**
+ * Actions that are currently valid for a player at the table.
+ *
+ * This is an affordance selector, not a second rules engine: each candidate
+ * event is checked with `canApplyEvent`, then narrowed by the phase, turn, and
+ * host ownership rules that the table surface already uses. The returned Set
+ * is informational; callers must not use it to hide a valid control.
+ */
+export function selectAvailableActions(
+  state: GameState,
+  viewerId: PlayerId,
+): ReadonlySet<TableAction> {
+  const actions = new Set<TableAction>();
+  if (state.phase !== 'playing' || !hasPlayer(state, viewerId)) return actions;
+
+  const base = selectorEventBase(viewerId);
+  const isCurrentPlayer = selectIsMyTurn(state, viewerId);
+  const hand = selectLocalHand(state, viewerId);
+
+  if (isCurrentPlayer) {
+    const drawTopId = selectDrawTopCardId(state);
+    if (
+      drawTopId &&
+      canApplyEvent(state, {
+        ...base,
+        type: 'card/deal',
+        cardId: drawTopId,
+        toZoneId: handZoneId(viewerId),
+        face: 'up',
+      })
+    ) {
+      actions.add('draw');
+    }
+
+    const canFlipHandCard = hand.some((card) =>
+      canApplyEvent(state, { ...base, type: 'card/flip', cardId: card.id }),
+    );
+    if (canFlipHandCard) {
+      actions.add('flip');
+    }
+    const canDiscardHandCard = hand.some((card) =>
+      canApplyEvent(state, {
+        ...base,
+        type: 'card/move',
+        cardId: card.id,
+        toZoneId: ZONE_DISCARD,
+        face: 'up',
+      }),
+    );
+    if (canDiscardHandCard) {
+      actions.add('discard');
+    }
+    if (
+      hand.length > 1 &&
+      canApplyEvent(state, {
+        ...base,
+        type: 'hand/reorder',
+        playerId: viewerId,
+        order: hand.map((card) => card.id),
+      })
+    ) {
+      actions.add('reorder');
+    }
+
+    if (
+      selectNextPlayerId(state) &&
+      canApplyEvent(state, { ...base, type: 'turn/end', playerId: viewerId })
+    ) {
+      actions.add('pass');
+    }
+  }
+
+  // Host-level controls remain available outside the current player's turn.
+  // They are included here so guidance can explain the full set of safe,
+  // non-blocking alternatives instead of implying that the turn is a lock.
+  if (state.meta.hostId === viewerId) {
+    const drawZone = state.zones[ZONE_DRAW];
+    if (
+      drawZone &&
+      drawZone.cardIds.length > 1 &&
+      canApplyEvent(state, {
+        ...base,
+        type: 'deck/shuffle',
+        zoneId: ZONE_DRAW,
+        newOrder: drawZone.cardIds,
+      })
+    ) {
+      actions.add('shuffle');
+    }
+    if (canApplyEvent(state, { ...base, type: 'session/end' })) {
+      actions.add('end');
+    }
+  }
+
+  return actions;
+}
+
+/**
+ * The one move worth calling out first. A suggestion never removes the other
+ * actions from `selectAvailableActions` and is intentionally null while the
+ * viewer is waiting on another player.
+ */
+export function selectSuggestedAction(
+  state: GameState,
+  viewerId: PlayerId,
+): TableAction | null {
+  if (state.phase !== 'playing' || !hasPlayer(state, viewerId) || !selectIsMyTurn(state, viewerId)) {
+    return null;
+  }
+
+  const available = selectAvailableActions(state, viewerId);
+  const hand = selectLocalHand(state, viewerId);
+
+  if (hand.length === 0 && available.has('draw')) return 'draw';
+  if (hand.some((card) => card.face === 'down') && available.has('flip')) return 'flip';
+  if (hand.length > 0 && available.has('discard')) return 'discard';
+  if (available.has('draw')) return 'draw';
+  if (available.has('pass')) return 'pass';
+  if (available.has('end')) return 'end';
+  return null;
+}
+
+/**
+ * Small semantic state for the table guidance strip. Keeping this derived
+ * state in the engine lets the UI render copy and motion without re-encoding
+ * turn/phase rules in a component.
+ */
+export function selectGuidanceState(state: GameState, viewerId: PlayerId): GuidancePhase {
+  if (state.phase === 'idle') return 'idle';
+  if (state.phase === 'ended') return 'ended';
+  if (state.phase !== 'playing' || !hasPlayer(state, viewerId) || !selectIsMyTurn(state, viewerId)) {
+    return 'waiting';
+  }
+  const suggested = selectSuggestedAction(state, viewerId);
+  if (
+    suggested === 'draw' ||
+    suggested === 'flip' ||
+    suggested === 'discard' ||
+    suggested === 'pass' ||
+    suggested === 'end'
+  ) {
+    return suggested;
+  }
+  return 'waiting';
 }
 
 /**
