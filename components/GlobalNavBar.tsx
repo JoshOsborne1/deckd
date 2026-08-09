@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { usePathname, useRouter, type Href } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Home, ShoppingBag, User } from 'lucide-react-native';
@@ -13,7 +13,7 @@ import Animated, {
   withSpring,
   withTiming,
 } from 'react-native-reanimated';
-import { brand } from '@lib/assets';
+import { PlayingCard } from '@components/PlayingCard';
 import { useMotion } from '@hooks/useMotion';
 import { useUiStore } from '@store/uiStore';
 import { alpha, colors, fonts, motion, space } from '@theme';
@@ -212,7 +212,11 @@ function NavItem({
         onPress={onPress}
         onPressIn={() => setPressed(true)}
         onPressOut={() => setPressed(false)}
-        style={styles.itemButton}
+        style={({ pressed }) => [
+          styles.itemButton,
+          active && styles.itemButtonActive,
+          pressed && styles.itemButtonPressed,
+        ]}
       >
         <View style={styles.itemIcon}>
           {item.id === 'games' ? (
@@ -262,7 +266,24 @@ function DealButton({ reduceMotion, onPress }: { reduceMotion: boolean; onPress:
       style={styles.centerButton}
     >
       <Animated.View style={[styles.logoMotion, dealMotion]} pointerEvents="none">
-        <Image source={brand.logo} style={styles.logo} resizeMode="contain" />
+        <View style={styles.dealDeckStack}>
+          <PlayingCard
+            face="down"
+            back="back-crimson"
+            size="xs"
+            overlapped
+            style={styles.dealDeckBack}
+          />
+          <PlayingCard
+            face="up"
+            rank="A"
+            suit="hearts"
+            size="xs"
+            overlapped
+            style={styles.dealDeckFront}
+          />
+        </View>
+        <Text style={styles.dealLabel}>Deal</Text>
       </Animated.View>
     </Pressable>
   );
@@ -284,35 +305,46 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: alpha.navLine,
     justifyContent: 'flex-end',
-    paddingTop: space.xs,
+    paddingTop: space.sm,
   },
   row: {
     position: 'relative',
     flexDirection: 'row',
-    alignItems: 'stretch',
+    alignItems: 'flex-end',
     justifyContent: 'center',
     alignSelf: 'center',
     maxWidth: 420,
     paddingHorizontal: space.sm,
+    gap: space.xs,
     width: '100%',
   },
   itemSlot: {
     flex: 1,
     minWidth: 0,
-    maxWidth: 84,
-    minHeight: 58,
+    maxWidth: 70,
+    minHeight: 48,
     alignItems: 'center',
     justifyContent: 'center',
   },
   itemButton: {
     width: '100%',
-    maxWidth: 84,
-    minHeight: 58,
+    maxWidth: 70,
+    minHeight: 46,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: space.xs,
-    paddingTop: space.xs,
-    paddingBottom: space.xxs,
+    paddingHorizontal: 5,
+    paddingVertical: 5,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: 'transparent',
+  },
+  itemButtonPressed: {
+    backgroundColor: alpha.inkOverlay06,
+    transform: [{ scale: 0.96 }],
+  },
+  itemButtonActive: {
+    backgroundColor: colors.surface,
+    borderColor: alpha.brand20,
   },
   itemIcon: {
     height: 21,
@@ -322,29 +354,59 @@ const styles = StyleSheet.create({
   itemLabel: {
     marginTop: 3,
     fontFamily: fonts.semibold,
-    fontSize: 10,
-    lineHeight: 14,
+    fontSize: 9,
+    lineHeight: 12,
     letterSpacing: 0.25,
   },
   activeRule: {
-    height: 1,
+    height: 2,
     marginTop: 3,
     backgroundColor: colors.brand,
     borderRadius: 1,
   },
   centerButton: {
-    width: 56,
-    minHeight: 58,
+    width: 62,
+    minHeight: 62,
     alignItems: 'center',
     justifyContent: 'center',
-    marginHorizontal: space.xs,
+    marginHorizontal: space.xxs,
     zIndex: 2,
+    overflow: 'visible',
   },
   logoMotion: {
-    width: 48,
-    height: 48,
+    width: 54,
+    height: 64,
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'visible',
+  },
+  dealDeckStack: {
+    position: 'relative',
+    width: 44,
+    height: 46,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dealDeckBack: {
+    position: 'absolute',
+    top: 3,
+    left: 7,
+    transform: [{ rotate: '9deg' }, { scale: 1.8 }],
+  },
+  dealDeckFront: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    transform: [{ rotate: '-8deg' }, { scale: 1.8 }],
+  },
+  dealLabel: {
+    marginTop: 1,
+    fontFamily: fonts.bold,
+    fontSize: 9,
+    lineHeight: 11,
+    color: colors.brand,
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
   },
   fanRoot: {
     width: 28,
@@ -356,10 +418,6 @@ const styles = StyleSheet.create({
     borderRadius: 3,
     borderWidth: 1.5,
     backgroundColor: 'transparent',
-  },
-  logo: {
-    width: 44,
-    height: 44,
   },
 });
 
