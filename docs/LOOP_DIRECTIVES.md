@@ -10,7 +10,9 @@ Last updated: 2026-08-09
 The card rendering is still too buggy visually. Cards must render cleanly at every size, no overlaps, no clipping, no layout jitter when the hand fans or stacks. Verify at 375px AND desktop. This is the top priority: fix card rendering before any other card work.
 
 ### 2. Deckd-branded card back (DONE — asset ready)
-Use `assets/card-back-deckd.png` (generated: ivory paper, gold double border, corner lattice, red D logo + heart). Make it the default card back (back-brand). It must render correctly as a React Native Image inside PlayingCard's back face, crisp at small sizes, correct aspect ratio (~2.5:3.5). Keep the existing procedural backs as selectable options.
+Use `assets/card-back-deckd.png` (composed deterministically from the EXACT `assets/Logo.png`: D folded over with heart, ivory paper texture, crimson double border). Make it the default card back (back-brand). It must render correctly as a React Native Image inside PlayingCard's back face, crisp at small sizes, correct aspect ratio (750x1050, 2.5:3.5). Keep the existing procedural backs as selectable options.
+
+BRANDING RULE: the logo mark must ALWAYS come from `assets/Logo.png` (or an exact vector of it) — never AI-reinterpret the logo from a text description. No gold, no square/lattice patterns on card backs. Ivory + crimson only.
 
 ### 3. Card fronts from a proven repo (assets ready)
 Vendored in-repo at `vendor/card-fronts/`:
