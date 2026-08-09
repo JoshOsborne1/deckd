@@ -12,6 +12,7 @@ module.exports = [
       'web-build/**',
       'build/**',
       'coverage/**',
+      'server/**',
     ],
   },
   ...expoConfig,
