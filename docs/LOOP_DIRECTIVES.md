@@ -36,6 +36,14 @@ The preset picker (Freeplay, Deal 2 each, Blackjack-style, Poker-style) needs re
 ### 7. Card flip page transitions
 Build a 3D card-flip transition for surface changes (setup → table, home → setup): the screen change animates like flipping/dealing a card. Use react-native-reanimated 4.5 (ALREADY INSTALLED — this IS the best 3D flip engine; do NOT add a new dependency). rotateY + perspective + backfaceVisibility with a shared transition component in `src/lib/motion.ts` or `components/`. Respect reduce-motion (AccessibilityInfo.isReduceMotionEnabled). Must work on web and native.
 
+### 8. Use the logo wherever possible (DONE for icons, keep applying)
+- iOS Add to Home Screen: `public/apple-touch-icon.png` + manifest + static web output (DONE, live).
+- Rule: any brand mark in the UI uses `assets/logo.svg` (vector, canonical) or `assets/Logo.png` via `lib/assets.ts`. No re-drawn logos anywhere.
+- The PlayingCard back face already uses `brand.logo` — keep it consistent everywhere else (store, hub, settings, profile, pass screen).
+
+### 9. Table background texture
+The playing surface should have a subtle warm texture (paper/felt-like grain, ivory) instead of a flat colour fill. Keep it subtle, no pattern tiles, no greens. Apply in `components/layers/TableLayer.tsx` (and HubLayer if it shares the surface family).
+
 ## Standing rules (from AGENTS.md, unchanged)
 
 - TypeScript strict, NO new dependencies, no raw hex outside src/lib/theme.ts.
