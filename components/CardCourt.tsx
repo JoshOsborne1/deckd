@@ -35,14 +35,14 @@ export function CardCourt({
           height={118}
           rx={9}
           fill={alpha.whiteOverlay80}
-          stroke={alpha.gold40}
+          stroke={alpha.inkOverlay20}
           strokeWidth={1}
         />
         <CourtHalf rank={rank} suit={suit} color={color} />
         <G transform="translate(100 126) rotate(180)">
           <CourtHalf rank={rank} suit={suit} color={color} />
         </G>
-        <Rect x={9} y={61.5} width={82} height={3} rx={1.5} fill={alpha.gold40} />
+        <Rect x={9} y={61.5} width={82} height={3} rx={1.5} fill={alpha.brand45} />
       </Svg>
     </View>
   );
@@ -59,7 +59,7 @@ function CourtHalf({
 }) {
   const hair = rank === 'K' ? colors.ink : colors.inkSoft;
   const robe = rank === 'Q' ? colors.brandDark : color;
-  const trim = rank === 'K' ? colors.seatDealer : alpha.gold40;
+  const trim = rank === 'K' ? colors.brand : alpha.brand45;
   return (
     <G>
       <Rect x={10} y={7} width={80} height={52} rx={7} fill={colors.surfaceAlt} />
@@ -74,11 +74,11 @@ function CourtHalf({
       <Path d="M39 40 50 54 61 40" fill={trim} opacity={0.78} />
       <Path d={SUIT_PATH[suit]} fill={color} transform="translate(44 42) scale(.12)" />
       {rank === 'K' ? (
-        <Path d="m41 13 4-6 5 5 5-5 4 6-3 3H44Z" fill={colors.seatDealer} />
+        <Path d="m41 13 4-6 5 5 5-5 4 6-3 3H44Z" fill={colors.brand} />
       ) : rank === 'Q' ? (
-        <Path d="M43 12 50 7l7 5-2 5H45Z" fill={alpha.gold40} stroke={colors.seatDealer} strokeWidth={0.8} />
+        <Path d="M43 12 50 7l7 5-2 5H45Z" fill={colors.brandSoft} stroke={colors.brand} strokeWidth={0.8} />
       ) : (
-        <Path d="M50 7v10M45 12h10" stroke={colors.seatDealer} strokeWidth={1.6} strokeLinecap="round" />
+        <Path d="M50 7v10M45 12h10" stroke={colors.brand} strokeWidth={1.6} strokeLinecap="round" />
       )}
     </G>
   );

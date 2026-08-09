@@ -19,6 +19,7 @@ import { useCosmeticsStore } from '@store/cosmeticsStore';
 import { findTableThemeById } from '@engine/visuals';
 import { useMotion } from '@hooks/useMotion';
 import { alpha, colors } from '@theme';
+import { PAPER_GRAIN_PATH } from '@lib/paperGrain';
 
 /**
  * The Deckd surface. `/` is the single canvas: a persistent felt background
@@ -40,33 +41,6 @@ const MATERIAL_EMPHASIZED = Easing.bezier(0.4, 0, 0.2, 1);
 const DURATION_ENTER_HUB = 520;
 const DURATION_RETURN_HOME = 380;
 const DURATION_REDUCE_MOTION = 200;
-
-/**
- * One deterministic scatter keeps the table tactile without introducing a
- * repeating tile or a large tree of native views. The normalized viewBox lets
- * the same material treatment cover the full surface at phone and desktop
- * widths; the path's stroke stays hairline-sized via vectorEffect.
- */
-function createTableGrainPath(): string {
-  let seed = 0x6d2b79f5;
-  const next = () => {
-    seed = Math.imul(seed ^ (seed >>> 15), seed | 1);
-    seed ^= seed + Math.imul(seed ^ (seed >>> 7), seed | 61);
-    return ((seed ^ (seed >>> 14)) >>> 0) / 4294967296;
-  };
-
-  return Array.from({ length: 360 }, () => {
-    const x = 1 + next() * 98;
-    const y = 1 + next() * 98;
-    const length = 0.25 + next() * 0.65;
-    const angle = (next() - 0.5) * 0.5;
-    const dx = Math.cos(angle) * length;
-    const dy = Math.sin(angle) * length;
-    return `M${x.toFixed(2)} ${y.toFixed(2)}l${dx.toFixed(2)} ${dy.toFixed(2)}`;
-  }).join('');
-}
-
-const TABLE_GRAIN_PATH = createTableGrainPath();
 
 export default function Surface() {
   const insets = useSafeAreaInsets();
@@ -179,7 +153,7 @@ function FeltBackground() {
         pointerEvents="none"
       >
         <Path
-          d={TABLE_GRAIN_PATH}
+          d={PAPER_GRAIN_PATH}
           fill="none"
           stroke={grainTint}
           strokeWidth={0.55}

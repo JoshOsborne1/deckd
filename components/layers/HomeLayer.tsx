@@ -362,6 +362,7 @@ export function HomeLayer({
                 <PlayingCard
                   face="down"
                   size="sm"
+                  overlapped
                   style={styles.heroPreviewCard1}
                 />
                 <PlayingCard
@@ -369,6 +370,7 @@ export function HomeLayer({
                   rank="A"
                   suit="hearts"
                   size="sm"
+                  overlapped
                   style={styles.heroPreviewCard2}
                 />
               </View>

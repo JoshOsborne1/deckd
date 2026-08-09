@@ -4,6 +4,7 @@ import Svg, { Path } from 'react-native-svg';
 import type { Rank, Suit } from '@lib/types';
 import type { JokerColor } from '@engine/types';
 import { CardCourt } from '@components/CardCourt';
+import { PAPER_GRAIN_PATH } from '@lib/paperGrain';
 import { alpha, colors, fonts, space } from '@theme';
 
 /**
@@ -81,14 +82,24 @@ function SuitGlyph({ suit, size, color }: { suit: Suit; size: number; color: str
 
 function PaperGrain() {
   return (
-    <View style={styles.paperGrain} pointerEvents="none">
-      {Array.from({ length: 8 }).map((_, index) => (
-        <View
-          key={index}
-          style={[styles.grainLine, { top: `${index * 15 - 7}%` }]}
-        />
-      ))}
-    </View>
+    <Svg
+      width="100%"
+      height="100%"
+      viewBox="0 0 100 100"
+      preserveAspectRatio="none"
+      style={styles.paperGrain}
+      pointerEvents="none"
+    >
+      <Path
+        d={PAPER_GRAIN_PATH}
+        fill="none"
+        stroke={alpha.inkOverlay08}
+        strokeWidth={0.55}
+        strokeLinecap="round"
+        opacity={0.72}
+        vectorEffect="non-scaling-stroke"
+      />
+    </Svg>
   );
 }
 
@@ -219,7 +230,7 @@ function JokerArtwork({ color, spec }: { color: JokerColor; spec: CardFaceSpec }
               width: medallionSize,
               height: medallionSize,
               borderRadius: medallionSize / 2,
-              borderColor: alpha.gold40,
+              borderColor: alpha.inkOverlay20,
             },
           ]}
         >
@@ -306,14 +317,7 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFill,
     overflow: 'hidden',
   },
-  grainLine: {
-    position: 'absolute',
-    left: -20,
-    right: -20,
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: alpha.inkOverlay02,
-    transform: [{ rotate: '-18deg' }],
-  },
+
   frameOuter: {
     position: 'absolute',
     borderWidth: 1,

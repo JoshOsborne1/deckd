@@ -21,6 +21,8 @@ export interface PlayingCardProps {
   elevated?: boolean;
   highlighted?: boolean;
   disabled?: boolean;
+  /** True when this card is physically overlapping another card. */
+  overlapped?: boolean;
   onPress?: () => void;
   style?: ViewStyle;
   testID?: string;
@@ -84,6 +86,7 @@ export const PlayingCard = React.memo(function PlayingCard({
   elevated = false,
   highlighted = false,
   disabled = false,
+  overlapped = false,
   onPress,
   style,
   testID,
@@ -112,7 +115,9 @@ export const PlayingCard = React.memo(function PlayingCard({
     opacity: disabled ? 0.5 : 1,
   };
 
-  const wrapperShadow = elevated ? shadow.ctaLift : shadow.card;
+  // A lone card is printed stock, not a floating tile. Shadows only appear
+  // when the caller describes real overlap or an explicit highlighted lift.
+  const wrapperShadow = elevated || overlapped ? shadow.cardStrong : shadow.none;
   const highlightRing: ViewStyle = highlighted
     ? { borderColor: alpha.brand45, borderWidth: 2 }
     : {};

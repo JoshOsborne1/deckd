@@ -408,6 +408,7 @@ export function HubLayer({
               face="down"
               back={PRESET_BACKS[activePreset.id] ?? 'back-brand'}
               size="sm"
+              overlapped
               style={styles.stageBackCard}
             />
             <PlayingCard
@@ -415,6 +416,7 @@ export function HubLayer({
               rank="A"
               suit="hearts"
               size="sm"
+              overlapped
               style={styles.stageFrontCard}
             />
           </View>

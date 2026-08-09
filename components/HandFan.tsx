@@ -172,6 +172,7 @@ function FanCard({
       rank={parsed?.rank}
       suit={parsed?.suit}
       jokerColor={jokerColor ?? undefined}
+      overlapped={total > 2}
       size={size}
       elevated={highlighted}
       highlighted={highlighted}

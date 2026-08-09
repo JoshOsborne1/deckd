@@ -157,6 +157,7 @@ function StackCard({
       rank={parsed?.rank}
       suit={parsed?.suit}
       jokerColor={jokerColor ?? undefined}
+      overlapped={total > 1}
       size={size}
       elevated={highlighted}
       highlighted={highlighted}
