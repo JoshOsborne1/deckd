@@ -44,6 +44,9 @@ Build a 3D card-flip transition for surface changes (setup → table, home → s
 ### 9. Table background texture
 The playing surface should have a subtle warm texture (paper/felt-like grain, ivory) instead of a flat colour fill. Keep it subtle, no pattern tiles, no greens. Apply in `components/layers/TableLayer.tsx` (and HubLayer if it shares the surface family).
 
+### 10. PREVIEW MODE: NO HARD LOCKS (Josh, 2026-08-09)
+Nothing may block testing. All features are usable NOW (free, no purchase required): lobby hosting (Master gate REMOVED in LobbyLayer.handleCreate), all card backs and table themes preview-unlock on tap in the store, passes show as placeholders. Keep the LOCKED LOOK (lock icons, "Hosting needs a Master pass" note, prices shown) so the monetization UI is visible, but never block a tap. Do not reintroduce purchase gates. RevenueCat keys are empty; nothing can be bought anyway.
+
 ## Standing rules (from AGENTS.md, unchanged)
 
 - TypeScript strict, NO new dependencies, no raw hex outside src/lib/theme.ts.
