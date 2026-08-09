@@ -604,7 +604,15 @@ export function HubLayer({
           </CardSection>
         </Animated.View>
 
-        <Animated.View style={[styles.ctaRow, ctaRowStyle]}>
+        {/* RN Web does not always materialize ScrollView padding as scrollable
+            content; keep a real spacer so the CTA can clear the card rail. */}
+        <View style={styles.scrollReserve} />
+      </ScrollView>
+
+      {/* Keep the next physical move visible while the setup notes scroll. This
+          is a table-edge action strip, not a second page or floating card. */}
+      <Animated.View style={[styles.ctaDock, ctaRowStyle]}>
+        <View style={styles.ctaRow}>
           <CardButton
             variant="ghost"
             size="md"
@@ -632,11 +640,8 @@ export function HubLayer({
               </Text>
             </CardButton>
           </Animated.View>
-        </Animated.View>
-        {/* RN Web does not always materialize ScrollView padding as scrollable
-            content; keep a real spacer so the CTA can clear the card rail. */}
-        <View style={styles.scrollReserve} />
-      </ScrollView>
+        </View>
+      </Animated.View>
     </Animated.View>
   );
 }
@@ -1020,10 +1025,23 @@ const styles = StyleSheet.create({
     letterSpacing: letterSpacing.cap,
   },
   ctaRow: {
-    marginTop: space.xxl,
     flexDirection: 'row',
     alignItems: 'center',
     gap: space.md,
+    width: '100%',
+  },
+  ctaDock: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 4,
+    paddingHorizontal: space.xl,
+    paddingTop: space.sm,
+    paddingBottom: space.sm,
+    backgroundColor: colors.surfaceAlt,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: alpha.brand20,
   },
   hostChip: {
     flexDirection: 'row',

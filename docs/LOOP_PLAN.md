@@ -40,8 +40,9 @@ The previous LOOP slices are present in the working tree, including the canvas c
 13. **Done — continuous nav rail.** GlobalNavBar now uses one ivory table-edge rail with a 1px rule, labelled Home/Store/Presets/Profile controls, 44px+ targets, and no per-item shells, shadows, or rotation; the center logo remains the Deal anchor.
 14. **Not pursued by directive — page flip.** Setup and table stay a single-surface morph with no route-level 3D page turn; physical card motion remains in deal, draw, discard, flip, and pass interactions.
 15. **Done — release loop.** Exact 375px screenshot/interaction QA, typecheck, lint, Jest, Expo Doctor, static export, preview deploy, and live verification all pass.
-16. **In progress — P0 RN Web card-back visibility.** The first fresh exact-width audit found the image asset loaded but hidden behind the opaque paper fallback because RN Web placed the visual image background at `z-index: -1`. The card shell now explicitly raises the branded image layer; fresh screenshots show all three home preview backs, the hub staged back, and the table draw pile with the real logo/borders.
-17. **Next — setup action reach.** The settled Hub screenshot at 375×812 still puts `Deal now` below the first viewport after options. Rework the setup action geometry without introducing a route or breaking the shared table canvas.
+16. **Done — P0 RN Web card-back visibility.** The first fresh exact-width audit found the image asset loaded but hidden behind the opaque paper fallback because RN Web placed the visual image background at `z-index: -1`. The card shell now explicitly raises the branded image layer; fresh screenshots show all three home preview backs, the hub staged back, and the table draw pile with the real logo/borders.
+17. **Done — setup action reach.** HubLayer now keeps the Host/Deal action in a warm table-edge dock above the persistent nav while setup notes remain scrollable; the primary deal move is visible at 320×720, 375×812, and desktop widths.
+18. **Next — final table-world pass.** Re-run the complete ritual and fix only a concrete remaining material, contrast, or interaction defect before release verification.
 
 ## Verified slices
 
@@ -59,6 +60,7 @@ The previous LOOP slices are present in the working tree, including the canvas c
 - Nav redesign audit: the exported local build and deployed public preview both returned HTTP 200 at 375×812; Home, Store, Deal the deck, Presets, and Profile targets measured inside x=8–367/y=748–806, document width stayed 375px, and the interaction flow produced no browser console/page errors.
 - Final deterministic 375×812 run: after waiting for the RN Web shell to attach Pressable handlers and settle the nav stagger, Home → Deal the deck → setup → Deal 2 each → Deal now → table → PASS TURN completed with `scrollWidth=375`, all settled nav targets inside x=8–367/y=748–806, no console/page errors, and the pass veil still on the same ivory/crimson canvas.
 - Current card-back fix: the exact PNGs load successfully in the web bundle, the image layer now sits above the fallback, and fresh 375×812 screenshots visibly show Deckd Crimson, Noir, and Crimson marks in Home, the staged hub pile, and the table draw pile. Full gates remain green: typecheck, lint, 62 Jest tests, and Expo Doctor 20/20.
+- Setup action reach: the Hub `Host a lobby` / `Deal now` pair now lives in a warm table-edge dock above the persistent nav. Fresh 320×720 and 375×812 screenshots keep both targets inside the viewport with `scrollWidth` equal to the viewport; the desktop dock stays above the labelled nav rail and the deal click still reaches the dealt table.
 
 ## Acceptance checks
 
@@ -95,5 +97,6 @@ The previous LOOP slices are present in the working tree, including the canvas c
 
 - Baseline: `npm run typecheck`, `npm run lint`, `npx jest --runInBand`, and `npx expo-doctor` all passed before the slice.
 - Slice 1: the same gates passed after the `PlayingCard` image-layer fix; the Jest run remains 62/62 and Expo Doctor remains 20/20.
+- Slice 2: typecheck, lint, 62 Jest tests, and Expo Doctor 20/20 passed after moving Hub actions into the table-edge dock. Playwright at 320×720 and 375×812 measured both setup CTAs inside the viewport with no horizontal overflow; a desktop 1440×900 flow also clicked `Deal now` into the table with no browser console/page errors.
 - Deterministic local QA: Playwright at 375×812 completed Home → setup → Deal 2 each → table with `scrollWidth=375`, `bodyScrollWidth=375`, and empty console/page error arrays. Screenshots were inspected for Home, setup, and table.
-- Deployment is intentionally deferred until the next meaningful setup slice is complete, per the LOOP order; the existing public preview remains the previous verified build.
+- Deployment is intentionally deferred until the final table-world pass is complete, per the LOOP order; the existing public preview remains the previous verified build.
