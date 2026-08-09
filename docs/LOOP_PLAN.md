@@ -13,7 +13,7 @@ Deckd is a warm ivory card table with crimson ink: quiet stock, 1px rule divider
 - Setup morphs from home through `SurfaceMorphContext` and reads as deck staging on the same table rather than a generic settings page.
 - The table action rail is constrained to the phone width, retains 44px controls, and the pass ritual is clear at the end of a dealt flow.
 - The exact 375px audit exposed blue/green/gold avatar swatches as the last chromatic mismatch; `AvatarPlaceholder` now stays on ivory, crimson, and ink tokens.
-- A fresh 375×812 Playwright run through Home → setup → Deal 2 each → table → pass confirms geometry and browser errors are clean. Setup is reachable and materially consistent, but the pass veil still becomes a flat `colors.bg` page and breaks the persistent table-world material at the most important handoff.
+- A fresh 375×812 Playwright run through Home → setup → Deal 2 each → table → pass confirms geometry and browser errors are clean. The pass veil now keeps the same warm stock, table rail, well, and crimson rule language through the handoff instead of becoming a flat page.
 
 ## Live audit re-plan
 
@@ -27,7 +27,7 @@ The previous LOOP slices are present in the working tree. This pass is evidence-
 4. **Done — table action rail audit.** Keep the shuffle, pass, history, and end controls inside the 320–375px content width with 44px icon targets and a single-line pass CTA.
 5. **Done — avatar material audit.** Remove non-table blue/green/gold swatches from the shared avatar primitive so home and table chrome stay inside the white/crimson/ink language.
 6. **Done — release verification.** Exercise home -> setup -> Deal 2 each -> dealt table -> pass veil at 375px, run all quality gates, export/redeploy, and inspect the live preview.
-7. **In progress — pass material continuity.** Preserve the veil's deliberate hold-to-reveal ritual while adding a low-contrast table rail/well and paper-stock treatment so the pass handoff belongs to the same game space.
+7. **Done — pass material continuity.** Preserve the veil's deliberate hold-to-reveal ritual while adding a low-contrast table rail/well and paper-stock treatment so the pass handoff belongs to the same game space.
 
 ## Verified slices
 
@@ -36,8 +36,9 @@ The previous LOOP slices are present in the working tree. This pass is evidence-
 - Setup material: the Hub options rail now uses a warm ivory rule surface, the hand-layout controls stack cleanly on narrow phones, and the Host/Deal row remains reachable at 375px.
 - Table actions: the mobile action rail now uses a constrained full-width row, 44px icon controls, and a shrink-safe pass CTA; the previous 375px screenshot showed shuffle and end-session controls clipped off both edges.
 - Avatar material: the shared avatar palette now uses theme tokens from the ivory/crimson/ink table world; the 375px dealt-table screenshot no longer shows blue, green, or gold opponent chrome.
+- Pass material: the privacy veil now uses warm ivory stock, a low-contrast table rail/well, and crimson rules behind the recipient and hold-to-reveal action; visual review found the ritual calmer and more continuous without decorative noise.
 - Release loop: typecheck, lint, 62 Jest tests, Expo Doctor (20/20), export, PM2 restart, and the public-preview 375px flow all pass with no browser console/page errors.
-- Fresh 375px audit: Home, setup, dealt Deal 2 each, and table controls stay inside the viewport with no browser errors. Visual review calls out the pass veil's plain white background as the remaining continuity break; this is the current highest-impact slice.
+- Fresh 375px audit: Home, setup, dealt Deal 2 each, table, and pass controls stay inside the viewport with no browser errors; the live public preview returned HTTP 200 and completed the same interaction flow.
 
 ## Acceptance checks
 
@@ -48,6 +49,7 @@ The previous LOOP slices are present in the working tree. This pass is evidence-
 - The table action rail stays fully visible at 320px and 375px; no icon or pass CTA is horizontally clipped.
 - Avatar accents stay within the active ivory/crimson/ink material language; semantic color is reserved for deliberate card or status meaning.
 - The pass veil clearly identifies the next player and keeps the hand hidden until the deliberate hold-to-reveal gesture.
+- The pass veil retains the warm ivory/crimson table-world material rather than reading as a separate white page.
 - Pass-and-play behavior and all existing tests remain green.
 - `npm run typecheck`, `npm run lint`, `npx jest`, `npx expo-doctor`, and the exported web preview all complete successfully.
 
