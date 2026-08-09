@@ -23,8 +23,8 @@ const PALETTE: { bg: string; fg: string }[] = [
   { bg: colors.tableWell, fg: colors.surface },
   { bg: colors.surfaceAlt, fg: colors.ink },
   { bg: colors.neutral500, fg: colors.surface },
-  { bg: colors.seatDealer, fg: colors.ink },
   { bg: colors.borderStrong, fg: colors.ink },
+  { bg: colors.tableRail, fg: colors.surface },
 ];
 
 function hashSeed(seed: string): number {
