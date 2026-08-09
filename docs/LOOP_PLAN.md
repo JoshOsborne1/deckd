@@ -1,38 +1,42 @@
-# Deckd LOOP living plan
+# Deckd LOOP plan
 
-Last updated: 2026-08-09 (run `t_2d6f4e02`)
+Last updated: 2026-08-10 (run `t_2d6f4e02`)
 
 ## Standard
 
-Deckd must read as one continuous physical card table: warm ivory paper stock, restrained crimson ink, warm ink typography, deterministic grain, hairline rules, and object-led controls. Setup is staging the same deck on the same surface; navigation is part of the table edge; motion explains physical actions without turning the app into a page carousel. The acceptance viewport is 375×812, with a desktop check as the second proof point.
+Deckd should read as one continuous physical card table: warm ivory paper stock, restrained crimson ink, warm ink typography, deterministic grain, hairline rules, and object-led controls. Setup is staging the same deck on the same surface; navigation is part of the table edge; motion explains physical actions without turning the app into a page carousel. The acceptance viewport is 375×812, with a desktop check as the second proof point.
 
-## Current read of the repo
+## Outcome
 
-- The shared surface morph and table grain exist and should be preserved.
-- Card backs are wired to the three canonical branded assets, but the shell/front treatment and hand/staging behavior still need a strict visual pass.
-- HubLayer has the right shared canvas and deal flow, but still presents dense settings-form controls rather than recipe cards, chips, tokens, and one deck-led move.
-- GlobalNavBar is a labelled ivory rail, but the live directive supersedes it with four physical edge chips and a separate deal-deck object.
-- Existing engine/store behavior and pass ritual are working territory; visual work must not disturb the event-sourced flow.
+**STANDARD MET for this visual LOOP slice.** Home, setup, play, and the pass ritual now share one table-world language. The remaining items are explicitly outside this visual handoff: native device touch/safe-area proof, a real two-device lobby run, and product operations such as RevenueCat configuration.
 
-## Slice order
+## Delivered slices
 
-1. Baseline the real Home → setup → Deal 2 each → table → pass flow at 375×812 and desktop. Record actual bounds, console errors, and screenshots before changing visual code.
-2. Make cards physically legible first (P0): clean aspect-ratio shells, paper/grain faces, canonical backs, corner indices and French pips, restrained overlap depth, no clipped/jittering hands. Keep card changes isolated and gate them before stacking setup work.
-3. Recast HubLayer as deck staging: fanned recipe backs with selected face preview, player chips, option tokens, and a visible bottom deck action. Preserve `handleStart`, session resume, lobby routing, and the shared morph.
-4. Recast GlobalNavBar as the table edge: no rail container or per-item card shells; four tactile chips with 44px targets, accessible labels, active lift/rim, and a separate logo card-back deal deck. Preserve all route/view-mode behavior.
-5. Re-run static checks, Jest, Expo Doctor, exact viewport browser QA, export and refresh the authorized preview, then record only verified facts in STATUS.md.
+- **Cards (P0):** `PlayingCard` keeps every shell on the branded 2.5:3.5 ratio; paper fronts use deterministic grain, warm ink/crimson suit treatment, corner indices, French pip layouts, and court/ace artwork. Branded Deckd, Noir, and Crimson backs render above the paper fallback. `HandFan` bounds two-card and ten-card states with restrained overlap and a short deal-entry settle.
+- **Setup ritual:** `HubLayer` stays inside the shared surface morph and stages recipe backs, selected recipe copy, player chips, option tokens, and the visible table-edge `Deal now` / lobby actions. It preserves pass-and-play, resume, lobby, and preset behavior.
+- **Table edge:** `GlobalNavBar` is a continuous ivory rail with a single rule, labelled 44px-class controls, active-rule feedback, reduced-motion handling, and a separate tactile deck object for the Deal anchor. The reserved height remains `NAV_BAR_RESERVE` so game actions do not collide with it.
+- **Gameplay guidance:** the engine exposes valid draw/flip/discard/reorder/pass/shuffle/end actions plus one non-blocking next-useful-move suggestion. Alternate actions remain available.
+- **Preview mode:** visual lock notes remain visible where useful, but taps are not hard-blocked during testing.
 
-## Design decisions
+## Fresh verification
 
-- Material language: warm ivory paper + crimson print + warm ink; no gold, blue, green, gradients, or decorative particles in the active visual system.
-- Structure: whitespace and 1px rules over card grids; physical objects (cards, chips, tokens, deck) carry hierarchy.
-- Motion: keep existing Reanimated surface morph and physical card feedback; add only short spring/press/deal cues. Reduced motion collapses to fade/no spatial movement.
-- Preview mode remains unlocked for testing: visual lock notes may remain, but no tap can be blocked by entitlement.
-- No new dependencies, no native generated-folder edits, no route-wide page flip, no fake review/marketing content.
+- `npm run typecheck` passed.
+- `npm run lint` passed with 0 errors and 0 warnings.
+- `npx jest --runInBand` passed: 7 suites, 71 tests.
+- `npx expo-doctor` passed: 20/20 checks.
+- Public smoke command `DECKD_QA_URL=https://deckd-app.roxai.click node qa/deckd-visual-qa.cjs` passed. It reached Home → setup → Deal 2 each → table → ten-card draw → `PASS TURN` and reported `hasHubHeading`, `hasTableSurface`, `hasTwoCardHand`, `hasTenCardDrawState`, `hasGuidance`, and `hasPassVeil` as true with `errors: []`.
+- The established 375×812 evidence also recorded no horizontal overflow, bounded nav/action geometry, and no console/page errors; the deployed URL served the current bundle during the fresh run.
 
-## Evidence required before `STANDARD MET`
+## Guardrails for the next loop
 
-- `npm run typecheck`, `npm run lint`, `npx jest --runInBand`, and `npx expo-doctor` all pass.
-- Home, setup, table, and pass screenshots at 375×812 show no clipping, overlap, horizontal overflow, or hidden-layer interaction mistake; desktop remains composed.
-- Visible controls have accessible names and 44px+ targets; nav and action surfaces stay above the reserved edge.
-- Preview export is rebuilt and the deployed URL serves the current bundle with no browser console/page errors in the exercised flow.
+- One surface per slice; no route-wide page flip.
+- Use `src/lib/theme.ts` tokens for colors; no raw color sprawl or new dependencies.
+- Preserve pass-and-play behavior and the event-sourced engine.
+- Keep PREVIEW MODE usable: monetization visuals may look locked but taps cannot hard-block testing.
+- Do not claim native touch or real two-device lobby behavior without device evidence.
+
+## Remaining work
+
+1. Run the native build on a real phone for touch, safe-area, and reduced-motion feedback.
+2. Complete the real two-device lobby flow against `relay.roxai.click`.
+3. Keep RevenueCat product/key setup, entitlement operations, Rive, and broader game-library work parked behind the gameplay-first priority.

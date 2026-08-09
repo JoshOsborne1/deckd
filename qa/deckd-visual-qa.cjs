@@ -53,6 +53,13 @@ const BASE_URL = process.env.DECKD_QA_URL ?? 'http://127.0.0.1:8082';
   }
 
   const bodyText = await page.locator('body').innerText();
+  const passButton = page.getByRole('button', { name: /PASS TURN/ });
+  const passCount = await passButton.count();
+  if (passCount) {
+    await passButton.click();
+    await page.waitForTimeout(900);
+  }
+  const passText = await page.locator('body').innerText();
   const result = {
     url: page.url(),
     homeNavCount,
@@ -64,6 +71,8 @@ const BASE_URL = process.env.DECKD_QA_URL ?? 'http://127.0.0.1:8082';
     hasTwoCardHand: bodyText.includes('2 CARDS'),
     hasTenCardDrawState: bodyText.includes('40 LEFT'),
     hasGuidance: bodyText.includes('NEXT USEFUL MOVE'),
+    hasPassVeil: passText.includes('PASS DEVICE TO') && passText.includes('Hold to reveal'),
+    passCount,
     errors,
   };
   process.stdout.write(JSON.stringify(result, null, 2));
@@ -74,6 +83,7 @@ const BASE_URL = process.env.DECKD_QA_URL ?? 'http://127.0.0.1:8082';
     !result.hasTwoCardHand ||
     !result.hasTenCardDrawState ||
     !result.hasGuidance ||
+    !result.hasPassVeil ||
     result.errors.length > 0
   ) process.exitCode = 2;
 })();
