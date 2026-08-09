@@ -1,108 +1,205 @@
 # Deckd LOOP plan
 
-Last updated: 2026-08-09 · current run: P0 card-asset readiness audit
+Last updated: 2026-08-09 · current run: directive audit + highest-impact slice definition
 
 ## Visual standard
 
-Deckd is a warm ivory card table with crimson ink: quiet stock, 1px rule dividers, restrained shadows, and physical card geometry. Setup, play, and navigation are pieces of the same table; no page-like handoff or decorative effects that compete with the deck. The interaction model is assisted freedom: clear affordances and safe defaults, without hiding the ways a player can draw, play, flip, reorder, or pass.
+Deckd is a warm ivory card table with crimson ink: quiet stock, 1px rule dividers,
+restrained shadows, and physical card geometry. Setup, play, and navigation are
+pieces of the same table; no page-like handoff or decorative effects that compete
+with the deck. The interaction model is assisted freedom: clear affordances and
+safe defaults, without hiding the ways a player can draw, play, flip, reorder,
+or pass.
 
-## Current read
+## Current read (audit against docs/LOOP_DIRECTIVES.md, 2026-08-09)
 
-- Home now has a single-canvas foundation, a continuous table-edge nav rail with text labels, and a logo-only center Deal control with no static suit decoration.
-- The persistent background, default cosmetics, and setup rail share the same warm ivory/crimson stock-and-rule language; no green playing-space treatment is active.
-- Setup morphs from home through `SurfaceMorphContext` and reads as deck staging on the same table rather than a generic settings page.
-- The table action rail is constrained to the phone width, retains 44px controls, and the pass ritual is clear at the end of a dealt flow.
-- The exact 375px audit exposed blue/green/gold avatar swatches as the last chromatic mismatch; `AvatarPlaceholder` now stays on ivory, crimson, and ink tokens.
-- Theme fallbacks for remote seats, safe actions, and sync states are now warm crimson/ink tokens as well, so dormant status paths cannot reintroduce blue/green chrome.
-- A fresh 375×812 Playwright run through Home → setup → Deal 2 each → table → pass confirms geometry and browser errors are clean. The pass veil now keeps the same warm stock, table rail, well, and crimson rule language through the handoff instead of becoming a flat page.
-- The same exact-width run then exposed two release-quality defects hidden by wide screenshots: the decorative table rail expanded the document to 445px on a 375px viewport, and the dev event counter made the dealt table read like a debug build. Both are now treated as hard visual defects, not acceptable development residue.
-- Josh's living directives now supersede the earlier polish order: card rendering is P0, the committed Deckd back must be the default, the vendored front sources are the source of truth for scalable RN-SVG faces, setup must stage a deck rather than present a form, and the continuous nav/transition system must work across every surface.
-- The latest nav directive rejects the prior five floating card shells. The rail now reads as the table edge: one ivory surface, one top rule, labelled controls, an unboxed center logo anchor, and no per-item shadow or rotation.
-- A cold 375px first-paint audit showed the committed card-back PNGs arriving after the shell, leaving blank paper cards during the first few seconds. Root layout now warms the logo and three card-back assets before hiding the splash, so the first visible Home frame contains the real branded backs without a layout or z-order flicker.
+Treat LOOP_DIRECTIVES.md as authoritative. Status per directive, verified against
+the working tree at commit `8534788` (62/62 tests green, typecheck/lint/doctor pass):
 
-## Live audit re-plan
+| # | Directive | Status | Evidence |
+|---|-----------|--------|----------|
+| 1 | Cards not "knackered" (P0) | Done | `HandFan` measures real container + card aspect ratio; two-card hands upright with 12px gap; 3–10 card fans bounded. Re-verify at 375px in the fallback slice. |
+| 2 | Deckd-branded card backs (3) | Done | `assets/card-back-{deckd,noir,crimson}.png` exist; `PlayingCard.normalizeBackId` maps brand→deckd, ink→noir, gold→crimson. |
+| 3 | Card fronts from proven repo | Done | `vendor/card-fronts/{hayeah,notpeter}` (110 SVGs total); `CardFaceArtwork.tsx` ports to RN-SVG with French pip layouts, both corner indices, court frames, joker art. |
+| 4 | Game setup page redesign | Done | `HubLayer` (1074 lines) stages a deck on the shared table; morphs from home; preset preview card + player rail + table-edge action dock. |
+| 5 | Game presets redesign | Done | Presets render as `CardButton` chips on a horizontal rail with one-line `PRESET_OUTCOMES` + staged preview + summary. |
+| 6 | Nav bar integration | Superseded by #11 | — |
+| 7 | Seamless setup→table transition | Done | Single-surface morph via `SurfaceMorphContext`; no route-level page flip; physical card motion only. |
+| 8 | Logo wherever possible | Done | `assets/logo.svg` canonical; used in nav center, card backs, app icons, apple-touch-icon, manifest. |
+| 9 | **Table background texture** | **NOT DONE** | `FeltBackground` (`app/index.tsx:128`) paints flat `surfaceBase` fill + decorative ovals + a "weave" of only 4 hairline borders (2H+2V). No paper/felt grain exists. |
+| 10 | Preview mode: no hard locks | Done | Master gate removed from `LobbyLayer.handleCreate`; store preview-unlocks on tap; locks stay visual. |
+| 11 | Nav bar redesign | Done | `GlobalNavBar` is one continuous ivory `navStrip` rail, 1px top rule, labelled Home/Store/Presets/Profile, 44px+ targets (minHeight 58), animated active rule, spring press, deal-in stagger, center logo Deal button. No shells/shadows/rotation. |
 
-The previous LOOP slices are present in the working tree, including the canvas clip and debug-chrome removal. The exact-width audit now confirms the remaining card work is stable: two-card hands are upright with a deliberate paper gap, while larger hands use bounded overlap derived from the measured container and card aspect ratio. The setup and navigation remain a single mounted surface; no route-level page turn is needed for this brief.
+**Largest remaining gaps:**
+1. **Tactile — Directive 9 (table texture).** The only unaddressed visual directive.
+   The table surface is a flat fill with 4 hairlines; it does not read as warm
+   paper or felt. This is the largest tactile gap and affects every surface
+   (`FeltBackground` is the ambient layer behind home, hub, table, and pass).
+2. **Goal-driven — no engine guidance.** `src/engine/selectors.ts` (177 lines)
+   has no `canDraw`/`canPass`/`availableActions`/next-action logic. The table
+   disables controls via `isMyTurn` but never suggests the next useful move.
+   This is the largest "self-directed" gap.
 
-## Build order (re-plan as evidence changes)
+## Prioritized implementation slice (UI worker — t_b0862610)
 
-1. **Done — nav/logo slice.** Fix the home navigation bar at 375px: give every control a stable touch area, keep the logo visible and centered, remove floating suit particles, and preserve route/view-mode behavior.
-2. **Done — table palette slice.** Make the persistent table canvas explicitly ivory/crimson: move remaining green defaults out of the active surface language and retheme the old Classic Felt id as an intentional Crimson Felt alternate.
-3. **Done — setup material slice.** Make the option rail an unfilled paper/rule surface, remove decorative nav suits, and keep the morph handoff legible.
-4. **Done — table action rail audit.** Keep the shuffle, pass, history, and end controls inside the 320–375px content width with 44px icon targets and a single-line pass CTA.
-5. **Done — avatar material audit.** Remove non-table blue/green/gold swatches from the shared avatar primitive so home and table chrome stay inside the white/crimson/ink language.
-6. **Done — release verification.** Exercise home -> setup -> Deal 2 each -> dealt table -> pass veil at 375px, run all quality gates, export/redeploy, and inspect the live preview.
-7. **Done — pass material continuity.** Preserve the veil's deliberate hold-to-reveal ritual while adding a low-contrast table rail/well and paper-stock treatment so the pass handoff belongs to the same game space.
-8. **Done — release hardening.** Clip the persistent canvas to the viewport and remove the dev event counter so exact-width QA measures a clean, player-facing table.
-9. **Done — P0 card geometry.** The fan derives slot step from measured container width and card aspect ratio; two-card hands stay upright with a 12px paper gap, and larger hands remain bounded with controlled overlap.
-10. **Done — P0 branded back source.** `assets/card-back-deckd.png` is the default `back-brand` face at every card size; procedural backs remain selectable by explicit back id.
-11. **Done — P0 proven fronts.** Public-domain notpeter/hayeah-derived faces now render through scalable RN-SVG components under `components/`, with Deckd palette tokens and both corner indices.
-12. **Done — setup/presets.** HubLayer stages a deck on the shared table; every preset has a one-line outcome plus visible player-count/deal consequence.
-13. **Done — continuous nav rail.** GlobalNavBar now uses one ivory table-edge rail with a 1px rule, labelled Home/Store/Presets/Profile controls, 44px+ targets, and no per-item shells, shadows, or rotation; the center logo remains the Deal anchor.
-14. **Not pursued by directive — page flip.** Setup and table stay a single-surface morph with no route-level 3D page turn; physical card motion remains in deal, draw, discard, flip, and pass interactions.
-15. **Done — release loop.** Exact 375px screenshot/interaction QA, typecheck, lint, Jest, Expo Doctor, static export, preview deploy, and live verification all pass.
-16. **Done — P0 RN Web card-back visibility.** The first fresh exact-width audit found the image asset loaded but hidden behind the opaque paper fallback because RN Web placed the visual image background at `z-index: -1`. The card shell now explicitly raises the branded image layer; fresh screenshots show all three home preview backs, the hub staged back, and the table draw pile with the real logo/borders.
-17. **Done — setup action reach.** HubLayer now keeps the Host/Deal action in a warm table-edge dock above the persistent nav while setup notes remain scrollable; the primary deal move is visible at 320×720, 375×812, and desktop widths.
-18. **Done — final table-world pass and release verification.** Home, setup, table, and pass ritual screenshots remain warm ivory/crimson with no release-blocking clipping or overlap; the live static preview was rebuilt, restarted, and exercised at the acceptance width.
-19. **Done — cold-load card readiness.** `_layout.tsx` preloads the canonical logo and all three branded back assets before revealing the app, removing the blank-card first-paint window while preserving the existing branded image layer.
+### Slice: Warm paper-grain table surface (Directive 9)
 
-## Verified slices
+Add a subtle warm paper/felt grain to `FeltBackground` so the playing surface reads
+as a real material, not a flat colour fill. This is the single unaddressed visual
+directive and the highest-impact tactile improvement: it touches every screen
+because `FeltBackground` is the ambient layer behind all surfaces.
 
-- Nav/logo: GlobalNavBar now uses a continuous ivory table-edge rail with a 1px top rule, labelled Home/Store/Presets/Profile controls, animated active rule, spring press states, and a deal-in center logo. The fresh 375×812 public-preview run kept all five controls inside the viewport with no per-item shells, shadows, or rotation.
-- Table palette: the active token fallbacks and the persisted `theme-classic-felt` cosmetic no longer use green; the default remains `theme-ivory`, while the alternate is now crimson felt with the same physical table geometry.
-- Setup material: the Hub options rail now uses a warm ivory rule surface, the hand-layout controls stack cleanly on narrow phones, and the Host/Deal row remains reachable at 375px after normal scroll.
-- Table actions: the mobile action rail now uses a constrained full-width row, 44px icon controls, and a shrink-safe pass CTA; the previous 375px screenshot showed shuffle and end-session controls clipped off both edges.
-- Avatar material: the shared avatar palette now uses theme tokens from the ivory/crimson/ink table world; the 375px dealt-table screenshot no longer shows blue, green, or gold opponent chrome.
-- Pass material: the privacy veil now uses warm ivory stock, a low-contrast table rail/well, and crimson rules behind the recipient and hold-to-reveal action; visual review found the ritual calmer and more continuous without decorative noise.
-- Release hardening: the surface root now clips the decorative rail at the canvas boundary, and the table no longer renders the `EVT/SEQ` development badge in the player surface.
-- Directive re-plan: card work is now verified first; the two-card fan is upright and separated, and the ten-card fan is bounded. Setup/nav use the shared morph and no route-level page flip is shipped because Josh's brief explicitly rejects page-like handoffs.
-- Release loop: typecheck, lint, 62 Jest tests, Expo Doctor (20/20), export, PM2 restart, and the public-preview 375px flow all pass with no browser console/page errors.
-- Fresh 375px audit: Home, setup, dealt Deal 2 each, table, and pass controls stay inside the viewport with no browser errors; the live public preview returned HTTP 200 and completed the same interaction flow.
-- Re-run audit: a fresh 375×812 Playwright context completed Home → setup → Deal 2 each → table → eight draws (40 left); document width stayed at 375px and console/page error arrays were empty. The two-card hand remained upright with a deliberate gap, and the ten-card fan stayed bounded inside the table rail.
-- Nav redesign audit: the exported local build and deployed public preview both returned HTTP 200 at 375×812; Home, Store, Deal the deck, Presets, and Profile targets measured inside x=8–367/y=748–806, document width stayed 375px, and the interaction flow produced no browser console/page errors.
-- Final deterministic 375×812 run: after waiting for the RN Web shell to attach Pressable handlers and settle the nav stagger, Home → Deal the deck → setup → Deal 2 each → Deal now → table → PASS TURN completed with `scrollWidth=375`, all settled nav targets inside x=8–367/y=748–806, no console/page errors, and the pass veil still on the same ivory/crimson canvas.
-- Current card-back fix: the exact PNGs load successfully in the web bundle, the image layer now sits above the fallback, and fresh 375×812 screenshots visibly show Deckd Crimson, Noir, and Crimson marks in Home, the staged hub pile, and the table draw pile. Full gates remain green: typecheck, lint, 62 Jest tests, and Expo Doctor 20/20.
-- Setup action reach: the Hub `Host a lobby` / `Deal now` pair now lives in a warm table-edge dock above the persistent nav. Fresh 320×720 and 375×812 screenshots keep both targets inside the viewport with `scrollWidth` equal to the viewport; the desktop dock stays above the labelled nav rail and the deal click still reaches the dealt table.
-- Cold-load card readiness: the local static build exposed Home after `useAssets` completed with all six rendered image nodes at `naturalWidth > 0`; the first 375×812 screenshot showed the hero stack, three store backs, and logo with no blank shells. The deployed public flow reached setup → Deal 2 each → table → pass at 375×812 with `scrollWidth=375`, `bodyScrollWidth=375`, empty console/page errors, and settled nav bounds x=8–367/y=748–806.
-- Pass ritual: a fresh 375×812 flow clicked `PASS TURN` and rendered the same warm privacy veil with `Player 2`, `PASS DEVICE TO`, and the `Hold to reveal` action fully in bounds; `scrollWidth` and `bodyScrollWidth` remained 375 with no console/page errors.
-- Live release: `npx expo export --platform web` completed, `deckd-app` restarted online under PM2, the public preview returned HTTP 200, and the deployed 375×812 Home → setup → Deal 2 each → Deal now → table → PASS TURN flow completed without browser errors.
+**Directive text (verbatim):** "The playing surface should have a subtle warm
+texture (paper/felt-like grain, ivory) instead of a flat colour fill. Keep it
+subtle, no pattern tiles, no greens. Apply in `components/layers/TableLayer.tsx`
+(and HubLayer if it shares the surface family)."
 
-## Acceptance checks
+**Scope:**
+- Replace the 4-hairline "weave" in `app/index.tsx` `FeltBackground` with a real
+  low-opacity grain. Two viable approaches (builder picks the one that reads best
+  at 375px; no new dependencies either way):
+  - **(A) Procedural SVG grain** — a `react-native-svg` (already installed) layer
+    of many low-opacity dots/short strokes scattered with a seeded RNG, tinted
+    with `colors.surface` / `alpha.inkOverlay02`. Pure code, no asset needed.
+  - **(B) Generated noise PNG** — a small (128×128 or 256×256) ivory paper-grain
+    PNG tiled at opacity ~0.04–0.06, built with a script like the existing
+    `make-deckd-card-back.py` family. Most authentic paper feel; one asset.
+- The grain must sit behind all content (`pointerEvents="none"`, low z) and not
+  interfere with the existing radial glow, rail ring, or well geometry.
+- Respect the equipped table theme: the grain tint should derive from
+  `tableTheme.surfaceBase` / `glowTint` so Crimson Felt and Dark Oak also get a
+  material treatment, not just Ivory.
+- No pattern tiles (repeating geometric motifs), no greens, no new dependencies,
+  no raw hex outside `src/lib/theme.ts`.
 
-- Home nav is visible and centered at 375px; Home, Store, Presets, and Profile each retain a 44px+ target and route correctly.
-- The center control contains only the Deckd logo; no static floating suit/particle layer remains, and the surrounding rail has no individual card shell.
-- The active default surface contains no green playing-space treatment; the alternate table cosmetic is explicitly crimson rather than green.
-- Setup is still a single-surface morph, not a route/page flip; the option rail now uses a warm rule surface, controls remain reachable, and the deal action starts the existing event-sourced session.
-- The table action rail stays fully visible at 320px and 375px; no icon or pass CTA is horizontally clipped.
-- A two-card hand has a visible gap and stable upright bounds; 3–12 card hands derive their step from available width and never create document overflow at 375px or desktop.
-- `back-brand` uses the committed Deckd-branded image at every card size; procedural backs remain available by explicit back id.
-- Card fronts are scalable RN-SVG components sourced from `vendor/card-fronts/`, with red/black suit semantics, both corner indices, and court faces that stay inside the card frame.
-- Setup and presets read as deck staging on the table, not a settings form, and the same preset language is used wherever preset choices appear.
-- The nav is one continuous ivory table-edge rail with a 1px rule, no per-item shadows/rotation, accessible labels, and 44px+ targets on every surface.
-- Home -> setup and setup -> table remain a single-surface morph with no route-level page flip; reduced motion keeps the existing calm deterministic transition.
-- Avatar accents stay within the active ivory/crimson/ink material language; semantic color is reserved for deliberate card or status meaning.
-- The pass veil clearly identifies the next player and keeps the hand hidden until the deliberate hold-to-reveal gesture.
-- The pass veil retains the warm ivory/crimson table-world material rather than reading as a separate white page.
-- Pass-and-play behavior and all existing tests remain green.
-- `npm run typecheck`, `npm run lint`, `npx jest`, `npx expo-doctor`, and the exported web preview all complete successfully.
+**Acceptance criteria:**
+- At 375px the default Ivory Table surface shows visible warm grain, not a flat
+  fill, when viewed on Home, Hub, and Table.
+- The grain is subtle enough that card art, text, and controls remain crisp; no
+  moiré, no banding, no distraction from the deck.
+- Crimson Felt and Dark Oak themes also gain a material treatment (grain tint
+  derives from theme tokens, not hardcoded ivory).
+- `scrollWidth` stays 375px; no horizontal overflow introduced.
+- `npm run typecheck`, `npm run lint`, `npx jest` (62 green), `npx expo-doctor`
+  all pass after the change.
+
+**Affected files:**
+- `app/index.tsx` — `FeltBackground` component + `weaveH`/`weaveV`/vignette styles.
+- `src/lib/theme.ts` — add a grain tint token if needed (e.g. `alpha.paperGrain`).
+- `src/engine/visuals.ts` — optionally add a `grainTint` field to
+  `TableThemeDefinition` so each theme owns its grain colour.
+- (If approach B) `assets/table-grain.png` + a generator script under
+  `~/AppData/Local/hermes/scripts/` matching the existing card-back pipeline.
+- `docs/LOOP_PLAN.md` — implementation note after delivery.
+
+**Risks:**
+- Over-rendering grain (too many SVG nodes) could hurt web perf at 375px. Mitigate:
+  cap node count, use a single tiled Image if perf is a concern, profile with the
+  existing Playwright flow.
+- A PNG tile could read as a repeating pattern (directive says "no pattern tiles").
+  Mitigate: use a large enough tile (256px) at low opacity, or prefer procedural
+  scatter (approach A) which is non-repeating by construction.
+- Tint must not reintroduce green. Derive from theme tokens only.
+
+## Fallback next slice (gameplay worker — t_533e3665)
+
+### Slice: Engine guidance selectors + table next-action affordance
+
+Add lightweight, non-blocking guidance so Deckd feels goal-driven and
+self-directed (assisted freedom: help, don't restrict).
+
+**Scope:**
+- Add `selectAvailableActions(state, viewerId)` to `src/engine/selectors.ts`:
+  returns the set of currently valid moves (`draw`, `pass`, `flip`, `discard`,
+  `shuffle`, `end`) derived from `canApplyEvent` + phase + turn state. Pure,
+  deterministic, framework-free — matches the existing selector style.
+- Add `selectSuggestedAction(state, viewerId)`: the single highest-value next
+  move (e.g. `draw` when hand is empty and it's your turn; `pass` when you've
+  acted). This is a *suggestion*, never a gate.
+- Surface it on the table as a subtle affordance — e.g. a gentle pulse on the
+  draw pile or pass button — without disabling any valid alternative. The
+  player can always draw, flip, discard, reorder, or pass if the rules allow.
+- Add focused jest tests in `src/engine/selectors.test.ts` covering: valid
+  choices at session start, mid-play, when draw pile is empty, when not your
+  turn, and after session end. Cover that `selectSuggestedAction` never
+  returns an action that isn't in `selectAvailableActions`.
+
+**Acceptance criteria:**
+- The suggested action is visible at 375px but never blocks a valid alternative.
+- Existing game rules and all 62 tests remain intact; new tests cover the
+  guidance selectors.
+- `npm run typecheck`, `npm run lint`, `npx jest`, `npx expo-doctor` pass.
+
+**Affected files:**
+- `src/engine/selectors.ts` — new selectors.
+- `src/engine/selectors.test.ts` — new test file.
+- `components/layers/TableLayer.tsx` — consume the suggested action for the
+  subtle affordance (e.g. animated pulse). Do NOT duplicate the UI owned by the
+  texture worker; this worker touches interaction behaviour only.
+- `docs/LOOP_PLAN.md` — implementation note after delivery.
+
+**Risks:**
+- The affordance must not feel like a tutorial arrow or a hard gate. Keep it
+  calm — a slow opacity breathe, not a bounce. Respect reduce-motion (fade only).
+- Avoid coupling to the texture worker's files; the two workers edit different
+  surfaces (`app/index.tsx` vs `TableLayer.tsx` interaction layer).
+
+## Integration slice (t_2a4d3147 — generalist)
+
+After both builders deliver, the integrator:
+1. Runs all gates: `npm run typecheck`, `npm run lint`, `npx jest`, `npx expo-doctor`.
+2. Starts the web app and inspects Home → setup → Deal 2 each → table → pass at
+   375px, confirming: warm grain visible, no flat fill; suggested-action affordance
+   present but non-blocking; menus blend into the table; no page-flip; warm
+   white/red consistent; assistance does not restrict play.
+3. Deploys: `npx expo export --platform web`, refresh `app-serve/`, `pm2 restart
+   deckd-app`, verify `https://deckd-app.roxai.click` loads with both slices
+   visible.
+4. Updates this file with the delivery note and any remaining gap. Does NOT claim
+   STANDARD MET unless directives 9 + the guidance gap are actually closed.
+
+## Verification at 375px (all slices)
+
+Every slice must be verified at 375px width (iPhone SE / small Android) with the
+existing Playwright or manual flow:
+
+1. **Geometry:** `scrollWidth === bodyScrollWidth === 375` (no horizontal overflow).
+2. **Material:** Home, Hub, and Table surfaces show warm grain, not a flat fill.
+3. **Cards:** two-card hand upright with gap; 3–10 card fans bounded; branded back
+   visible on draw pile and opponent stubs; SVG fronts crisp.
+4. **Nav:** all five controls inside x=8–367/y=748–806; 44px+ targets; no shells.
+5. **Flow:** Home → setup → Deal 2 each → Deal now → table → PASS TURN → pass veil
+   completes with zero console/page errors.
+6. **Guidance:** suggested action visible but does not disable valid alternatives.
+7. **Gates:** typecheck, lint, 62 jest tests, expo-doctor all pass.
+8. **Deploy:** public preview returns HTTP 200 and the same 375px flow completes.
 
 ## Decisions
 
-- Keep the existing Plus Jakarta Sans and Reanimated stack; no new dependencies.
-- Keep Home/Hub/Table layered architecture and event-sourced game state; polish the surfaces in place.
-- Use crimson as the only strong chromatic accent in the active table world. Gold remains reserved for explicit premium/card accents, not generic UI chrome.
-- Keep the existing `theme-classic-felt` id for persistence, but present it as the intentional Crimson Felt alternate rather than a green table.
-- Use `vendor/card-fronts/` as the in-repo source of truth; do not import external filesystem paths or add raw SVG files as runtime assets.
-- Keep the existing Reanimated 4.5 motion stack for the shared morph and physical card interactions; do not add a route-level page-turn layer.
-- Treat the bottom rail as table material rather than a floating widget row; use only the shared theme tokens and Reanimated motion for the active rule, press states, stagger, and center deal gesture.
-- For the current P0 defect, prefer a narrow z-order correction over replacing the proven image assets or introducing a new rendering library.
-- For the next setup slice, prefer an in-world action strip over a sticky browser-like footer or a new screen; the deal action should feel like the next physical move on the table.
+- Keep Plus Jakarta Sans, Reanimated 4.5, Zustand + MMKV, event-sourced engine.
+  No new dependencies, no new state/styling libraries, no raw hex outside theme.ts.
+- Keep the layered-surface architecture and single-surface morph; no route-level
+  page flip (directive 7).
+- Keep `vendor/card-fronts/` as the in-repo source of truth for card faces; do not
+  add raw SVGs as runtime assets.
+- Crimson is the only strong chromatic accent; gold reserved for explicit
+  premium/card accents.
+- The grain tint derives from the equipped table theme so all themes stay material.
+- Guidance is a suggestion, never a gate — preserves assisted freedom.
 
-## Current run verification and delivery
+## Re-plan note for follow-up work
 
-- Baseline: `npm run typecheck`, `npm run lint`, `npx jest --runInBand`, and `npx expo-doctor` all passed before the slice.
-- Slice 1: the same gates passed after the `PlayingCard` image-layer fix; the Jest run remains 62/62 and Expo Doctor remains 20/20.
-- Slice 2: typecheck, lint, 62 Jest tests, and Expo Doctor 20/20 passed after moving Hub actions into the table-edge dock. Playwright at 320×720 and 375×812 measured both setup CTAs inside the viewport with no horizontal overflow; a desktop 1440×900 flow also clicked `Deal now` into the table with no browser console/page errors.
-- Final pass audit: Playwright at 375×812 clicked `PASS TURN`, rendered `Player 2` / `PASS DEVICE TO` / `Hold to reveal`, and kept document width at 375px with no console/page errors. Vision review found no release-blocking material, contrast, or interaction defect.
-- Deterministic local QA: Playwright at 375×812 completed Home → setup → Deal 2 each → table with `scrollWidth=375`, `bodyScrollWidth=375`, and empty console/page error arrays. Screenshots were inspected for Home, setup, and table.
-- Deployment: `npx expo export --platform web` completed; tracked `app-serve/` output was refreshed; PM2 `deckd-app` is online; `curl -I https://deckd-app.roxai.click/` returned HTTP 200; and the public 375×812 flow completed through the pass veil with empty browser error arrays.
+After these slices land, the next highest-impact items (in priority order):
+
+1. **P0 card re-verification (directive 1).** The plan marks card geometry done,
+   but it is P0. A fresh visual audit at 375px across 2–10 card hands (fan + stack)
+   should confirm no overlap, clipping, or jitter before closing the LOOP.
+2. **Real 2-device lobby test.** Relay + transport are deployed and unit-tested,
+   but no end-to-end 2-device test against `relay.roxai.click` exists. This is
+   the multiplayer confidence gate (AGENTS.md: do not claim multiplayer works
+   without it).
+3. **RevenueCat store products.** App code is wired; App Store / Play Console /
+   RevenueCat dashboard products are the blocker (Josh, ~1 hour per
+   docs/MONETIZATION.md). Preview mode keeps everything testable without them.
+4. **Rive mascot / personified animations.** Still parked. The table mascot is
+   the remaining premium-animation gap once the tactile surface lands.
