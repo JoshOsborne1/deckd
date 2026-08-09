@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View, type ViewStyle } from 'react-native';
 import Animated, {
   Extrapolation,
   interpolate,
@@ -14,6 +14,8 @@ import { ChevronLeft, Users } from 'lucide-react-native';
 import { CardButton } from '@components/CardButton';
 import { CardSection } from '@components/CardSection';
 import { PlayingCard } from '@components/PlayingCard';
+import { GLOBAL_NAV_HEIGHT } from '@components/GlobalNavBar';
+
 import { useSurfaceMorph } from '@components/layers/SurfaceMorphContext';
 import { useMotion } from '@hooks/useMotion';
 import { useUiStore } from '@store/uiStore';
@@ -40,6 +42,19 @@ interface HubLayerProps {
 
 type PlayerCount = 2 | 3 | 4 | 5 | 6;
 const PLAYER_OPTIONS: PlayerCount[] = [2, 3, 4, 5, 6];
+
+const PRESET_BACKS: Record<string, string> = {
+  freeplay: 'back-brand',
+  'deal-two-each': 'back-crimson',
+  blackjack: 'back-noir',
+  poker: 'back-crimson',
+};
+const PRESET_OUTCOMES: Record<Preset['id'], string> = {
+  freeplay: 'Deal, draw, and flip freely',
+  'deal-two-each': 'Two face-down cards each',
+  blackjack: 'Dealer hand + scoring helper',
+  poker: 'Hole cards, then community play',
+};
 
 /** Progress threshold above which Hub accepts taps. */
 const HUB_INTERACTIVE_THRESHOLD = 0.85;
@@ -335,7 +350,7 @@ export function HubLayer({
   return (
     <Animated.View
       pointerEvents={interactive ? 'auto' : 'none'}
-      style={[styles.root, rootStyle]}
+      style={[styles.root, { bottom: bottomInset }, rootStyle]}
     >
       <Animated.View
         style={[
@@ -362,7 +377,7 @@ export function HubLayer({
         scrollEnabled={interactive}
         contentContainerStyle={[
           styles.scroll,
-          { paddingBottom: bottomInset + space.x5l },
+          { paddingBottom: space.x5l },
         ]}
         showsVerticalScrollIndicator={false}
       >
@@ -375,6 +390,34 @@ export function HubLayer({
             </Text>
           </View>
           <View style={styles.markerRule} />
+        </Animated.View>
+
+        <Animated.View style={[styles.stageCard, presetTitleStyle]}>
+          <View style={styles.stageCopy}>
+            <Text style={styles.stageEyebrow}>DECK STAGED</Text>
+            <Text style={styles.stageTitle}>{activePreset.name}</Text>
+            <Text style={styles.stageMeta}>
+              {playerCount} players · {includeJokers ? '54' : '52'} cards · pass & play
+            </Text>
+            <Text style={styles.stageOutcome}>
+              {PRESET_OUTCOMES[activePreset.id]}
+            </Text>
+          </View>
+          <View style={styles.stagePile} pointerEvents="none">
+            <PlayingCard
+              face="down"
+              back={PRESET_BACKS[activePreset.id] ?? 'back-brand'}
+              size="sm"
+              style={styles.stageBackCard}
+            />
+            <PlayingCard
+              face="up"
+              rank="A"
+              suit="hearts"
+              size="sm"
+              style={styles.stageFrontCard}
+            />
+          </View>
         </Animated.View>
 
         {sessionActive ? (
@@ -410,10 +453,16 @@ export function HubLayer({
           </Animated.View>
         ) : null}
 
-        <Animated.Text style={[styles.sectionTitle, presetTitleStyle]}>
-          Pick a preset
-        </Animated.Text>
-        <View style={styles.presetGrid}>
+        <Animated.View style={[styles.sectionHeader, presetTitleStyle]}>
+          <Text style={styles.sectionTitle}>Choose the table recipe</Text>
+          <Text style={styles.sectionKicker}>Tap a deck to preview the deal</Text>
+        </Animated.View>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.presetRail}
+          style={styles.presetRailScroll}
+        >
           {builtinPresets.map((preset, idx) => {
             const selected = preset.id === presetId;
             return (
@@ -424,6 +473,7 @@ export function HubLayer({
                 baseEnd={0.8}
                 progress={progress}
                 reduceMotion={reduceMotion}
+                wrapperStyle={styles.presetStagger}
               >
                 <CardButton
                   variant={selected ? 'primary' : 'secondary'}
@@ -432,20 +482,27 @@ export function HubLayer({
                   haptic="select"
                   onPress={() => setPresetId(preset.id)}
                   style={styles.presetChip}
+                  innerStyle={styles.presetChipInner}
                 >
-                  <Text
-                    style={[
-                      styles.presetLabel,
-                      selected && styles.presetLabelActive,
-                    ]}
-                  >
-                    {preset.name}
-                  </Text>
+                  <View style={styles.presetChipContent}>
+                    <View style={styles.presetChipHeading}>
+                      <View style={[styles.presetMark, selected && styles.presetMarkActive]} />
+                      <Text style={[styles.presetLabel, selected && styles.presetLabelActive]}>
+                        {preset.name}
+                      </Text>
+                    </View>
+                    <Text
+                      numberOfLines={1}
+                      style={[styles.presetOutcome, selected && styles.presetOutcomeActive]}
+                    >
+                      {PRESET_OUTCOMES[preset.id]}
+                    </Text>
+                  </View>
                 </CardButton>
               </StaggeredChip>
             );
           })}
-        </View>
+        </ScrollView>
         <Animated.Text style={[styles.presetDesc, presetDescStyle]}>
           {activePreset.summary}
         </Animated.Text>
@@ -474,10 +531,7 @@ export function HubLayer({
                   style={styles.playerChip}
                 >
                   <Text
-                    style={[
-                      styles.playerLabel,
-                      selected && styles.playerLabelActive,
-                    ]}
+                    style={[styles.playerLabel, selected && styles.playerLabelActive]}
                   >
                     {n}
                   </Text>
@@ -579,6 +633,9 @@ export function HubLayer({
             </CardButton>
           </Animated.View>
         </Animated.View>
+        {/* RN Web does not always materialize ScrollView padding as scrollable
+            content; keep a real spacer so the CTA can clear the card rail. */}
+        <View style={styles.scrollReserve} />
       </ScrollView>
     </Animated.View>
   );
@@ -596,6 +653,7 @@ function StaggeredChip({
   baseEnd,
   progress,
   reduceMotion,
+  wrapperStyle,
   children,
 }: {
   index: number;
@@ -603,6 +661,7 @@ function StaggeredChip({
   baseEnd: number;
   progress: SharedValue<number>;
   reduceMotion: SharedValue<number>;
+  wrapperStyle?: ViewStyle;
   children: React.ReactNode;
 }) {
   const style = useAnimatedStyle(() => {
@@ -622,7 +681,7 @@ function StaggeredChip({
     };
   });
 
-  return <Animated.View style={style}>{children}</Animated.View>;
+  return <Animated.View style={[wrapperStyle, style]}>{children}</Animated.View>;
 }
 
 const styles = StyleSheet.create({
@@ -632,6 +691,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
+    overflow: 'hidden',
   },
   header: {
     flexDirection: 'row',
@@ -658,6 +718,9 @@ const styles = StyleSheet.create({
   },
   scroll: {
     paddingHorizontal: space.xl,
+  },
+  scrollReserve: {
+    height: GLOBAL_NAV_HEIGHT + space.xl,
   },
   tableMarker: {
     flexDirection: 'row',
@@ -686,6 +749,68 @@ const styles = StyleSheet.create({
     fontFamily: fonts.semibold,
     color: colors.inkSubtle,
     letterSpacing: letterSpacing.cap,
+  },
+  stageCard: {
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    minHeight: 124,
+    marginTop: space.sm,
+    marginBottom: space.lg,
+    padding: space.lg,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: alpha.brand20,
+    borderRadius: radii.card,
+    ...shadow.card,
+  },
+  stageCopy: {
+    flex: 1,
+    justifyContent: 'center',
+    paddingRight: space.sm,
+  },
+  stageEyebrow: {
+    fontSize: 10,
+    fontFamily: fonts.bold,
+    color: colors.brand,
+    letterSpacing: letterSpacing.caps,
+  },
+  stageTitle: {
+    marginTop: space.xs,
+    fontSize: 21,
+    lineHeight: 25,
+    fontFamily: fonts.extra,
+    color: colors.ink,
+    letterSpacing: letterSpacing.tight,
+  },
+  stageMeta: {
+    marginTop: 3,
+    fontSize: 11,
+    fontFamily: fonts.semibold,
+    color: colors.inkMuted,
+  },
+  stageOutcome: {
+    marginTop: space.sm,
+    fontSize: 12,
+    lineHeight: 17,
+    fontFamily: fonts.regular,
+    color: colors.inkSubtle,
+  },
+  stagePile: {
+    width: 78,
+    minHeight: 94,
+    position: 'relative',
+  },
+  stageBackCard: {
+    position: 'absolute',
+    top: 8,
+    right: 0,
+    transform: [{ rotate: '8deg' }],
+  },
+  stageFrontCard: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    transform: [{ rotate: '-7deg' }],
   },
   resumeCard: {
     marginBottom: space.xxl,
@@ -730,13 +855,66 @@ const styles = StyleSheet.create({
     marginBottom: space.md,
     marginTop: space.lg,
   },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    justifyContent: 'space-between',
+  },
+  sectionKicker: {
+    fontSize: 10,
+    fontFamily: fonts.bold,
+    color: colors.inkSubtle,
+    letterSpacing: letterSpacing.cap,
+    textTransform: 'uppercase',
+  },
   presetGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: space.sm,
+    width: '100%',
+    alignSelf: 'stretch',
+  },
+  presetStagger: {
+    width: 154,
+    minWidth: 0,
   },
   presetChip: {
-    paddingHorizontal: space.lg,
+    width: '100%',
+    minHeight: 78,
+    paddingHorizontal: space.md,
+    paddingVertical: space.sm,
+  },
+  presetRailScroll: {
+    marginHorizontal: -space.xl,
+  },
+  presetRail: {
+    paddingHorizontal: space.xl,
+    gap: space.sm,
+  },
+  presetChipInner: {
+    flex: 1,
+    alignItems: 'stretch',
+    justifyContent: 'space-between',
+    paddingHorizontal: space.md,
+    paddingVertical: space.md,
+  },
+  presetChipContent: {
+    width: '100%',
+    gap: space.sm,
+  },
+  presetChipHeading: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.xs,
+  },
+  presetMark: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: alpha.brand45,
+  },
+  presetMarkActive: {
+    backgroundColor: colors.surface,
   },
   presetLabel: {
     fontSize: 14,
@@ -745,6 +923,15 @@ const styles = StyleSheet.create({
   },
   presetLabelActive: {
     color: colors.surface,
+  },
+  presetOutcome: {
+    fontSize: 11,
+    lineHeight: 15,
+    fontFamily: fonts.regular,
+    color: colors.inkMuted,
+  },
+  presetOutcomeActive: {
+    color: alpha.whiteOverlay80,
   },
   presetDesc: {
     marginTop: space.md,

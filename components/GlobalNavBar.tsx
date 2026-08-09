@@ -22,12 +22,18 @@ type CardNavItem = {
   rotateDeg: string;
 };
 
+/** Vertical space reserved by the persistent card rail in the game surface. */
+export const NAV_BAR_RESERVE = 92;
+
 const navCards: CardNavItem[] = [
   { id: 'home', href: '/', label: 'Home', icon: Home, rotateDeg: '-5deg' },
   { id: 'store', href: '/store', label: 'Store', icon: ShoppingBag, rotateDeg: '-2deg' },
   { id: 'games', href: '/list', label: 'Presets', rotateDeg: '2deg' },
   { id: 'profile', href: '/profile', label: 'Profile', icon: User, rotateDeg: '5deg' },
 ];
+
+/** Backwards-compatible name used by layered surfaces. */
+export const GLOBAL_NAV_HEIGHT = NAV_BAR_RESERVE;
 
 function isActivePath(pathname: string, href: string): boolean {
   if (href === '/') {
@@ -73,16 +79,12 @@ export const GlobalNavBar: React.FC = () => {
   const viewMode = useUiStore((s) => s.viewMode);
   const setViewMode = useUiStore((s) => s.setViewMode);
   const onRoot = pathname === '/' || pathname === '/index';
-  const gameActive = onRoot && viewMode !== 'home';
-
-  // Hide the bar whenever we're inside the game surface (hub/table/lobby/pass).
-  const hidden = viewMode !== 'home';
-
+  const gameSurface = onRoot && viewMode !== 'home';
   const go = (href: Href) => {
     const s = String(href);
     if (s === '/') {
+      setViewMode('home');
       if (onRoot) {
-        setViewMode('home');
         return;
       }
       router.push('/');
@@ -100,22 +102,15 @@ export const GlobalNavBar: React.FC = () => {
     setViewMode('hub');
   };
 
-  const stripHeight = 96 + bottomPad;
-
-  if (hidden) {
-    return null;
-  }
-
   return (
-    <View pointerEvents="box-none" style={styles.wrapper}>
-      <View pointerEvents="none" style={[styles.paperStrip, { height: stripHeight }]} />
-
-      <View style={[styles.row, { paddingBottom: Math.max(bottomPad, 10) }]}>
+    <View pointerEvents="box-none" style={[styles.wrapper, gameSurface && styles.wrapperGame]}>
+      <View style={[styles.row, gameSurface && styles.rowGame, { paddingBottom: Math.max(bottomPad, 10) }]}>
         {navCards.slice(0, 2).map((item) => (
           <NavCard
             key={item.id}
             item={item}
             pathname={pathname}
+            activeOverride={item.id === 'home' ? (onRoot && viewMode === 'home') : undefined}
             onPress={() => go(item.href)}
           />
         ))}
@@ -126,7 +121,7 @@ export const GlobalNavBar: React.FC = () => {
           onPress={onDeal}
           style={({ pressed }) => [
             styles.centerWrap,
-            gameActive && styles.centerWrapActive,
+            gameSurface && styles.centerWrapActive,
             pressed && { transform: [{ scale: 0.97 }] },
           ]}
         >
@@ -134,7 +129,13 @@ export const GlobalNavBar: React.FC = () => {
         </Pressable>
 
         {navCards.slice(2).map((item) => (
-          <NavCard key={item.id} item={item} pathname={pathname} onPress={() => go(item.href)} />
+          <NavCard
+            key={item.id}
+            item={item}
+            pathname={pathname}
+            activeOverride={item.id === 'home' ? (onRoot && viewMode === 'home') : undefined}
+            onPress={() => go(item.href)}
+          />
         ))}
       </View>
     </View>
@@ -144,13 +145,15 @@ export const GlobalNavBar: React.FC = () => {
 function NavCard({
   item,
   pathname,
+  activeOverride,
   onPress,
 }: {
   item: CardNavItem;
   pathname: string;
+  activeOverride?: boolean;
   onPress: () => void;
 }) {
-  const active = isActivePath(pathname, String(item.href));
+  const active = activeOverride ?? isActivePath(pathname, String(item.href));
   const color = active ? colors.brand : colors.neutral500;
   const Icon = item.icon;
 
@@ -186,14 +189,10 @@ const styles = StyleSheet.create({
     zIndex: 50,
     justifyContent: 'flex-end',
   },
-  paperStrip: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: colors.navStrip,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: alpha.inkOverlay08,
+  wrapperGame: {
+    // The table remains the material; only the individual peeking cards cast
+    // a separation shadow. There is no second panel behind this rail.
+    zIndex: 60,
   },
 
   row: {
@@ -207,6 +206,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: space.sm,
     gap: space.xs,
     width: '100%',
+  },
+  rowGame: {
+    paddingTop: space.xs,
   },
   cardShell: {
     flex: 1,

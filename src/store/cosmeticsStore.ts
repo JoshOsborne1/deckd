@@ -52,6 +52,15 @@ function unique(values: string[]): string[] {
   return Array.from(new Set(values));
 }
 
+function normalizeBackId(id: string): string {
+  // Older persisted builds called the shipped noir/crimson art "ink" and
+  // "premium-gold". Keep those users on a real asset-backed option without
+  // exposing the retired procedural/gold picker entries.
+  if (id === 'back-ink') return 'back-noir';
+  if (id === 'back-premium-gold') return 'back-crimson';
+  return id;
+}
+
 export const useCosmeticsStore = create<CosmeticsState>()(
   persist(
     (set, get) => ({
@@ -94,10 +103,15 @@ export const useCosmeticsStore = create<CosmeticsState>()(
         const next = defaultCosmetics();
         if (!persisted || typeof persisted !== 'object') return next;
         const old = persisted as Partial<ReturnType<typeof defaultCosmetics>>;
-        const ownedBackIds = unique([...(old.ownedBackIds ?? []), ...defaultOwnedBacks()]);
+        const ownedBackIds = unique([
+          ...(old.ownedBackIds ?? []).map(normalizeBackId),
+          ...defaultOwnedBacks(),
+        ]);
         const ownedTableThemeIds = unique([...(old.ownedTableThemeIds ?? []), ...defaultOwnedThemes()]);
         const equippedBackId =
-          old.equippedBackId && ownedBackIds.includes(old.equippedBackId) ? old.equippedBackId : DEFAULT_BACK_ID;
+          old.equippedBackId && ownedBackIds.includes(normalizeBackId(old.equippedBackId))
+            ? normalizeBackId(old.equippedBackId)
+            : DEFAULT_BACK_ID;
         const equippedTableThemeId =
           old.equippedTableThemeId && ownedTableThemeIds.includes(old.equippedTableThemeId)
             ? old.equippedTableThemeId

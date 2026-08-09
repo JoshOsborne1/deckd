@@ -40,12 +40,12 @@ const REORDER_DX = 38;
 
 function resolveSpread(
   explicit: number | undefined,
-  fanStyle: 'wide' | 'tight' | undefined,
+  fanStyle: 'tight' | 'wide' | undefined,
 ): number {
   if (explicit !== undefined) return explicit;
-  if (fanStyle === 'tight') return 25;
-  if (fanStyle === 'wide') return 60;
-  return 40;
+  if (fanStyle === 'tight') return 10;
+  if (fanStyle === 'wide') return 28;
+  return 18;
 }
 
 function FanCard({
@@ -53,6 +53,7 @@ function FanCard({
   index,
   total,
   spread,
+  slotStep,
   face,
   size,
   highlighted,
@@ -66,6 +67,7 @@ function FanCard({
   index: number;
   total: number;
   spread: number;
+  slotStep: number;
   face: CardFace;
   size: 'md' | 'lg';
   highlighted: boolean;
@@ -77,7 +79,7 @@ function FanCard({
 }) {
   const { haptic } = useMotion();
   const cardWidth = SIZE_MAP[size].width;
-  const fan = handFanTransform(index, total, spread, cardWidth);
+  const fan = handFanTransform(index, total, spread, cardWidth, slotStep);
   const entry = useSharedValue(reduceMotion ? 1 : 0);
   const animatedDealTrigger = useRef<string | null>(null);
   const delay = dealStagger(index, total, motion.stagger.deal);
@@ -177,7 +179,17 @@ function FanCard({
   );
 
   return (
-    <Animated.View style={[styles.cardSlot, animStyle]}>
+    <Animated.View
+      style={[
+        styles.cardSlot,
+        {
+          width: cardWidth,
+          height: SIZE_MAP[size].height,
+          marginLeft: -cardWidth / 2,
+        },
+        animStyle,
+      ]}
+    >
       <GestureDetector gesture={composed}>
         <View collapsable={false}>{inner}</View>
       </GestureDetector>
@@ -204,10 +216,30 @@ export function HandFan({
 
   const total = cards.length;
   const cardWidth = SIZE_MAP[size].width;
-  const maxSpread = containerWidth > 0 && total > 0
-    ? (containerWidth / total) * 0.8
-    : resolvedSpread;
-  const cappedSpread = Math.min(resolvedSpread, maxSpread);
+  const cardHeight = SIZE_MAP[size].height;
+  // Two cards are a hand, not a fan: keep them upright and give the pair a
+  // real paper gap. Rotation and the parabolic drop only become useful once
+  // there are enough cards for an actual arc.
+  const cappedSpread = total <= 2
+    ? 0
+    : total <= 4
+      ? Math.min(resolvedSpread, 24)
+      : total <= 7
+        ? Math.min(resolvedSpread, 32)
+        : Math.min(resolvedSpread, 24);
+  const maxAngle = (cappedSpread / 2) * (Math.PI / 180);
+  const rotatedCardWidth =
+    cardWidth * Math.cos(maxAngle) + cardHeight * Math.sin(maxAngle);
+  const maxStep = containerWidth > 0 && total > 1
+    ? Math.max(0, (containerWidth - space.xl * 2 - rotatedCardWidth) / (total - 1))
+    : cardWidth * 0.55;
+  // Small hands should read as separate cards, not as a rotated collision.
+  // Once the real width cannot support that gap, controlled overlap is the
+  // fallback for larger hands.
+  const preferredStep = (total <= 2 ? cardWidth + space.md : rotatedCardWidth + space.sm);
+  const slotStep = containerWidth > 0
+    ? Math.min(preferredStep, maxStep)
+    : cardWidth + (total <= 2 ? space.md : space.sm);
 
   const handleReorderDx = useCallback(
     (cardId: CardId, dx: number) => {
@@ -215,7 +247,7 @@ export function HandFan({
       const ids = cards.map((c) => c.id);
       const index = ids.indexOf(cardId);
       if (index < 0) return;
-      const slots = Math.round(dx / (cardWidth * 0.55));
+      const slots = Math.round(dx / Math.max(1, slotStep));
       const newIndex = Math.max(0, Math.min(ids.length - 1, index + slots));
       if (newIndex !== index) {
         const next = [...ids];
@@ -224,7 +256,7 @@ export function HandFan({
         onReorder(next);
       }
     },
-    [onReorder, reorderEnabled, cards, cardWidth],
+    [onReorder, reorderEnabled, cards, slotStep],
   );
 
   return (
@@ -239,6 +271,7 @@ export function HandFan({
           index={index}
           total={total}
           spread={cappedSpread}
+          slotStep={slotStep}
           face={faceFor(card)}
           size={size}
           highlighted={highlightCardIds?.has(card.id) ?? false}
@@ -260,10 +293,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'flex-end',
+    width: '100%',
     height: 180,
   },
   cardSlot: {
     position: 'absolute',
+    left: '50%',
     bottom: space.lg,
   },
 });

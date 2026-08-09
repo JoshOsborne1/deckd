@@ -33,6 +33,7 @@ export interface HandStackProps {
 
 const SWIPE_UP_DISCARD = -56;
 const REORDER_DX = 38;
+const STACK_HEIGHT = 200;
 
 function StackCard({
   card,
@@ -46,6 +47,7 @@ function StackCard({
   onReorderDx,
   reduceMotion,
   dealTrigger,
+  maxLip,
 }: {
   card: CardInstance;
   index: number;
@@ -58,10 +60,11 @@ function StackCard({
   onReorderDx: ((dx: number) => void) | undefined;
   reduceMotion: boolean;
   dealTrigger: string | null | undefined;
+  maxLip: number;
 }) {
   const { haptic } = useMotion();
   const cardWidth = SIZE_MAP[size].width;
-  const stack = handStackTransform(index, total, cardWidth);
+  const stack = handStackTransform(index, total, cardWidth, maxLip);
   const entry = useSharedValue(reduceMotion ? 1 : 0);
   const animatedDealTrigger = useRef<string | null>(null);
   const delay = dealStagger(index, total, motion.stagger.deal);
@@ -161,7 +164,17 @@ function StackCard({
   );
 
   return (
-    <Animated.View style={[styles.cardSlot, animStyle]}>
+    <Animated.View
+      style={[
+        styles.cardSlot,
+        {
+          width: cardWidth,
+          height: SIZE_MAP[size].height,
+          marginLeft: -cardWidth / 2,
+        },
+        animStyle,
+      ]}
+    >
       <GestureDetector gesture={composed}>
         <View collapsable={false}>{inner}</View>
       </GestureDetector>
@@ -183,6 +196,10 @@ export function HandStack({
   const { reduceMotion } = useMotion();
 
   const cardWidth = SIZE_MAP[size].width;
+  const cardHeight = SIZE_MAP[size].height;
+  const maxLip = cards.length > 1
+    ? Math.max(0, (STACK_HEIGHT - cardHeight - space.lg) / (cards.length - 1))
+    : 0;
 
   const handleReorderDx = useCallback(
     (cardId: CardId, dx: number) => {
@@ -220,6 +237,7 @@ export function HandStack({
           }
           reduceMotion={reduceMotion}
           dealTrigger={dealTrigger}
+          maxLip={maxLip}
         />
       ))}
     </View>
@@ -231,10 +249,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'flex-end',
-    height: 200,
+    width: '100%',
+    height: STACK_HEIGHT,
   },
   cardSlot: {
     position: 'absolute',
+    left: '50%',
     bottom: space.lg,
   },
 });

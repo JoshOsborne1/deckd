@@ -7,6 +7,7 @@ import { HubLayer } from '@components/layers/HubLayer';
 import { TableLayer } from '@components/layers/TableLayer';
 import { LobbyLayer } from '@components/layers/LobbyLayer';
 import { PassLayer } from '@components/layers/PassLayer';
+import { NAV_BAR_RESERVE } from '@components/GlobalNavBar';
 import {
   SurfaceMorphContext,
   type MorphDirection,
@@ -94,30 +95,31 @@ export default function Surface() {
     <SurfaceMorphContext.Provider value={morph}>
       <View style={styles.root}>
         <FeltBackground />
-
-        <HomeLayer
-          active={viewMode === 'home'}
-          layerVisible={viewMode === 'home' || viewMode === 'hub'}
-          topInset={insets.top}
-          bottomInset={insets.bottom}
-        />
-        <HubLayer
-          active={viewMode === 'hub'}
-          layerVisible={viewMode === 'home' || viewMode === 'hub'}
-          topInset={insets.top}
-          bottomInset={insets.bottom}
-        />
-        <TableLayer
-          active={viewMode === 'table' || viewMode === 'pass'}
-          topInset={insets.top}
-          bottomInset={insets.bottom}
-        />
-        <LobbyLayer
-          active={viewMode === 'lobby'}
-          topInset={insets.top}
-          bottomInset={insets.bottom}
-        />
-        <PassLayer />
+        <View style={styles.layers}>
+          <HomeLayer
+            active={viewMode === 'home'}
+            layerVisible={viewMode === 'home' || viewMode === 'hub'}
+            topInset={insets.top}
+            bottomInset={insets.bottom + NAV_BAR_RESERVE}
+          />
+          <HubLayer
+            active={viewMode === 'hub'}
+            layerVisible={viewMode === 'home' || viewMode === 'hub'}
+            topInset={insets.top}
+            bottomInset={insets.bottom + NAV_BAR_RESERVE}
+          />
+          <TableLayer
+            active={viewMode === 'table' || viewMode === 'pass'}
+            topInset={insets.top}
+            bottomInset={insets.bottom + NAV_BAR_RESERVE}
+          />
+          <LobbyLayer
+            active={viewMode === 'lobby'}
+            topInset={insets.top}
+            bottomInset={insets.bottom + NAV_BAR_RESERVE}
+          />
+          <PassLayer />
+        </View>
       </View>
     </SurfaceMorphContext.Provider>
   );
@@ -151,6 +153,14 @@ const styles = StyleSheet.create({
   root: {
     flex: 1,
     backgroundColor: colors.bg,
+    // The table rail intentionally extends past the canvas to create a
+    // physical oval. Clip it at the surface edge so a 375px phone never gets
+    // a horizontal document scroll from that decorative geometry.
+    overflow: 'hidden',
+  },
+  layers: {
+    flex: 1,
+    minHeight: 0,
   },
   felt: {
     ...StyleSheet.absoluteFill,

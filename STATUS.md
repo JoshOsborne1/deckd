@@ -31,8 +31,10 @@ Expo SDK 57, React Native 0.86, React 19, TypeScript strict. Expo Router app wit
 - Mobile action rail polish: shuffle/history/end controls retain 44px targets, and the pass CTA is shrink-safe inside the 320–375px content width instead of clipping at the edges.
 - Setup material pass: the Hub options rail now uses the same warm ivory rule surface as the table instead of a generic white card; nav corner-suit decoration was removed so the center control stays focused on the Deckd logo.
 - Pass ritual material pass: the privacy veil now keeps the warm ivory stock, restrained crimson rules, and table rail/well atmosphere behind the hold-to-reveal step instead of switching to a flat white page.
-- Web QA: the exported public preview was exercised at 375×812 through home → setup → Deal 2 each → dealt table → pass veil. Nav, Hub CTA, and all four table action children stayed inside the viewport; browser console/page errors were empty.
-- Preview deployment: `app-serve` was rebuilt from the current export and PM2 `deckd-app` restarted; `https://deckd-app.roxai.click/` returned the current web bundle and passed the same 375px interaction script.
+- P0 card pass: `HandFan` now measures the real container and card aspect ratio; two-card hands are upright with a deliberate 12px gap, while ten-card hands stay bounded with controlled overlap. Branded backs and scalable SVG fronts are wired through the same `PlayingCard` shell.
+- Web QA: the exported preview was exercised at 375×812 through home → setup → Deal 2 each → dealt table → eight draws (40 left) with zero browser console/page errors. Fresh screenshots confirmed the nav, Hub CTA, two-card hand, ten-card hand, and all table action children stay inside the viewport.
+- Transition decision: setup/table remain a single-surface morph with physical card motion only; the route-wide rotateY page turn was not shipped because Josh's brief explicitly rejects page-like handoffs.
+- Preview deployment: `app-serve` was rebuilt from the final export and PM2 `deckd-app` restarted; `https://deckd-app.roxai.click/` returned the current web bundle and passed the same 375px interaction script.
 
 Security note: `npm audit fix` removed the easy fixes. Remaining audit warnings require breaking upgrades to React Native 0.86 / Expo 56, so they are parked until an intentional SDK upgrade.
 

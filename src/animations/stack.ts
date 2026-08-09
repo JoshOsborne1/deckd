@@ -18,13 +18,15 @@ export function handStackTransform(
   index: number,
   total: number,
   cardWidth?: number,
+  maxLip?: number,
 ): StackTransform {
   'worklet';
   if (total <= 1) {
     return { rotate: '0deg', rotateDeg: 0, translateX: 0, translateY: 0 };
   }
 
-  const lip = cardWidth ? Math.round(cardWidth * 0.09) : 10;
+  const preferredLip = cardWidth ? Math.round(cardWidth * 0.09) : 10;
+  const lip = Math.min(preferredLip, maxLip ?? preferredLip);
   const maxRot = 4;
   const t = index / Math.max(1, total - 1);
   const rotateDeg = -maxRot + t * (maxRot * 2);

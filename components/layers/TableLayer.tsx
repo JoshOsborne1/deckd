@@ -13,6 +13,7 @@ import { AvatarPlaceholder } from '@components/AvatarPlaceholder';
 import { CardButton } from '@components/CardButton';
 import { CardSection } from '@components/CardSection';
 import { PlayingCard } from '@components/PlayingCard';
+
 import { EventHistoryModal } from '@components/EventHistoryModal';
 import { HandFan } from '@components/HandFan';
 import { HandStack } from '@components/HandStack';
@@ -72,7 +73,6 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
 
   const state = useGameStore((s) => s.state);
   const events = useGameStore((s) => s.events);
-  const seq = useGameStore((s) => s.seq);
   const dealCard = useGameStore((s) => s.dealCard);
   const flipCard = useGameStore((s) => s.flipCard);
   const moveCard = useGameStore((s) => s.moveCard);
@@ -320,7 +320,7 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
     return (
       <Animated.View
         pointerEvents={active ? 'auto' : 'none'}
-        style={[styles.root, surfaceStyle]}
+        style={[styles.root, { bottom: bottomInset }, surfaceStyle]}
       >
         <View style={[styles.emptyWrap, { paddingTop: topInset + space.x5l }]}>
           <CardSection variant="surface" padded>
@@ -350,7 +350,7 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
   return (
     <Animated.View
       pointerEvents={active ? 'auto' : 'none'}
-      style={[styles.root, surfaceStyle]}
+      style={[styles.root, { bottom: bottomInset }, surfaceStyle]}
     >
       {/* Header */}
       <View style={[styles.header, { paddingTop: topInset + space.md }]}>
@@ -566,20 +566,6 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
         ) : null}
       </View>
 
-      {/* Dev-only event log debug */}
-      {__DEV__ && (
-        <Pressable
-          onPress={() => {
-            console.log(`[DEV] events: ${events.length}, seq: ${seq}`);
-          }}
-          style={styles.devChip}
-        >
-          <Text style={styles.devText}>
-            EVT:{events.length} SEQ:{seq}
-          </Text>
-        </Pressable>
-      )}
-
       <EventHistoryModal
         visible={historyOpen}
         events={events}
@@ -596,6 +582,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
+    overflow: 'hidden',
   },
   header: {
     flexDirection: 'row',
@@ -706,7 +693,7 @@ const styles = StyleSheet.create({
   },
   discardSlot: {
     width: 110,
-    height: 160,
+    height: 154,
     borderRadius: radii.card,
     borderWidth: 2,
     borderColor: colors.borderStrong,
@@ -844,20 +831,6 @@ const styles = StyleSheet.create({
     color: colors.surface,
     fontSize: fontSizes.body,
     fontFamily: fonts.bold,
-  },
-  devChip: {
-    position: 'absolute',
-    bottom: 4,
-    left: 4,
-    backgroundColor: alpha.inkOverlay20,
-    paddingHorizontal: space.sm,
-    paddingVertical: 2,
-    borderRadius: radii.xs,
-  },
-  devText: {
-    fontSize: 9,
-    fontFamily: fonts.bold,
-    color: colors.surface,
   },
 });
 

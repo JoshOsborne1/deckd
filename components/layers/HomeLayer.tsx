@@ -36,10 +36,9 @@ interface HomeLayerProps {
 }
 
 const PREVIEW_DECKS = [
-  { id: 'brand', label: 'Crimson', back: 'brand' as const },
-  { id: 'ink', label: 'Midnight', back: 'ink' as const },
-  { id: 'brand2', label: 'Ember', back: 'brand' as const },
-  { id: 'ink2', label: 'Onyx', back: 'ink' as const },
+  { id: 'brand', label: 'Deckd Crimson', back: 'brand' as const },
+  { id: 'noir', label: 'Noir', back: 'back-noir' as const },
+  { id: 'crimson', label: 'Crimson', back: 'back-crimson' as const },
 ];
 
 /** Progress threshold below which Home accepts taps/scroll. */
@@ -295,14 +294,14 @@ export function HomeLayer({
   return (
     <Animated.View
       pointerEvents={interactive ? 'auto' : 'none'}
-      style={[styles.root, rootStyle]}
+      style={[styles.root, { bottom: bottomInset }, rootStyle]}
     >
       <ScrollView
         pointerEvents={interactive ? 'auto' : 'none'}
         scrollEnabled={interactive}
         contentContainerStyle={[
           styles.scrollContent,
-          { paddingTop: topInset + space.md, paddingBottom: bottomInset + 140 },
+          { paddingTop: topInset + space.md, paddingBottom: 140 },
         ]}
         showsVerticalScrollIndicator={false}
       >
@@ -460,6 +459,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
+    overflow: 'hidden',
   },
   scrollContent: {
     paddingHorizontal: space.xl,
