@@ -6,6 +6,12 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
+    "backgroundColor": "#F8F6F1",
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#F8F6F1"
+    },
     "ios": {
       "bundleIdentifier": "com.deckd.app",
       "buildNumber": "1",
@@ -25,12 +31,16 @@
       "versionCode": 1,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#FAFAFA"
+        "backgroundColor": "#F8F6F1"
       }
     },
     "extra": {
       "revenueCatIosApiKey": "",
       "revenueCatAndroidApiKey": ""
+    },
+    "web": {
+      "output": "static",
+      "bundler": "metro"
     },
     "plugins": [
       "expo-router",
@@ -43,7 +53,7 @@
         {
           "image": "./assets/splash-icon.png",
           "resizeMode": "contain",
-          "backgroundColor": "#FAFAFA"
+          "backgroundColor": "#F8F6F1"
         }
       ]
     ],
