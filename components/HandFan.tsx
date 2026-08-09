@@ -62,6 +62,7 @@ function FanCard({
   onReorderDx,
   reduceMotion,
   dealTrigger,
+  dealInitial,
 }: {
   card: CardInstance;
   index: number;
@@ -76,16 +77,21 @@ function FanCard({
   onReorderDx: ((dx: number) => void) | undefined;
   reduceMotion: boolean;
   dealTrigger: string | null | undefined;
+  /** Only cards present when the session starts receive the opening stagger. */
+  dealInitial: boolean;
 }) {
   const { haptic } = useMotion();
   const cardWidth = SIZE_MAP[size].width;
   const fan = handFanTransform(index, total, spread, cardWidth, slotStep);
-  const entry = useSharedValue(reduceMotion ? 1 : 0);
+  const entry = useSharedValue(reduceMotion || !dealInitial ? 1 : 0);
   const animatedDealTrigger = useRef<string | null>(null);
   const delay = dealStagger(index, total, motion.stagger.deal);
 
   useEffect(() => {
-    if (!dealTrigger) {
+    // `dealTrigger` identifies the session, not every card insertion. A card
+    // drawn after the opening hand must land in the measured fan immediately;
+    // otherwise it replays the opening flight from the deck on every draw.
+    if (!dealTrigger || !dealInitial) {
       cancelAnimation(entry);
       entry.value = 1;
       return;
@@ -102,7 +108,7 @@ function FanCard({
     entry.value = 0;
     entry.value = withDelay(delay, withSpring(1, motion.spring.card));
     return () => cancelAnimation(entry);
-  }, [dealTrigger, delay, entry, reduceMotion]);
+  }, [dealInitial, dealTrigger, delay, entry, reduceMotion]);
 
   const animStyle = useAnimatedStyle(() => {
     'worklet';
@@ -215,6 +221,31 @@ export function HandFan({
   const resolvedSpread = resolveSpread(spreadProp, fanStyle);
   const [containerWidth, setContainerWidth] = useState(0);
 
+  // Capture the card ids that existed when this session's opening deal first
+  // materialised. New cards can mount with the same stable session trigger,
+  // but they are already settled and should not replay the opening flight.
+  const [openingDeal, setOpeningDeal] = useState<{
+    trigger: string | null;
+    ids: ReadonlySet<CardId>;
+  }>(() => ({
+    trigger: dealTrigger ?? null,
+    ids: dealTrigger ? new Set(cards.map((card) => card.id)) : new Set<CardId>(),
+  }));
+  useEffect(() => {
+    const nextTrigger = dealTrigger ?? null;
+    const shouldCapture =
+      openingDeal.trigger !== nextTrigger ||
+      (Boolean(dealTrigger) && openingDeal.ids.size === 0 && cards.length > 0);
+    if (!shouldCapture) return;
+
+    // Be tolerant of a render where the session key arrives one frame before
+    // the initial deal cards are folded into the local state.
+    setOpeningDeal({
+      trigger: nextTrigger,
+      ids: new Set(cards.map((card) => card.id)),
+    });
+  }, [cards, dealTrigger, openingDeal]);
+
   const total = cards.length;
   const cardWidth = SIZE_MAP[size].width;
   const cardHeight = SIZE_MAP[size].height;
@@ -283,6 +314,7 @@ export function HandFan({
           }
           reduceMotion={reduceMotion}
           dealTrigger={dealTrigger}
+          dealInitial={openingDeal.ids.has(card.id)}
         />
       ))}
     </View>

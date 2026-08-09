@@ -2,7 +2,7 @@ import React, { useEffect } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { usePathname, useRouter, type Href } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Home, ShoppingBag, User } from 'lucide-react-native';
+import { Home, Layers, ShoppingBag, User } from 'lucide-react-native';
 import Animated, {
   cancelAnimation,
   interpolate,
@@ -16,7 +16,7 @@ import Animated, {
 import { PlayingCard } from '@components/PlayingCard';
 import { useMotion } from '@hooks/useMotion';
 import { useUiStore } from '@store/uiStore';
-import { alpha, colors, fonts, motion, space } from '@theme';
+import { alpha, colors, fonts, motion, shadow, space } from '@theme';
 
 type NavIcon = React.ComponentType<{
   size?: number;
@@ -37,7 +37,7 @@ export const NAV_BAR_RESERVE = 92;
 const navItems: NavConfig[] = [
   { id: 'home', href: '/', label: 'Home', icon: Home },
   { id: 'store', href: '/store', label: 'Store', icon: ShoppingBag },
-  { id: 'games', href: '/list', label: 'Presets' },
+  { id: 'games', href: '/list', label: 'Presets', icon: Layers },
   { id: 'profile', href: '/profile', label: 'Profile', icon: User },
 ];
 
@@ -49,34 +49,6 @@ function isActivePath(pathname: string, href: string): boolean {
     return pathname === '/' || pathname === '/index';
   }
   return pathname === href || pathname.startsWith(`${href}/`);
-}
-
-function FannedCardsIcon({ active }: { active: boolean }) {
-  const c = active ? colors.brand : colors.neutral500;
-  const w = 10;
-  const h = 16;
-  return (
-    <View style={styles.fanRoot}>
-      <View
-        style={[
-          styles.fanCard,
-          { width: w, height: h, borderColor: c, left: 0, bottom: 0, transform: [{ rotate: '-12deg' }] },
-        ]}
-      />
-      <View
-        style={[
-          styles.fanCard,
-          { width: w, height: h, borderColor: c, left: 7, bottom: 1, zIndex: 2 },
-        ]}
-      />
-      <View
-        style={[
-          styles.fanCard,
-          { width: w, height: h, borderColor: c, left: 14, bottom: 0, transform: [{ rotate: '12deg' }] },
-        ]}
-      />
-    </View>
-  );
 }
 
 export const GlobalNavBar: React.FC = () => {
@@ -114,6 +86,7 @@ export const GlobalNavBar: React.FC = () => {
   return (
     <View pointerEvents="box-none" style={styles.wrapper}>
       <View style={[styles.rail, { paddingBottom: bottomPad }]}>
+        <View pointerEvents="none" style={[styles.edgeLip, { bottom: bottomPad + 8 }]} />
         <View style={styles.row}>
           {navItems.slice(0, 2).map((item, index) => (
             <NavItem
@@ -166,7 +139,6 @@ function NavItem({
   const Icon = item.icon;
   const entry = useSharedValue(reduceMotion ? 1 : 0);
   const press = useSharedValue(0);
-  const activeProgress = useSharedValue(active ? 1 : 0);
 
   useEffect(() => {
     cancelAnimation(entry);
@@ -178,23 +150,17 @@ function NavItem({
     return () => cancelAnimation(entry);
   }, [entry, index, reduceMotion]);
 
-  useEffect(() => {
-    activeProgress.value = withTiming(active ? 1 : 0, {
-      duration: reduceMotion ? motion.duration.fast : motion.duration.base,
-    });
-  }, [active, activeProgress, reduceMotion]);
-
   const itemMotion = useAnimatedStyle(() => ({
     opacity: interpolate(entry.value, [0, 1], [0, 1]),
     transform: [
-      { translateY: interpolate(entry.value, [0, 1], [8, 0]) + interpolate(press.value, [0, 1], [0, 1]) },
+      {
+        translateY:
+          interpolate(entry.value, [0, 1], [8, 0]) +
+          interpolate(press.value, [0, 1], [0, 1]) +
+          (active ? -4 : 0),
+      },
       { scale: interpolate(press.value, [0, 1], [1, 0.96]) },
     ],
-  }));
-
-  const ruleMotion = useAnimatedStyle(() => ({
-    opacity: activeProgress.value,
-    width: interpolate(activeProgress.value, [0, 1], [0, 24]),
   }));
 
   const setPressed = (pressed: boolean) => {
@@ -205,7 +171,7 @@ function NavItem({
   };
 
   return (
-    <Animated.View style={[styles.itemSlot, itemMotion]}>
+    <Animated.View style={[styles.itemSlot, active && styles.itemSlotActive, itemMotion]}>
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={item.label}
@@ -219,14 +185,11 @@ function NavItem({
         ]}
       >
         <View style={styles.itemIcon}>
-          {item.id === 'games' ? (
-            <FannedCardsIcon active={active} />
-          ) : Icon ? (
+          {Icon ? (
             <Icon size={19} color={color} strokeWidth={active ? 2.2 : 1.8} />
           ) : null}
         </View>
         <Text style={[styles.itemLabel, { color }]}>{item.label}</Text>
-        <Animated.View style={[styles.activeRule, ruleMotion]} />
       </Pressable>
     </Animated.View>
   );
@@ -275,9 +238,8 @@ function DealButton({ reduceMotion, onPress }: { reduceMotion: boolean; onPress:
             style={styles.dealDeckBack}
           />
           <PlayingCard
-            face="up"
-            rank="A"
-            suit="hearts"
+            face="down"
+            back="back-brand"
             size="xs"
             overlapped
             style={styles.dealDeckFront}
@@ -301,11 +263,21 @@ const styles = StyleSheet.create({
   rail: {
     width: '100%',
     minHeight: NAV_BAR_RESERVE,
+    position: 'relative',
+    justifyContent: 'flex-end',
+    paddingTop: space.sm,
+  },
+  edgeLip: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    height: 6,
     backgroundColor: colors.navStrip,
     borderTopWidth: 1,
     borderTopColor: alpha.navLine,
-    justifyContent: 'flex-end',
-    paddingTop: space.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: alpha.brand20,
+    zIndex: 0,
   },
   row: {
     position: 'relative',
@@ -317,26 +289,32 @@ const styles = StyleSheet.create({
     paddingHorizontal: space.sm,
     gap: space.xs,
     width: '100%',
+    zIndex: 1,
   },
   itemSlot: {
     flex: 1,
     minWidth: 0,
     maxWidth: 70,
-    minHeight: 48,
+    minHeight: 52,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  itemSlotActive: {
+    zIndex: 2,
+    ...shadow.navActive,
   },
   itemButton: {
     width: '100%',
     maxWidth: 70,
-    minHeight: 46,
+    minHeight: 48,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 5,
-    paddingVertical: 5,
-    borderRadius: 14,
+    paddingVertical: 4,
+    borderRadius: 999,
     borderWidth: 1,
-    borderColor: 'transparent',
+    borderColor: alpha.inkOverlay12,
+    backgroundColor: alpha.inkOverlay02,
   },
   itemButtonPressed: {
     backgroundColor: alpha.inkOverlay06,
@@ -344,7 +322,7 @@ const styles = StyleSheet.create({
   },
   itemButtonActive: {
     backgroundColor: colors.surface,
-    borderColor: alpha.brand20,
+    borderColor: colors.brand,
   },
   itemIcon: {
     height: 21,
@@ -358,12 +336,7 @@ const styles = StyleSheet.create({
     lineHeight: 12,
     letterSpacing: 0.25,
   },
-  activeRule: {
-    height: 2,
-    marginTop: 3,
-    backgroundColor: colors.brand,
-    borderRadius: 1,
-  },
+
   centerButton: {
     width: 62,
     minHeight: 62,
@@ -407,17 +380,6 @@ const styles = StyleSheet.create({
     color: colors.brand,
     letterSpacing: 0.5,
     textTransform: 'uppercase',
-  },
-  fanRoot: {
-    width: 28,
-    height: 20,
-    position: 'relative',
-  },
-  fanCard: {
-    position: 'absolute',
-    borderRadius: 3,
-    borderWidth: 1.5,
-    backgroundColor: 'transparent',
   },
 });
 

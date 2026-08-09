@@ -24,8 +24,8 @@ Expo SDK 57, React Native 0.86, React 19, TypeScript strict. Expo Router app wit
 - **Material language:** one warm ivory/crimson/ink table world with deterministic paper grain, hairline rules, restrained shadows, and no active green/gold/blue decorative language.
 - **Cards:** stable branded 2.5:3.5 shells, warm paper fronts with French pips/corner indices/court treatment, canonical Deckd/Noir/Crimson backs, and bounded fan/stack depth at phone size.
 - **Setup:** `HubLayer` is a deal-prep ritual on the shared table surface: recipe cards/back previews, one-line outcomes, player chips, option tokens, and table-edge Deal/Host actions.
-- **Navigation:** `GlobalNavBar` is a continuous ivory table-edge rail with labelled controls, active-rule motion, reduced-motion handling, and a separate card-deck Deal anchor; `NAV_BAR_RESERVE` keeps game surfaces clear.
-- **Motion and guidance:** setup/table remain a surface morph with physical card motion only; dealt cards stagger in, draw/discard press feedback remains, and the engine/table expose a single non-blocking next-useful-move suggestion while preserving alternate actions.
+- **Navigation:** `GlobalNavBar` treats the bottom as a thin 6px table lip with four labelled tactile chips, active lift/rim/shadow, reduced-motion-safe stagger, and a separate two-back card-deck Deal anchor; `NAV_BAR_RESERVE` keeps game surfaces clear.
+- **Motion and guidance:** setup/table remain a surface morph with physical card motion only; the opening hand staggers in while later drawn cards settle immediately into the measured fan, draw/discard press feedback remains, and the engine/table expose a single non-blocking next-useful-move suggestion while preserving alternate actions.
 - **Preview mode:** store/lobby affordances retain their locked-looking monetization language but do not hard-block taps during testing.
 
 ## Verification
@@ -35,7 +35,7 @@ Expo SDK 57, React Native 0.86, React 19, TypeScript strict. Expo Router app wit
 - `npx jest --runInBand` passed 7 suites / 71 tests.
 - `npx expo-doctor` passed 20/20 checks.
 - Public smoke: `DECKD_QA_URL=https://deckd-app.roxai.click node qa/deckd-visual-qa.cjs` passed Home → setup → Deal 2 each → table → ten-card draw → `PASS TURN` → pass veil. The script reported all required surface flags true and `errors: []`.
-- Existing 375×812 browser evidence recorded no horizontal overflow, bounded nav/action geometry, no hidden-layer interaction mistake in the exercised path, and no console/page errors. The fresh public run served the deployed current bundle.
+- Public geometry probe passed at 375×812 and 1440×900: document/body scroll widths matched each viewport, visible nav/deal controls stayed in bounds, and console/page errors were empty. The fresh public run served the deployed current bundle.
 - `qa/deckd-visual-qa.cjs` now asserts the pass veil as well as setup, card, table, guidance, and browser-error checks.
 
 ## Decisions
