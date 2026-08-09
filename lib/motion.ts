@@ -10,6 +10,13 @@ export const SPRING = themeMotion.spring;
 export const DURATION = themeMotion.duration;
 export const STAGGER = themeMotion.stagger;
 
+/** Shared offsets/scales for the tactile card-table motion language. */
+export const DEAL_ENTRY_OFFSET_Y = -96;
+export const DEAL_ENTRY_START_SCALE = 0.94;
+export const DISCARD_PULSE_SCALE = 1.05;
+export const PASS_VEIL_OFFSET_Y = 24;
+export const MASCOT_BOUNCE_SCALE = 1.05;
+
 /** Worklet-safe helper for producing a layered entry offset.
  *  Callers pass a 0..1 progress value; returns a y translation where
  *  layers slide up into place. */

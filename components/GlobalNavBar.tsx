@@ -162,9 +162,9 @@ function NavCard({
       onPress={onPress}
       style={({ pressed }) => [
         styles.cardShell,
-        { transform: [{ translateY: 10 }, { rotate: item.rotateDeg }] },
+        { transform: [{ translateY: 2 }, { rotate: item.rotateDeg }] },
         active && styles.cardShellActive,
-        pressed && { transform: [{ translateY: 6 }, { rotate: item.rotateDeg }, { scale: 0.98 }] },
+        pressed && { transform: [{ translateY: -1 }, { rotate: item.rotateDeg }, { scale: 0.98 }] },
       ]}
     >
       {item.suit ? (

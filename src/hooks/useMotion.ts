@@ -17,12 +17,15 @@ export type HapticIntensity =
 export interface MotionApi {
   /** True when the OS requests reduced motion or the user enabled the in-app override (animations). */
   reduceMotion: boolean;
+  /** True after the asynchronous OS accessibility preference has been read. */
+  motionReady: boolean;
   haptic: (intensity?: HapticIntensity) => void;
   announce: (message: string) => void;
 }
 
 export function useMotion(): MotionApi {
   const [systemReduceMotion, setSystemReduceMotion] = useState(false);
+  const [motionReady, setMotionReady] = useState(false);
   const reduceMotionOverride = useProfileStore((s) => s.reduceMotionOverride);
   const hapticsEnabled = useProfileStore((s) => s.hapticsEnabled);
 
@@ -34,15 +37,20 @@ export function useMotion(): MotionApi {
 
     AccessibilityInfo.isReduceMotionEnabled()
       .then((v) => {
-        if (mounted) setSystemReduceMotion(Boolean(v));
+        if (mounted) {
+          setSystemReduceMotion(Boolean(v));
+          setMotionReady(true);
+        }
       })
       .catch(() => {
-        /* unsupported on some platforms */
+        /* unsupported on some platforms — default to full motion */
+        if (mounted) setMotionReady(true);
       });
 
-    const sub = AccessibilityInfo.addEventListener('reduceMotionChanged', (v) =>
-      setSystemReduceMotion(Boolean(v)),
-    );
+    const sub = AccessibilityInfo.addEventListener('reduceMotionChanged', (v) => {
+      setSystemReduceMotion(Boolean(v));
+      setMotionReady(true);
+    });
 
     return () => {
       mounted = false;
@@ -96,5 +104,5 @@ export function useMotion(): MotionApi {
     AccessibilityInfo.announceForAccessibility(message);
   }, []);
 
-  return { reduceMotion, haptic, announce };
+  return { reduceMotion, motionReady, haptic, announce };
 }

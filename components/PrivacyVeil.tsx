@@ -14,7 +14,7 @@ import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { Eye } from 'lucide-react-native';
 import { AvatarPlaceholder } from '@components/AvatarPlaceholder';
 import { useMotion } from '@hooks/useMotion';
-import { EASING_EMPHASIZED } from '@lib/motion';
+import { EASING_EMPHASIZED, PASS_VEIL_OFFSET_Y } from '@lib/motion';
 import { colors, fonts, letterSpacing, motion, radii, shadow, space, textStyles } from '@theme';
 
 export interface PrivacyVeilProps {
@@ -47,40 +47,55 @@ export function PrivacyVeil({
   const progress = useSharedValue(0);
   const fade = useSharedValue(visible ? 1 : 0);
   const mountScale = useSharedValue(visible ? 1 : 0.985);
+  const mountTranslateY = useSharedValue(visible ? 0 : PASS_VEIL_OFFSET_Y);
 
   const [mounted, setMounted] = useState(visible);
 
-  if (visible && !mounted) {
-    setMounted(true);
-  }
-
   useEffect(() => {
     if (visible) {
+      cancelAnimation(fade);
+      cancelAnimation(mountScale);
+      cancelAnimation(mountTranslateY);
       if (reduceMotion) {
         mountScale.value = 1;
+        mountTranslateY.value = 0;
         fade.value = withTiming(1, { duration: motion.duration.base });
       } else {
         mountScale.value = 0.985;
+        mountTranslateY.value = PASS_VEIL_OFFSET_Y;
         fade.value = withTiming(1, {
           duration: motion.duration.slow,
           easing: EASING_EMPHASIZED,
         });
         mountScale.value = withSpring(1, motion.spring.veil);
+        mountTranslateY.value = withSpring(0, motion.spring.veil);
       }
+      const t = setTimeout(() => setMounted(true), 0);
+      return () => clearTimeout(t);
     } else {
+      cancelAnimation(fade);
+      cancelAnimation(mountScale);
+      cancelAnimation(mountTranslateY);
       fade.value = withTiming(0, {
         duration: motion.duration.base,
         easing: EASING_EMPHASIZED,
       });
       if (!reduceMotion) {
         mountScale.value = withTiming(0.992, { duration: motion.duration.fast });
+        mountTranslateY.value = withTiming(PASS_VEIL_OFFSET_Y * 0.5, {
+          duration: motion.duration.base,
+          easing: EASING_EMPHASIZED,
+        });
+      } else {
+        mountScale.value = 1;
+        mountTranslateY.value = 0;
       }
       cancelAnimation(progress);
       progress.value = 0;
       const t = setTimeout(() => setMounted(false), motion.duration.slow);
       return () => clearTimeout(t);
     }
-  }, [visible, fade, progress, mountScale, reduceMotion]);
+  }, [visible, fade, mountScale, mountTranslateY, progress, reduceMotion]);
 
   const longPress = Gesture.LongPress()
     .minDuration(HOLD_MS)
@@ -104,7 +119,9 @@ export function PrivacyVeil({
 
   const rootStyle = useAnimatedStyle(() => ({
     opacity: fade.value,
-    transform: [{ scale: mountScale.value }],
+    transform: reduceMotion
+      ? []
+      : [{ translateY: mountTranslateY.value }, { scale: mountScale.value }],
   }));
 
   const fillStyle = useAnimatedStyle(() => ({

@@ -1,9 +1,11 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Animated, {
+  cancelAnimation,
   useAnimatedStyle,
   useSharedValue,
   withSpring,
+  withSequence,
   withTiming,
 } from 'react-native-reanimated';
 import { ChevronLeft, Clock, Flag, Menu, Shuffle } from 'lucide-react-native';
@@ -16,6 +18,7 @@ import { HandFan } from '@components/HandFan';
 import { HandStack } from '@components/HandStack';
 import { useLayerSurfaceEntrance } from '@hooks/useLayerSurfaceEntrance';
 import { useMotion } from '@hooks/useMotion';
+import { DISCARD_PULSE_SCALE } from '@lib/motion';
 import { useUiStore } from '@store/uiStore';
 import { useCosmeticsStore } from '@store/cosmeticsStore';
 import { useGameStore } from '@store/gameStore';
@@ -130,6 +133,12 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
   const nextPlayerId = useMemo(() => selectNextPlayerId(state), [state]);
   const isHost = Boolean(hostPlayerId && viewerId === hostPlayerId);
   const isPassMode = state.meta.mode === 'pass';
+  const dealTrigger = useMemo(() => {
+    const sessionStart = events.find((event) => event.type === 'session/start');
+    // Event sequence numbers restart for each session, so use the unique
+    // session id rather than `event-1` as the replay key.
+    return sessionStart?.meta.id ?? sessionStart?.id ?? state.meta.id ?? null;
+  }, [events, state.meta.id]);
 
   const drawScale = useSharedValue(1);
   const drawOpacity = useSharedValue(1);
@@ -160,10 +169,13 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
       return;
     }
 
+    cancelAnimation(discardScale);
     // eslint-disable-next-line react-hooks/immutability
-    discardScale.value = withTiming(1.08, { duration: motion.duration.fast }, () => {
-      discardScale.value = withTiming(1, { duration: motion.duration.fast });
-    });
+    discardScale.value = 1;
+    discardScale.value = withSequence(
+      withTiming(DISCARD_PULSE_SCALE, { duration: motion.duration.fast }),
+      withTiming(1, { duration: motion.duration.fast }),
+    );
   }, [discardOpacity, discardScale, discardTop?.id, previousDiscardId, reduceMotion]);
 
   const handleDrawPressIn = useCallback(() => {
@@ -486,8 +498,9 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
               ...styles.passBtn,
               ...(isMyTurn ? undefined : { opacity: 0.5 }),
             }}
+            innerStyle={styles.passBtnInner}
           >
-            <Text style={styles.passBtnText}>PASS TURN »</Text>
+            <Text style={styles.passBtnText} numberOfLines={1}>PASS TURN »</Text>
           </CardButton>
         ) : (
           <Pressable
@@ -530,6 +543,7 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
             onReorder={handleReorder}
             reorderEnabled={isMyTurn}
             size="md"
+            dealTrigger={dealTrigger}
           />
         ) : (
           <HandFan
@@ -542,6 +556,7 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
             onReorder={handleReorder}
             reorderEnabled={isMyTurn}
             size="md"
+            dealTrigger={dealTrigger}
           />
         )}
         {!handLocked && localHand.length > 0 ? (
@@ -710,7 +725,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: space.xl,
+    alignSelf: 'stretch',
+    width: '100%',
+    paddingHorizontal: space.md,
+    gap: space.md,
     paddingTop: space.md,
   },
   endedBanner: {
@@ -752,8 +770,8 @@ const styles = StyleSheet.create({
     fontFamily: fonts.bold,
   },
   iconBtn: {
-    width: 48,
-    height: 48,
+    width: 44,
+    height: 44,
     borderRadius: radii.pill,
     backgroundColor: colors.surface,
     alignItems: 'center',
@@ -761,11 +779,17 @@ const styles = StyleSheet.create({
     ...shadow.card,
   },
   passBtn: {
-    paddingHorizontal: space.xxxl,
+    minWidth: 128,
+    maxWidth: 168,
+    flexShrink: 1,
+  },
+  passBtnInner: {
+    minWidth: 0,
+    paddingHorizontal: space.sm,
   },
   passBtnText: {
     color: colors.surface,
-    fontSize: fontSizes.small + 1,
+    fontSize: fontSizes.small,
     fontFamily: fonts.extra,
     letterSpacing: letterSpacing.cap,
   },

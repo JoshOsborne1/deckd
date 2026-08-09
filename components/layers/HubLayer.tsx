@@ -10,7 +10,7 @@ import Animated, {
   withTiming,
   type SharedValue,
 } from 'react-native-reanimated';
-import { ChevronLeft, Radio, Users } from 'lucide-react-native';
+import { ChevronLeft, Users } from 'lucide-react-native';
 import { CardButton } from '@components/CardButton';
 import { CardSection } from '@components/CardSection';
 import { PlayingCard } from '@components/PlayingCard';
@@ -62,7 +62,7 @@ const CHIP_STAGGER = 0.04;
  *   player title            [0.60, 0.85]  ty +30 -> 0
  *   player chip i           [0.60 + i*0.04, 0.85 + i*0.04]
  *   options card            [0.65, 0.90]
- *   CTA row (BLE + Deal)    [0.70, 1.00]  ty +20 -> 0; deal-now also scales
+ *   CTA row (Host + Deal)   [0.70, 1.00]  ty +20 -> 0; deal-now also scales
  *                                          0.92 -> 1 to "catch" the morphing
  *                                          hero CTA coming in from above.
  *
@@ -366,6 +366,17 @@ export function HubLayer({
         ]}
         showsVerticalScrollIndicator={false}
       >
+        <Animated.View style={[styles.tableMarker, presetTitleStyle]}>
+          <View style={styles.markerRule} />
+          <View style={styles.markerCopy}>
+            <Text style={styles.markerEyebrow}>TABLE READY</Text>
+            <Text style={styles.markerValue}>
+              {includeJokers ? '54' : '52'} CARD DECK · PASS & PLAY
+            </Text>
+          </View>
+          <View style={styles.markerRule} />
+        </Animated.View>
+
         {sessionActive ? (
           <Animated.View style={resumeStyle}>
             <CardSection variant="ink" tab style={styles.resumeCard}>
@@ -505,12 +516,12 @@ export function HubLayer({
               </CardButton>
             </View>
 
-            <View style={[styles.optionRow, styles.optionRowDivider]}>
+            <View style={[styles.optionRow, styles.optionRowDivider, styles.handLayoutRow]}>
               <View style={{ flex: 1 }}>
                 <Text style={styles.optionLabel}>Hand layout</Text>
                 <Text style={styles.optionHint}>Fan arc, tight fan, or stacked deck</Text>
               </View>
-              <View style={styles.fanChipRow}>
+              <View style={[styles.fanChipRow, styles.handLayoutChipRow]}>
                 {(['wide', 'tight', 'stacked'] as const).map((f) => {
                   const selected = fanStyle === f;
                   return (
@@ -546,10 +557,10 @@ export function HubLayer({
             elevated={false}
             haptic="light"
             onPress={() => setViewMode('lobby')}
-            style={styles.bleChip}
+            style={styles.hostChip}
           >
-            <Radio size={16} color={colors.inkMuted} />
-            <Text style={styles.bleChipText}>Invite nearby</Text>
+            <Users size={16} color={colors.inkMuted} />
+            <Text style={styles.hostChipText}>Host a lobby</Text>
           </CardButton>
 
           <Animated.View style={[styles.startCtaWrap, startCtaStyle]}>
@@ -647,6 +658,34 @@ const styles = StyleSheet.create({
   },
   scroll: {
     paddingHorizontal: space.xl,
+  },
+  tableMarker: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.sm,
+    marginTop: space.sm,
+    marginBottom: space.sm,
+  },
+  markerRule: {
+    flex: 1,
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: alpha.brand20,
+  },
+  markerCopy: {
+    alignItems: 'center',
+  },
+  markerEyebrow: {
+    fontSize: 10,
+    fontFamily: fonts.bold,
+    color: colors.brand,
+    letterSpacing: letterSpacing.caps,
+  },
+  markerValue: {
+    marginTop: 2,
+    fontSize: 10,
+    fontFamily: fonts.semibold,
+    color: colors.inkSubtle,
+    letterSpacing: letterSpacing.cap,
   },
   resumeCard: {
     marginBottom: space.xxl,
@@ -767,11 +806,19 @@ const styles = StyleSheet.create({
     borderTopColor: colors.border,
     alignItems: 'flex-start',
   },
+  handLayoutRow: {
+    flexDirection: 'column',
+    alignItems: 'stretch',
+    gap: space.sm,
+  },
   fanChipRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: space.xs,
     justifyContent: 'flex-end',
+  },
+  handLayoutChipRow: {
+    justifyContent: 'flex-start',
   },
   fanChip: {
     minWidth: 52,
@@ -789,13 +836,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: space.md,
   },
-  bleChip: {
+  hostChip: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: space.xs,
     borderRadius: radii.lg,
   },
-  bleChipText: {
+  hostChipText: {
     fontSize: 13,
     fontFamily: fonts.semibold,
     color: colors.inkMuted,

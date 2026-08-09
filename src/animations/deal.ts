@@ -1,3 +1,5 @@
+import { DEAL_ENTRY_OFFSET_Y, DEAL_ENTRY_START_SCALE } from '@lib/motion';
+
 /**
  * Worklet-safe animation helpers for card dealing, hand-fan layout,
  * and deal-entry motion. All functions are safe to call on the UI thread.
@@ -9,12 +11,8 @@
  */
 export function dealStagger(index: number, total: number, baseDelay = 60): number {
   'worklet';
-  if (total <= 1) return 0;
-  // Keep a five-card opening deal under roughly 600ms while preserving the
-  // token-defined rhythm for smaller hands.
-  const maxLeadIn = 180;
-  const safeDelay = Math.min(baseDelay, maxLeadIn / (total - 1));
-  return index * safeDelay;
+  if (total <= 1 || index <= 0) return 0;
+  return index * Math.max(0, baseDelay);
 }
 
 export interface FanTransform {
@@ -65,6 +63,7 @@ export function handFanTransform(
 
 export interface DealEntryValues {
   opacity: number;
+  translateX: number;
   translateY: number;
   rotate: string;
   rotateDeg: number;
@@ -74,18 +73,25 @@ export interface DealEntryValues {
 /**
  * Interpolates a deal-entry transform from `progress` 0→1.
  *
- * At 0: card is invisible, offset above the hand, slightly rotated and scaled down.
+ * At 0: card is invisible, offset from the deck position, slightly rotated,
+ * and scaled down. `targetX` lets fan/stack cards travel from the shared deck
+ * centre into their final slot instead of popping into their layout position.
  * At 1: card is in its final resting position.
  */
-export function dealEntryTransform(progress: number): DealEntryValues {
+export function dealEntryTransform(
+  progress: number,
+  targetX = 0,
+  fromY = DEAL_ENTRY_OFFSET_Y,
+): DealEntryValues {
   'worklet';
   const p = progress < 0 ? 0 : progress > 1 ? 1 : progress;
   const angleDeg = (1 - p) * -8;
   return {
     opacity: p,
-    translateY: (1 - p) * -40,
+    translateX: targetX * p,
+    translateY: (1 - p) * fromY,
     rotate: `${angleDeg}deg`,
     rotateDeg: angleDeg,
-    scale: 0.95 + p * 0.05,
+    scale: DEAL_ENTRY_START_SCALE + p * (1 - DEAL_ENTRY_START_SCALE),
   };
 }

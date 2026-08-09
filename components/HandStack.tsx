@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef } from 'react';
 import { StyleSheet, View } from 'react-native';
 import Animated, {
+  cancelAnimation,
   runOnJS,
   useAnimatedStyle,
   useSharedValue,
@@ -26,6 +27,8 @@ export interface HandStackProps {
   reorderEnabled?: boolean;
   size?: 'md' | 'lg';
   highlightCardIds?: Set<CardId>;
+  /** Stable session-start key. Changing it replays the opening deal. */
+  dealTrigger?: string | null;
 }
 
 const SWIPE_UP_DISCARD = -56;
@@ -42,6 +45,7 @@ function StackCard({
   onSwipeDiscard,
   onReorderDx,
   reduceMotion,
+  dealTrigger,
 }: {
   card: CardInstance;
   index: number;
@@ -53,26 +57,42 @@ function StackCard({
   onSwipeDiscard: (() => void) | undefined;
   onReorderDx: ((dx: number) => void) | undefined;
   reduceMotion: boolean;
+  dealTrigger: string | null | undefined;
 }) {
   const { haptic } = useMotion();
   const cardWidth = SIZE_MAP[size].width;
   const stack = handStackTransform(index, total, cardWidth);
   const entry = useSharedValue(reduceMotion ? 1 : 0);
-  const initialDelay = useRef(dealStagger(index, total, motion.stagger.deal));
+  const animatedDealTrigger = useRef<string | null>(null);
+  const delay = dealStagger(index, total, motion.stagger.deal);
 
   useEffect(() => {
-    if (!reduceMotion) {
-      entry.value = withDelay(initialDelay.current, withSpring(1, motion.spring.card));
+    if (!dealTrigger) {
+      cancelAnimation(entry);
+      entry.value = 1;
+      return;
     }
-  }, [entry, reduceMotion, initialDelay]);
+    if (animatedDealTrigger.current === dealTrigger) return;
+
+    animatedDealTrigger.current = dealTrigger;
+    cancelAnimation(entry);
+    if (reduceMotion) {
+      entry.value = 1;
+      return;
+    }
+
+    entry.value = 0;
+    entry.value = withDelay(delay, withSpring(1, motion.spring.card));
+    return () => cancelAnimation(entry);
+  }, [dealTrigger, delay, entry, reduceMotion]);
 
   const animStyle = useAnimatedStyle(() => {
     'worklet';
-    const e = dealEntryTransform(entry.value);
+    const e = dealEntryTransform(entry.value, stack.translateX);
     return {
       opacity: e.opacity,
       transform: [
-        { translateX: stack.translateX },
+        { translateX: e.translateX },
         { translateY: stack.translateY + e.translateY },
         { rotate: `${stack.rotateDeg + e.rotateDeg}deg` },
         { scale: e.scale },
@@ -158,6 +178,7 @@ export function HandStack({
   reorderEnabled = true,
   size = 'lg',
   highlightCardIds,
+  dealTrigger,
 }: HandStackProps) {
   const { reduceMotion } = useMotion();
 
@@ -198,6 +219,7 @@ export function HandStack({
             onReorder && reorderEnabled ? (dx) => handleReorderDx(card.id, dx) : undefined
           }
           reduceMotion={reduceMotion}
+          dealTrigger={dealTrigger}
         />
       ))}
     </View>

@@ -22,7 +22,7 @@ import { useSurfaceMorph } from '@components/layers/SurfaceMorphContext';
 import { useMotion } from '@hooks/useMotion';
 import { useUiStore } from '@store/uiStore';
 import { useProfileStore } from '@store/profileStore';
-import { EASING_EMPHASIZED } from '@lib/motion';
+import { EASING_EMPHASIZED, MASCOT_BOUNCE_SCALE } from '@lib/motion';
 import { alpha, colors, fonts, motion, radii, shadow, space, textStyles } from '@theme';
 
 interface HomeLayerProps {
@@ -79,7 +79,7 @@ export function HomeLayer({
   const streak = useProfileStore((s) => s.streak);
 
   const { progress, reduceMotion } = useSurfaceMorph();
-  const { reduceMotion: reduceMotionSystem } = useMotion();
+  const { reduceMotion: reduceMotionSystem, motionReady } = useMotion();
 
   // Whole-layer fade. Only fires when we leave the home/hub morph zone for
   // table/lobby/pass — inside the zone the per-element windows own opacity.
@@ -97,34 +97,51 @@ export function HomeLayer({
   // The mascot is a mount-only hello: one springy rise, then one small bounce.
   // It never loops or replays when the home layer is merely hidden by a route.
   const mascotOpacity = useSharedValue(0);
-  const mascotTranslateY = useSharedValue(-20);
+  const mascotTranslateX = useSharedValue(24);
+  const mascotTranslateY = useSharedValue(-12);
   const mascotScale = useSharedValue(1);
   const mascotPlayed = useRef(false);
   useEffect(() => {
-    if (mascotPlayed.current) return;
+    // Wait for the OS preference before starting the one-shot intro. Without
+    // this gate, the async accessibility read could arrive after a full
+    // motion intro had already begun.
+    if (!motionReady || mascotPlayed.current) return;
     mascotPlayed.current = true;
     if (reduceMotionSystem) {
       mascotOpacity.value = withTiming(1, { duration: motion.duration.fast });
+      mascotTranslateX.value = 0;
       mascotTranslateY.value = 0;
       mascotScale.value = 1;
       return;
     }
     mascotOpacity.value = withTiming(1, { duration: motion.duration.base });
+    mascotTranslateX.value = withSpring(0, motion.spring.card);
     mascotTranslateY.value = withSpring(0, motion.spring.card);
     mascotScale.value = withDelay(
-      680,
+      760,
       withSequence(
-        withTiming(1.06, { duration: 160 }),
+        withTiming(MASCOT_BOUNCE_SCALE, { duration: 160 }),
         withTiming(1, { duration: 240 }),
       ),
     );
-  }, [mascotOpacity, mascotPlayed, mascotScale, mascotTranslateY, reduceMotionSystem]);
+  }, [
+    mascotOpacity,
+    mascotPlayed,
+    mascotScale,
+    mascotTranslateX,
+    mascotTranslateY,
+    motionReady,
+    reduceMotionSystem,
+  ]);
 
   const mascotStyle = useAnimatedStyle(() => {
-    if (reduceMotionSystem) return { opacity: mascotOpacity.value };
+    const p = progress.value;
+    const morphOpacity = interpolate(p, [0.2, 0.5], [1, 0], Extrapolation.CLAMP);
+    if (reduceMotionSystem) return { opacity: mascotOpacity.value * morphOpacity };
     return {
-      opacity: mascotOpacity.value,
+      opacity: mascotOpacity.value * morphOpacity,
       transform: [
+        { translateX: mascotTranslateX.value },
         { translateY: mascotTranslateY.value },
         { scale: mascotScale.value },
       ],
