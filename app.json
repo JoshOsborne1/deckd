@@ -7,11 +7,7 @@
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "backgroundColor": "#F8F6F1",
-    "splash": {
-      "image": "./assets/splash-icon.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#F8F6F1"
-    },
+
     "ios": {
       "bundleIdentifier": "com.deckd.app",
       "buildNumber": "1",
