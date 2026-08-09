@@ -57,6 +57,33 @@ The current GlobalNavBar is rejected: five floating white card shells with drop 
 - Must work at 375px on all screens (home, setup, table, store, profile, lobby, pass) and not overlap the table surface. NAV_BAR_RESERVE must still be respected by the game surfaces.
 - Supersedes directive 6 (nav bar integration) which is DONE and now replaced by this.
 
+### 12. Card faces: paper, not pixels (Josh, 2026-08-09 — STILL NOT A FAN)
+The current card rendering is flat/digital. Make cards read as physical paper:
+- Face stock = warm ivory paper with the same deterministic grain as `FeltBackground`; soft 1px inner edge; shadow ONLY where cards overlap (stack depth), never floating shadows.
+- Corner indices both corners; real French pip layouts from vendored `vendor/card-fronts/` (hayeah MIT, notpeter PD); red = warm crimson family, black = warm ink, NOT pure black/red.
+- Court cards keep the classic frame + figure from vendored sources, recolored to palette. No AI redraws, no gold (branding rule).
+- Backs are the same paper stock: default ivory/crimson logo back, Noir and Crimson backs wired into the picker (directive 2).
+- Motion: keep deal stagger, draw spring, discard pulse, FlipCard; dealt cards land with a 1-2px settle spring. P0 gate (directive 1) still stands: clean at 375px AND desktop.
+
+### 13. Nav v3: chips on the table edge (Josh, 2026-08-09 — nav bar STILL BAD, supersedes 11)
+Directive 11's rail bar is rejected too. There is NO nav bar:
+- The bottom of the screen is the table's physical edge: thin felt lip (4-6px ivory/crimson rule), no container.
+- Four CHIPS sit on the edge: Home, Store, Presets, Profile. Chip = flat cylinder, 1px rim, engraved lucide mark, tiny label under it, 44px+ target, no shadow unless active.
+- Active chip: raised ~4px, soft shadow, crimson rim. Press: presses INTO the felt (scale 0.96, quick spring). Inactive: flush, muted ink.
+- Deal is NOT a nav item. Deal is the DECK: a small stack of 2-3 card backs (logo on top) sitting on the table, center-bottom above the edge. Tap = deal animation into the table. Object, not button.
+- Appear: chips deal-in from the edge one by one (40ms stagger, spring); reduce-motion = plain fade. Deck object always present.
+- Works on all surfaces; game surfaces keep reserve height (the edge is part of the table).
+
+### 14. Setup page: staging the deck (Josh, 2026-08-09 — "NOT A FAN AT ALL", full redesign)
+HubLayer currently reads as a settings form. Redesign as a deal-prep ritual on the felt:
+- Recipe cards fanned on the felt: each preset is a card back (freeplay=brand, deal-2=crimson, blackjack=noir, poker=crimson). Tap one → it flips + slides forward showing name, one-liner, player range. Selected stays flipped; others rest as backs.
+- Player count = chips (same chip language as nav). Options = tokens (jokers, fan style, auto-reshuffle) that flip state, not switches. Recipe-specific options appear only when needed (blackjack: dealer toggle).
+- "Deal now" IS the deck object on the felt, bottom center. Tap → cards fly to hands. "Host a lobby" = chip beside the deck ("this table with friends"); guests see the chosen recipe on join.
+- No page look: hub keeps the surface morph but the surface is the table (felt, rail, well, vignette). Setup and play are one continuous space (directive 7 stands).
+
+### 15. PRIORITY: gameplay + visuals FIRST, monetization LATER (Josh, 2026-08-09)
+Build order: (1) visual pass — cards, nav chips, setup page; (2) recipe schema (presets become data, `executeRecipe`); (3) free library: War, Go Fish, Old Maid, Crazy Eights, Sevens; (4) full Blackjack + Hold'em; (5) premium library push; (6) AI generator; (7) solitaire singles + lobby picker + real 2-device test. Monetization routes (suits as credits, premium library paywall, pass perks) are DESIGNED but NOT built until gameplay is right. See `docs/DESIGN_PLAN.md` for the full thesis; `docs/PARKED_IDEAS.md` for everything deferred.
+
 ## Standing rules (from AGENTS.md, unchanged)
 
 - TypeScript strict, NO new dependencies, no raw hex outside src/lib/theme.ts.
