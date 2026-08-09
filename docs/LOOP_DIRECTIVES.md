@@ -33,8 +33,8 @@ The preset picker (Freeplay, Deal 2 each, Blackjack-style, Poker-style) needs re
 ### 6. Nav bar integration
 `components/GlobalNavBar.tsx`: currently good but sits on a separate container behind the card-style buttons. Remove that container so the menu cards sit directly on the surface; separate them with a subtle drop shadow instead. The nav must be accessible on ALL screens (home, setup, table, store, profile, lobby, pass).
 
-### 7. Card flip page transitions
-Build a 3D card-flip transition for surface changes (setup → table, home → setup): the screen change animates like flipping/dealing a card. Use react-native-reanimated 4.5 (ALREADY INSTALLED — this IS the best 3D flip engine; do NOT add a new dependency). rotateY + perspective + backfaceVisibility with a shared transition component in `src/lib/motion.ts` or `components/`. Respect reduce-motion (AccessibilityInfo.isReduceMotionEnabled). Must work on web and native.
+### 7. Seamless setup → table transition (supersedes the earlier page-flip request)
+Do not add a route-wide 3D page-flip transition for home → setup or setup → table. Josh's current direction is that setup is integrated into the same table space, not a separate page. Keep the existing layered surface morph and physical card motion for deal, draw, discard, flip, reorder, and pass interactions. The `FlipCard` component is for card faces only; any new transition must preserve the shared table canvas and respect reduced motion.
 
 ### 8. Use the logo wherever possible (DONE for icons, keep applying)
 - iOS Add to Home Screen: `public/apple-touch-icon.png` + manifest + static web output (DONE, live).
@@ -46,6 +46,16 @@ The playing surface should have a subtle warm texture (paper/felt-like grain, iv
 
 ### 10. PREVIEW MODE: NO HARD LOCKS (Josh, 2026-08-09)
 Nothing may block testing. All features are usable NOW (free, no purchase required): lobby hosting (Master gate REMOVED in LobbyLayer.handleCreate), all card backs and table themes preview-unlock on tap in the store, passes show as placeholders. Keep the LOCKED LOOK (lock icons, "Hosting needs a Master pass" note, prices shown) so the monetization UI is visible, but never block a tap. Do not reintroduce purchase gates. RevenueCat keys are empty; nothing can be bought anyway.
+
+### 11. Nav bar REDESIGN (Josh, 2026-08-09 — NOT A FAN of the current state)
+The current GlobalNavBar is rejected: five floating white card shells with drop shadows, fanned rotation, icon-only. That is boxed widgets on the table. Redesign it to be part of the game space:
+
+- Kill the individual card shells. One continuous bottom rail that reads as the table edge: ivory surface, 1px ink/crimson rule divider on top, NO per-item shadows, no rotation, no container behind it.
+- Items: small icon + text label (Home, Store, Presets, Profile). 44px+ touch targets. Active item = crimson ink + a 1px animated rule that draws in under the label. Inactive = muted ink.
+- Center: the logo stays as the Deal button and remains the anchor, but on press it animates like dealing a card (spring lift, slight rotateY flip, then settle). No static decorations around it.
+- Animations (reanimated 4.5, already installed, no new deps): spring press states on every item, active-rule draw-in, and a subtle deal-in stagger when the nav appears (cards slide up one by one). Respect reduce-motion (AccessibilityInfo.isReduceMotionEnabled) — then it's a plain fade.
+- Must work at 375px on all screens (home, setup, table, store, profile, lobby, pass) and not overlap the table surface. NAV_BAR_RESERVE must still be respected by the game surfaces.
+- Supersedes directive 6 (nav bar integration) which is DONE and now replaced by this.
 
 ## Standing rules (from AGENTS.md, unchanged)
 
