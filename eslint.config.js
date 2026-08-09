@@ -13,6 +13,7 @@ module.exports = [
       'build/**',
       'coverage/**',
       'server/**',
+      'app-serve/**',
     ],
   },
   ...expoConfig,

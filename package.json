@@ -15,7 +15,7 @@
     "submit:ios": "eas submit --platform ios --latest",
     "prebuild": "expo prebuild --clean",
     "lint": "eslint .",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "node --stack_size=8000 node_modules/typescript/bin/tsc --noEmit",
     "test": "jest",
     "test:watch": "jest --watch",
     "dev": "expo start --clear --lan --port 8082",

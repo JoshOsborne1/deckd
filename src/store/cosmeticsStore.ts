@@ -10,7 +10,7 @@ import {
 } from '@engine/visuals';
 
 const DEFAULT_BACK_ID = 'back-brand';
-const DEFAULT_TABLE_THEME_ID = 'theme-classic-felt';
+const DEFAULT_TABLE_THEME_ID = 'theme-ivory';
 const DEFAULT_DECK_ID = 'deck-standard-52';
 
 export interface CosmeticsState extends RuntimeVisualConfig {

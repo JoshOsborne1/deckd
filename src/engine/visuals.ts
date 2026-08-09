@@ -107,6 +107,16 @@ export const BUILTIN_CARD_BACKS: CardBackDefinition[] = [
 /** Built-in table themes shipped with the app */
 export const BUILTIN_TABLE_THEMES: TableThemeDefinition[] = [
   {
+    id: 'theme-ivory',
+    name: 'Ivory Table',
+    family: 'premium',
+    surfaceBase: '#F8F6F1',
+    railColor: '#D8D2C6',
+    wellColor: '#EFEBE2',
+    glowTint: 'rgba(248,246,241,0.55)',
+    unlockedByDefault: true,
+  },
+  {
     id: 'theme-classic-felt',
     name: 'Classic Felt',
     family: 'felt',
