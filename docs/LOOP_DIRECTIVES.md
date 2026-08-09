@@ -13,7 +13,7 @@ The card rendering is still too buggy visually. Cards must render cleanly at eve
 Use `assets/card-back-deckd.png` (generated: ivory paper, gold double border, corner lattice, red D logo + heart). Make it the default card back (back-brand). It must render correctly as a React Native Image inside PlayingCard's back face, crisp at small sizes, correct aspect ratio (~2.5:3.5). Keep the existing procedural backs as selectable options.
 
 ### 3. Card fronts from a proven repo (assets ready)
-Cloned at `C:\Users\Wrekin\Documents\workspace\card-assets\`:
+Vendored in-repo at `vendor/card-fronts/`:
 - `hayeah/` (MIT license) — 54 SVGs, classic Inkscape-style faces
 - `notpeter/` (public domain / WTFPL) — 54 SVGs, Byron Knoll faces, cleaner paths
 
