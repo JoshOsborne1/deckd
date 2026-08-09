@@ -5,6 +5,7 @@ import { ChevronLeft, Copy, Crown, Radio, Users } from 'lucide-react-native';
 import * as Clipboard from 'expo-clipboard';
 import { CardButton } from '@components/CardButton';
 import { CardSection } from '@components/CardSection';
+
 import { useLayerSurfaceEntrance } from '@hooks/useLayerSurfaceEntrance';
 import { useMotion } from '@hooks/useMotion';
 import { useUiStore } from '@store/uiStore';
@@ -68,22 +69,12 @@ export function LobbyLayer({ active, topInset, bottomInset }: LobbyLayerProps) {
 
   const handleCreate = useCallback(() => {
     haptic('medium');
-    if (!hasMasterPass) {
-      Alert.alert(
-        'Deckd Master required',
-        'Hosting a lobby needs a Deckd Master pass. Guests always join free.',
-        [
-          { text: 'Not now', style: 'cancel' },
-          { text: 'View passes', onPress: () => setViewMode('home') },
-        ],
-      );
-      return;
-    }
-    // hostLobby computes the HMAC masterToken from the shared secret + clientId
-    // when configured; dev servers without MASTER_TOKEN_SECRET accept any host.
+    // PREVIEW MODE (2026-08-09): no hard locks. Hosting normally needs a
+    // Deckd Master pass; in preview the Master UI stays visible but the gate
+    // is open so everything is testable. RevenueCat keys are empty anyway.
     hostLobby(nickname || 'Host');
     setScreen('room');
-  }, [haptic, hasMasterPass, hostLobby, nickname, setViewMode]);
+  }, [haptic, hostLobby, nickname]);
 
   const handleJoin = useCallback(() => {
     haptic('medium');
@@ -134,7 +125,7 @@ export function LobbyLayer({ active, topInset, bottomInset }: LobbyLayerProps) {
       pointerEvents={active ? 'auto' : 'none'}
       style={[
         styles.root,
-        { paddingTop: topInset + space.lg, paddingBottom: bottomInset + space.xl },
+        { paddingTop: topInset + space.lg, paddingBottom: space.xl, bottom: bottomInset },
         surfaceStyle,
       ]}
     >
@@ -313,6 +304,7 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     paddingHorizontal: space.xl,
+    overflow: 'hidden',
   },
   header: {
     flexDirection: 'row',
