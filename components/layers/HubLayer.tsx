@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ScrollView, StyleSheet, Text, View, type ViewStyle } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View, type ViewStyle } from 'react-native';
 import Animated, {
   Extrapolation,
   interpolate,
@@ -121,6 +121,7 @@ export function HubLayer({
   const [playerCount, setPlayerCount] = React.useState<PlayerCount>(2);
   const [includeJokers, setIncludeJokers] = React.useState(false);
   const [fanStyle, setFanStyle] = React.useState<FanStyle>('wide');
+  const [autoReshuffle, setAutoReshuffle] = React.useState(true);
 
   const { progress, reduceMotion } = useSurfaceMorph();
   const { reduceMotion: reduceMotionSystem } = useMotion();
@@ -178,7 +179,7 @@ export function HubLayer({
         mode: 'online-host',
         presetId: activePreset.id,
         players,
-        config: { includeJokers, fanStyle },
+        config: { includeJokers, fanStyle, autoReshuffleDiscard: autoReshuffle },
         hostId: localClientId,
       });
       useProfileStore.getState().bumpGamesPlayed();
@@ -196,7 +197,7 @@ export function HubLayer({
       mode: 'pass',
       presetId: activePreset.id,
       players,
-      config: { includeJokers, fanStyle },
+      config: { includeJokers, fanStyle, autoReshuffleDiscard: autoReshuffle },
       hostId: 'you',
     });
     useProfileStore.getState().bumpGamesPlayed();
@@ -381,47 +382,6 @@ export function HubLayer({
         ]}
         showsVerticalScrollIndicator={false}
       >
-        <Animated.View style={[styles.tableMarker, presetTitleStyle]}>
-          <View style={styles.markerRule} />
-          <View style={styles.markerCopy}>
-            <Text style={styles.markerEyebrow}>TABLE READY</Text>
-            <Text style={styles.markerValue}>
-              {includeJokers ? '54' : '52'} CARD DECK · PASS & PLAY
-            </Text>
-          </View>
-          <View style={styles.markerRule} />
-        </Animated.View>
-
-        <Animated.View style={[styles.stageCard, presetTitleStyle]}>
-          <View style={styles.stageCopy}>
-            <Text style={styles.stageEyebrow}>DECK STAGED</Text>
-            <Text style={styles.stageTitle}>{activePreset.name}</Text>
-            <Text style={styles.stageMeta}>
-              {playerCount} players · {includeJokers ? '54' : '52'} cards · pass & play
-            </Text>
-            <Text style={styles.stageOutcome}>
-              {PRESET_OUTCOMES[activePreset.id]}
-            </Text>
-          </View>
-          <View style={styles.stagePile} pointerEvents="none">
-            <PlayingCard
-              face="down"
-              back={PRESET_BACKS[activePreset.id] ?? 'back-brand'}
-              size="sm"
-              overlapped
-              style={styles.stageBackCard}
-            />
-            <PlayingCard
-              face="up"
-              rank="A"
-              suit="hearts"
-              size="sm"
-              overlapped
-              style={styles.stageFrontCard}
-            />
-          </View>
-        </Animated.View>
-
         {sessionActive ? (
           <Animated.View style={resumeStyle}>
             <CardSection variant="ink" tab style={styles.resumeCard}>
@@ -455,63 +415,60 @@ export function HubLayer({
           </Animated.View>
         ) : null}
 
-        <Animated.View style={[styles.sectionHeader, presetTitleStyle]}>
-          <Text style={styles.sectionTitle}>Choose the table recipe</Text>
-          <Text style={styles.sectionKicker}>Tap a deck to preview the deal</Text>
+        <Animated.View style={[styles.tableMarker, presetTitleStyle]}>
+          <View style={styles.markerRule} />
+          <View style={styles.markerCopy}>
+            <Text style={styles.markerEyebrow}>DEAL PREP</Text>
+            <Text style={styles.markerValue}>
+              {playerCount} PLAYERS · {includeJokers ? '54' : '52'} CARD DECK
+            </Text>
+          </View>
+          <View style={styles.markerRule} />
+        </Animated.View>
+
+        <Animated.View style={[styles.recipeHeading, presetTitleStyle]}>
+          <View style={styles.recipeHeadingCopy}>
+            <Text style={styles.sectionTitle}>Choose a recipe</Text>
+            <Text style={styles.sectionKicker}>Flip a deck to preview the deal</Text>
+          </View>
+          <Text style={styles.recipeIndex}>0{builtinPresets.length}</Text>
         </Animated.View>
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.presetRail}
+          contentContainerStyle={styles.recipeRail}
           style={styles.presetRailScroll}
         >
           {builtinPresets.map((preset, idx) => {
             const selected = preset.id === presetId;
             return (
-              <StaggeredChip
+              <RecipeCard
                 key={preset.id}
+                preset={preset}
                 index={idx}
-                baseStart={0.5}
-                baseEnd={0.8}
+                selected={selected}
+                back={PRESET_BACKS[preset.id] ?? 'back-brand'}
+                oneLiner={PRESET_OUTCOMES[preset.id]}
+                playerRange={`${preset.minPlayers}–${Math.min(preset.maxPlayers, 6)} players`}
                 progress={progress}
                 reduceMotion={reduceMotion}
-                wrapperStyle={styles.presetStagger}
-              >
-                <CardButton
-                  variant={selected ? 'primary' : 'secondary'}
-                  size="md"
-                  elevated={selected}
-                  haptic="select"
-                  onPress={() => setPresetId(preset.id)}
-                  style={styles.presetChip}
-                  innerStyle={styles.presetChipInner}
-                >
-                  <View style={styles.presetChipContent}>
-                    <View style={styles.presetChipHeading}>
-                      <View style={[styles.presetMark, selected && styles.presetMarkActive]} />
-                      <Text style={[styles.presetLabel, selected && styles.presetLabelActive]}>
-                        {preset.name}
-                      </Text>
-                    </View>
-                    <Text
-                      numberOfLines={1}
-                      style={[styles.presetOutcome, selected && styles.presetOutcomeActive]}
-                    >
-                      {PRESET_OUTCOMES[preset.id]}
-                    </Text>
-                  </View>
-                </CardButton>
-              </StaggeredChip>
+                reduceMotionSystem={reduceMotionSystem}
+                onPress={() => setPresetId(preset.id)}
+              />
             );
           })}
         </ScrollView>
-        <Animated.Text style={[styles.presetDesc, presetDescStyle]}>
-          {activePreset.summary}
-        </Animated.Text>
+        <Animated.View style={[styles.selectedRecipeNote, presetDescStyle]}>
+          <View style={styles.selectedRecipeMark} />
+          <Text style={styles.presetDesc}>{activePreset.summary}</Text>
+        </Animated.View>
 
-        <Animated.Text style={[styles.sectionTitle, playerTitleStyle]}>
-          Players at this device
-        </Animated.Text>
+        <Animated.View style={[styles.playerHeading, playerTitleStyle]}>
+          <View>
+            <Text style={styles.sectionTitle}>Who’s at the table?</Text>
+            <Text style={styles.sectionKicker}>Pass the deck between {playerCount} people</Text>
+          </View>
+        </Animated.View>
         <View style={styles.playerRow}>
           {PLAYER_OPTIONS.map((n, idx) => {
             const selected = n === playerCount;
@@ -525,16 +482,14 @@ export function HubLayer({
                 reduceMotion={reduceMotion}
               >
                 <CardButton
-                  variant={selected ? 'primary' : 'secondary'}
+                  variant={selected ? 'primary' : 'ghost'}
                   size="sm"
-                  elevated={selected}
+                  elevated={false}
                   haptic="select"
                   onPress={() => setPlayerCount(n)}
-                  style={styles.playerChip}
+                  style={selected ? { ...styles.playerChip, ...styles.playerChipActive } : styles.playerChip}
                 >
-                  <Text
-                    style={[styles.playerLabel, selected && styles.playerLabelActive]}
-                  >
+                  <Text style={[styles.playerLabel, selected && styles.playerLabelActive]}>
                     {n}
                   </Text>
                 </CardButton>
@@ -543,67 +498,45 @@ export function HubLayer({
           })}
         </View>
 
-        <Animated.Text style={[styles.sectionTitle, optionsTitleStyle]}>
-          Options
-        </Animated.Text>
+        <Animated.View style={[styles.optionsHeading, optionsTitleStyle]}>
+          <View>
+            <Text style={styles.sectionTitle}>Table tokens</Text>
+            <Text style={styles.sectionKicker}>Turn a token to change the deal</Text>
+          </View>
+        </Animated.View>
         <Animated.View style={optionsCardStyle}>
-          <CardSection variant="ghost" style={styles.optionCard}>
-            <View style={styles.optionRow}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.optionLabel}>Include jokers</Text>
-                <Text style={styles.optionHint}>54-card deck</Text>
-              </View>
-              <CardButton
-                variant={includeJokers ? 'primary' : 'ghost'}
-                size="sm"
-                elevated={false}
-                haptic="select"
-                onPress={() => setIncludeJokers((v) => !v)}
-                style={styles.toggleChip}
-              >
-                <Text
-                  style={[
-                    styles.toggleText,
-                    includeJokers && styles.toggleTextActive,
-                  ]}
-                >
-                  {includeJokers ? 'ON' : 'OFF'}
-                </Text>
-              </CardButton>
-            </View>
-
-            <View style={[styles.optionRow, styles.optionRowDivider, styles.handLayoutRow]}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.optionLabel}>Hand layout</Text>
-                <Text style={styles.optionHint}>Fan arc, tight fan, or stacked deck</Text>
-              </View>
-              <View style={[styles.fanChipRow, styles.handLayoutChipRow]}>
-                {(['wide', 'tight', 'stacked'] as const).map((f) => {
-                  const selected = fanStyle === f;
-                  return (
-                    <CardButton
-                      key={f}
-                      variant={selected ? 'primary' : 'ghost'}
-                      size="sm"
-                      elevated={false}
-                      haptic="select"
-                      onPress={() => setFanStyle(f)}
-                      style={styles.fanChip}
-                    >
-                      <Text
-                        style={[
-                          styles.fanChipText,
-                          selected && styles.toggleTextActive,
-                        ]}
-                      >
-                        {f === 'wide' ? 'Wide' : f === 'tight' ? 'Tight' : 'Stack'}
-                      </Text>
-                    </CardButton>
-                  );
-                })}
-              </View>
-            </View>
-          </CardSection>
+          <View style={styles.tokenGrid}>
+            <OptionToken
+              label="Jokers"
+              detail={includeJokers ? '54 cards' : '52 cards'}
+              selected={includeJokers}
+              onPress={() => setIncludeJokers((v) => !v)}
+            />
+            <OptionToken
+              label="Wide fan"
+              detail="hand layout"
+              selected={fanStyle === 'wide'}
+              onPress={() => setFanStyle('wide')}
+            />
+            <OptionToken
+              label="Tight fan"
+              detail="hand layout"
+              selected={fanStyle === 'tight'}
+              onPress={() => setFanStyle('tight')}
+            />
+            <OptionToken
+              label="Stack"
+              detail="hand layout"
+              selected={fanStyle === 'stacked'}
+              onPress={() => setFanStyle('stacked')}
+            />
+            <OptionToken
+              label="Reshuffle"
+              detail={autoReshuffle ? 'when empty' : 'manual'}
+              selected={autoReshuffle}
+              onPress={() => setAutoReshuffle((v) => !v)}
+            />
+          </View>
         </Animated.View>
 
         {/* RN Web does not always materialize ScrollView padding as scrollable
@@ -615,32 +548,44 @@ export function HubLayer({
           is a table-edge action strip, not a second page or floating card. */}
       <Animated.View style={[styles.ctaDock, ctaRowStyle]}>
         <View style={styles.ctaRow}>
-          <CardButton
-            variant="ghost"
-            size="md"
-            elevated={false}
-            haptic="light"
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Host a lobby"
             onPress={() => setViewMode('lobby')}
-            style={styles.hostChip}
+            style={({ pressed }) => [styles.hostChip, pressed && styles.hostChipPressed]}
           >
-            <Users size={16} color={colors.inkMuted} />
-            <Text style={styles.hostChipText}>Host a lobby</Text>
-          </CardButton>
+            <View style={styles.hostChipIcon}>
+              <Users size={15} color={colors.inkMuted} />
+            </View>
+            <View>
+              <Text style={styles.hostChipEyebrow}>FRIENDS</Text>
+              <Text style={styles.hostChipText}>Host a lobby</Text>
+            </View>
+          </Pressable>
 
           <Animated.View style={[styles.startCtaWrap, startCtaStyle]}>
-            <CardButton
-              variant="primary"
-              size="lg"
-              elevated
-              haptic="medium"
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={sessionActive ? 'Start a new table' : 'Deal now'}
               onPress={handleStart}
-              style={styles.startCta}
+              style={({ pressed }) => [styles.dealDeckButton, pressed && styles.dealDeckButtonPressed]}
             >
-              <Users size={18} color={colors.surface} />
-              <Text style={styles.startCtaText}>
-                {sessionActive ? 'Start new' : 'Deal now'}
-              </Text>
-            </CardButton>
+              <View style={styles.dealDeckObject} pointerEvents="none">
+                <PlayingCard face="down" size="xs" style={styles.dealDeckBack} overlapped />
+                <PlayingCard
+                  face="up"
+                  rank="A"
+                  suit="hearts"
+                  size="xs"
+                  style={styles.dealDeckFront}
+                  overlapped
+                />
+              </View>
+              <View style={styles.dealDeckCopy}>
+                <Text style={styles.dealDeckEyebrow}>DEAL NOW</Text>
+                <Text style={styles.dealDeckText}>{sessionActive ? 'New table' : 'Drop into play'}</Text>
+              </View>
+            </Pressable>
           </Animated.View>
         </View>
       </Animated.View>
@@ -689,6 +634,135 @@ function StaggeredChip({
   });
 
   return <Animated.View style={[wrapperStyle, style]}>{children}</Animated.View>;
+}
+
+function RecipeCard({
+  preset,
+  index,
+  selected,
+  back,
+  oneLiner,
+  playerRange,
+  progress,
+  reduceMotion,
+  reduceMotionSystem,
+  onPress,
+}: {
+  preset: Preset;
+  index: number;
+  selected: boolean;
+  back: string;
+  oneLiner: string;
+  playerRange: string;
+  progress: SharedValue<number>;
+  reduceMotion: SharedValue<number>;
+  reduceMotionSystem: boolean;
+  onPress: () => void;
+}) {
+  const flip = useSharedValue(selected ? 1 : 0);
+
+  useEffect(() => {
+    flip.value = withTiming(selected ? 1 : 0, {
+      duration: reduceMotionSystem ? 0 : motion.duration.slow,
+    });
+  }, [flip, reduceMotionSystem, selected]);
+
+  const staggerStyle = useAnimatedStyle(() => {
+    const p = progress.value;
+    if (reduceMotion.value === 1) {
+      return { opacity: interpolate(p, [0.5, 1], [0, 1], Extrapolation.CLAMP) };
+    }
+    const start = Math.min(0.5 + index * CHIP_STAGGER, 0.9);
+    const end = Math.min(0.78 + index * CHIP_STAGGER, 0.99);
+    return {
+      opacity: interpolate(p, [start, end], [0, 1], Extrapolation.CLAMP),
+      transform: [
+        { translateY: interpolate(p, [start, end], [28, 0], Extrapolation.CLAMP) },
+      ],
+    };
+  });
+
+  const frontStyle = useAnimatedStyle(() => ({
+    transform: [
+      { perspective: 800 },
+      { rotateY: `${interpolate(flip.value, [0, 1], [180, 0])}deg` },
+    ],
+  }));
+  const backStyle = useAnimatedStyle(() => ({
+    transform: [
+      { perspective: 800 },
+      { rotateY: `${interpolate(flip.value, [0, 1], [0, -180])}deg` },
+    ],
+  }));
+
+  const rotation = selected ? '0deg' : `${[-6, -2, 2, 6][index] ?? 0}deg`;
+
+  return (
+    <Animated.View style={[styles.recipeStagger, { zIndex: selected ? 20 : index }, staggerStyle]}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`${preset.name}. ${oneLiner}. ${playerRange}`}
+        accessibilityState={{ selected }}
+        onPress={onPress}
+        style={({ pressed }) => [
+          styles.recipeCardSlot,
+          { transform: [{ rotate: rotation }, ...(pressed ? [{ scale: 0.98 }] : [])] },
+        ]}
+      >
+        <Animated.View style={[styles.recipeCardFace, styles.recipeCardBack, backStyle]}>
+          <PlayingCard face="down" back={back} size="lg" overlapped />
+        </Animated.View>
+        <Animated.View style={[styles.recipeCardFace, styles.recipeCardFront, frontStyle]}>
+          <View style={styles.recipeFrontInner}>
+            <Text style={styles.recipeEyebrow}>RECIPE</Text>
+            <Text numberOfLines={2} style={styles.recipeTitle}>{preset.name}</Text>
+            <Text numberOfLines={3} style={styles.recipeSummary}>{oneLiner}</Text>
+            <View style={styles.recipeFooter}>
+              <Text style={styles.recipeRange}>{playerRange}</Text>
+              <Text style={styles.recipeFlipMark}>READY</Text>
+            </View>
+          </View>
+        </Animated.View>
+      </Pressable>
+      <Text numberOfLines={1} style={[styles.recipeName, selected && styles.recipeNameActive]}>
+        {preset.name}
+      </Text>
+    </Animated.View>
+  );
+}
+
+function OptionToken({
+  label,
+  detail,
+  selected,
+  onPress,
+}: {
+  label: string;
+  detail: string;
+  selected: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`${label}: ${detail}`}
+      accessibilityState={{ selected }}
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.optionToken,
+        selected && styles.optionTokenActive,
+        pressed && styles.optionTokenPressed,
+      ]}
+    >
+      <View style={[styles.optionTokenDot, selected && styles.optionTokenDotActive]} />
+      <Text numberOfLines={1} style={[styles.optionTokenLabel, selected && styles.optionTokenLabelActive]}>
+        {label}
+      </Text>
+      <Text numberOfLines={1} style={[styles.optionTokenDetail, selected && styles.optionTokenDetailActive]}>
+        {detail}
+      </Text>
+    </Pressable>
+  );
 }
 
 const styles = StyleSheet.create({
@@ -867,6 +941,22 @@ const styles = StyleSheet.create({
     alignItems: 'baseline',
     justifyContent: 'space-between',
   },
+  recipeHeading: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
+    marginBottom: space.sm,
+  },
+  recipeHeadingCopy: {
+    flex: 1,
+  },
+  recipeIndex: {
+    marginBottom: space.md,
+    fontSize: 11,
+    fontFamily: fonts.extra,
+    color: colors.brand,
+    letterSpacing: letterSpacing.cap,
+  },
   sectionKicker: {
     fontSize: 10,
     fontFamily: fonts.bold,
@@ -894,9 +984,100 @@ const styles = StyleSheet.create({
   presetRailScroll: {
     marginHorizontal: -space.xl,
   },
-  presetRail: {
+  recipeRail: {
     paddingHorizontal: space.xl,
-    gap: space.sm,
+    paddingTop: space.xs,
+    paddingBottom: space.xs,
+    gap: 0,
+  },
+  recipeStagger: {
+    width: 124,
+    marginRight: -14,
+    alignItems: 'center',
+  },
+  recipeCardSlot: {
+    width: 124,
+    height: 174,
+    position: 'relative',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  recipeCardFace: {
+    position: 'absolute',
+    width: 124,
+    height: 174,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backfaceVisibility: 'hidden',
+  },
+  recipeCardBack: {
+    zIndex: 1,
+  },
+  recipeCardFront: {
+    zIndex: 2,
+    overflow: 'hidden',
+    borderRadius: radii.card,
+    backgroundColor: colors.cardPaper,
+    borderWidth: 1,
+    borderColor: colors.cardEdge,
+    ...shadow.cardStrong,
+  },
+  recipeFrontInner: {
+    flex: 1,
+    width: '100%',
+    padding: space.md,
+    justifyContent: 'space-between',
+  },
+  recipeEyebrow: {
+    fontSize: 9,
+    fontFamily: fonts.bold,
+    color: colors.brand,
+    letterSpacing: letterSpacing.caps,
+  },
+  recipeTitle: {
+    marginTop: space.xs,
+    fontSize: 17,
+    lineHeight: 19,
+    fontFamily: fonts.extra,
+    color: colors.ink,
+    letterSpacing: letterSpacing.tight,
+  },
+  recipeSummary: {
+    marginTop: space.sm,
+    fontSize: 11,
+    lineHeight: 15,
+    fontFamily: fonts.regular,
+    color: colors.inkMuted,
+  },
+  recipeFooter: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
+    gap: space.xs,
+  },
+  recipeRange: {
+    flex: 1,
+    fontSize: 10,
+    fontFamily: fonts.semibold,
+    color: colors.inkSubtle,
+  },
+  recipeFlipMark: {
+    fontSize: 9,
+    fontFamily: fonts.bold,
+    color: colors.brand,
+    letterSpacing: letterSpacing.cap,
+  },
+  recipeName: {
+    maxWidth: 116,
+    marginTop: space.xs,
+    fontSize: 10,
+    fontFamily: fonts.semibold,
+    color: colors.inkSubtle,
+    textAlign: 'center',
+  },
+  recipeNameActive: {
+    color: colors.ink,
+    fontFamily: fonts.bold,
   },
   presetChipInner: {
     flex: 1,
@@ -941,11 +1122,30 @@ const styles = StyleSheet.create({
     color: alpha.whiteOverlay80,
   },
   presetDesc: {
-    marginTop: space.md,
+    flex: 1,
+    marginLeft: space.sm,
     fontSize: 13,
-    lineHeight: 20,
+    lineHeight: 18,
     color: colors.inkMuted,
     fontFamily: fonts.regular,
+  },
+  selectedRecipeNote: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginTop: space.md,
+    paddingBottom: space.xs,
+  },
+  selectedRecipeMark: {
+    width: 4,
+    height: 22,
+    marginTop: 2,
+    borderRadius: 2,
+    backgroundColor: colors.brand,
+  },
+  playerHeading: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
   },
   playerRow: {
     flexDirection: 'row',
@@ -953,6 +1153,9 @@ const styles = StyleSheet.create({
   },
   playerChip: {
     width: 48,
+  },
+  playerChipActive: {
+    ...shadow.card,
   },
   playerLabel: {
     fontSize: 16,
@@ -966,6 +1169,67 @@ const styles = StyleSheet.create({
     padding: space.lg,
     backgroundColor: alpha.inkOverlay02,
     borderColor: alpha.brand20,
+  },
+  optionsHeading: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
+  },
+  tokenGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: space.sm,
+    padding: space.sm,
+    backgroundColor: alpha.inkOverlay02,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderColor: alpha.brand20,
+  },
+  optionToken: {
+    flexGrow: 1,
+    flexBasis: '29%',
+    minWidth: 90,
+    minHeight: 58,
+    paddingHorizontal: space.sm,
+    paddingVertical: space.sm,
+    borderRadius: radii.md,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  optionTokenActive: {
+    backgroundColor: colors.brand,
+    borderColor: colors.brand,
+  },
+  optionTokenPressed: {
+    transform: [{ scale: 0.97 }],
+  },
+  optionTokenDot: {
+    width: 7,
+    height: 7,
+    marginBottom: 5,
+    borderRadius: 4,
+    backgroundColor: alpha.brand45,
+  },
+  optionTokenDotActive: {
+    backgroundColor: colors.surface,
+  },
+  optionTokenLabel: {
+    fontSize: 12,
+    fontFamily: fonts.semibold,
+    color: colors.ink,
+  },
+  optionTokenLabelActive: {
+    color: colors.surface,
+  },
+  optionTokenDetail: {
+    marginTop: 2,
+    fontSize: 9,
+    fontFamily: fonts.regular,
+    color: colors.inkSubtle,
+  },
+  optionTokenDetailActive: {
+    color: alpha.whiteOverlay80,
   },
   optionRow: {
     flexDirection: 'row',
@@ -1048,11 +1312,36 @@ const styles = StyleSheet.create({
   hostChip: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: space.xs,
-    borderRadius: radii.lg,
+    gap: space.sm,
+    minHeight: 64,
+    paddingHorizontal: space.sm,
+    paddingVertical: space.xs,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+  },
+  hostChipPressed: {
+    backgroundColor: alpha.inkOverlay06,
+    transform: [{ scale: 0.98 }],
+  },
+  hostChipIcon: {
+    width: 30,
+    height: 30,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 15,
+    backgroundColor: alpha.inkOverlay06,
+  },
+  hostChipEyebrow: {
+    fontSize: 8,
+    fontFamily: fonts.bold,
+    color: colors.inkSubtle,
+    letterSpacing: letterSpacing.caps,
   },
   hostChipText: {
-    fontSize: 13,
+    marginTop: 2,
+    fontSize: 11,
     fontFamily: fonts.semibold,
     color: colors.inkMuted,
   },
@@ -1064,6 +1353,53 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: space.sm,
     ...shadow.cta,
+  },
+  dealDeckButton: {
+    minHeight: 74,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.sm,
+    paddingHorizontal: space.md,
+    paddingVertical: space.sm,
+    borderRadius: radii.card,
+    backgroundColor: colors.brand,
+    ...shadow.cta,
+  },
+  dealDeckButtonPressed: {
+    transform: [{ translateY: 1 }, { scale: 0.98 }],
+  },
+  dealDeckObject: {
+    width: 42,
+    height: 58,
+    position: 'relative',
+  },
+  dealDeckBack: {
+    position: 'absolute',
+    top: 3,
+    left: 4,
+    transform: [{ rotate: '9deg' }],
+  },
+  dealDeckFront: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    transform: [{ rotate: '-8deg' }],
+  },
+  dealDeckCopy: {
+    flex: 1,
+  },
+  dealDeckEyebrow: {
+    fontSize: 9,
+    fontFamily: fonts.bold,
+    color: alpha.whiteOverlay80,
+    letterSpacing: letterSpacing.caps,
+  },
+  dealDeckText: {
+    marginTop: 3,
+    fontSize: 16,
+    fontFamily: fonts.extra,
+    color: colors.surface,
+    letterSpacing: letterSpacing.tight,
   },
   startCtaText: {
     color: colors.surface,

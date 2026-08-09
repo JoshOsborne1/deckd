@@ -59,8 +59,8 @@ const BASE_URL = process.env.DECKD_QA_URL ?? 'http://127.0.0.1:8082';
     navDealCount,
     dealPresetCount,
     dealNowCount,
-    hasHubHeading: hubText.includes('Choose the table recipe'),
-    hasTableSurface: bodyText.includes('YOUR HAND') || bodyText.includes('Draw') || bodyText.includes('TABLE'),
+    hasHubHeading: hubText.includes('Choose a recipe'),
+    hasTableSurface: bodyText.includes('YOUR TURN') || bodyText.includes('PASS TURN') || bodyText.includes('NEXT USEFUL MOVE'),
     hasTwoCardHand: bodyText.includes('2 CARDS'),
     hasTenCardDrawState: bodyText.includes('40 LEFT'),
     hasGuidance: bodyText.includes('NEXT USEFUL MOVE'),
@@ -68,5 +68,12 @@ const BASE_URL = process.env.DECKD_QA_URL ?? 'http://127.0.0.1:8082';
   };
   process.stdout.write(JSON.stringify(result, null, 2));
   await browser.close();
-  if (!result.hasGuidance || result.errors.length > 0) process.exitCode = 2;
+  if (
+    !result.hasHubHeading ||
+    !result.hasTableSurface ||
+    !result.hasTwoCardHand ||
+    !result.hasTenCardDrawState ||
+    !result.hasGuidance ||
+    result.errors.length > 0
+  ) process.exitCode = 2;
 })();
