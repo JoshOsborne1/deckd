@@ -1,6 +1,6 @@
 # Deckd LOOP plan
 
-Last updated: 2026-08-09
+Last updated: 2026-08-09 · live audit pass
 
 ## Visual standard
 
@@ -12,6 +12,10 @@ Deckd is a warm ivory card table with crimson ink: quiet stock, 1px rule divider
 - The persistent background, default cosmetics, and setup rail share the same warm ivory/crimson stock-and-rule language; no green playing-space treatment is active.
 - Setup morphs from home through `SurfaceMorphContext` and reads as deck staging on the same table rather than a generic settings page.
 - The table action rail is constrained to the phone width, retains 44px controls, and the pass ritual is clear at the end of a dealt flow.
+
+## Live audit re-plan
+
+The previous LOOP slices are present in the working tree. This pass is evidence-led rather than a repeat of the checklist: first inspect the mounted web surface at 375px, then only change a surface if the real flow exposes a regression in navigation, material continuity, or table affordance. Expected files before the audit are `components/GlobalNavBar.tsx`, `components/layers/HomeLayer.tsx`, `components/layers/HubLayer.tsx`, `components/layers/TableLayer.tsx`, `src/lib/theme.ts`, and `src/engine/visuals.ts`; no file is pre-approved for editing if the live evidence does not require it.
 
 ## Build order (re-plan as evidence changes)
 

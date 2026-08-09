@@ -10,15 +10,21 @@ export interface AvatarPlaceholderProps {
   style?: ViewStyle;
 }
 
+/**
+ * Avatars stay inside the same card-table ink family as the active surface.
+ * The previous blue/green/purple swatches made the home and table chrome read
+ * like a different product, especially at small sizes where the avatar is a
+ * high-contrast color block.
+ */
 const PALETTE: { bg: string; fg: string }[] = [
   { bg: colors.brand, fg: colors.surface },
   { bg: colors.ink, fg: colors.surface },
-  { bg: '#334155', fg: '#FFFFFF' },
-  { bg: '#9A3412', fg: '#FFFFFF' },
-  { bg: '#92400E', fg: '#FFFFFF' },
-  { bg: '#4C1D95', fg: '#FFFFFF' },
-  { bg: '#1E3A8A', fg: '#FFFFFF' },
-  { bg: '#064E3B', fg: '#FFFFFF' },
+  { bg: colors.brandDark, fg: colors.surface },
+  { bg: colors.tableWell, fg: colors.surface },
+  { bg: colors.surfaceAlt, fg: colors.ink },
+  { bg: colors.neutral500, fg: colors.surface },
+  { bg: colors.seatDealer, fg: colors.ink },
+  { bg: colors.borderStrong, fg: colors.ink },
 ];
 
 function hashSeed(seed: string): number {
