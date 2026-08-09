@@ -9,10 +9,13 @@ Last updated: 2026-08-09
 ### 1. Cards must not be "knackered" (P0)
 The card rendering is still too buggy visually. Cards must render cleanly at every size, no overlaps, no clipping, no layout jitter when the hand fans or stacks. Verify at 375px AND desktop. This is the top priority: fix card rendering before any other card work.
 
-### 2. Deckd-branded card back (DONE — asset ready)
-Use `assets/card-back-deckd.png` (composed deterministically from the EXACT `assets/Logo.png`: D folded over with heart, ivory paper texture, crimson double border). Make it the default card back (back-brand). It must render correctly as a React Native Image inside PlayingCard's back face, crisp at small sizes, correct aspect ratio (750x1050, 2.5:3.5). Keep the existing procedural backs as selectable options.
+### 2. Deckd-branded card backs (assets ready — 3 options)
+- Default: `assets/card-back-deckd.png` — ivory paper, crimson double border, exact red D+heart logo (composed from Logo.png, 750x1050).
+- Extravagant A "Noir": `assets/card-back-noir.png` — warm ink background, crimson double border, corner diamonds, red logo.
+- Extravagant B "Crimson": `assets/card-back-crimson.png` — deep crimson background, ivory double border, corner diamonds, ivory logo.
+All free/selectable, 750x1050 (2.5:3.5). Wire all three into the back picker (visuals.ts built-ins + cosmetics store), default stays `back-brand` = deckd. Keep procedural backs as options too.
 
-BRANDING RULE: the logo mark must ALWAYS come from `assets/Logo.png` (or an exact vector of it) — never AI-reinterpret the logo from a text description. No gold, no square/lattice patterns on card backs. Ivory + crimson only.
+BRANDING RULE: the logo mark must ALWAYS come from `assets/logo.svg` (canonical potrace vector of Logo.png) or `assets/Logo.png` — never AI-reinterpret the logo from a text description. No gold, no square/lattice patterns on card backs. Palette: ivory, crimson, ink only.
 
 ### 3. Card fronts from a proven repo (assets ready)
 Vendored in-repo at `vendor/card-fronts/`:
