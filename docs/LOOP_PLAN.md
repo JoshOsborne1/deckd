@@ -1,52 +1,268 @@
 # Deckd LOOP plan
 
-Last updated: 2026-08-10 00:52 GMTDT (run `t_2d6f4e02`)
+Last updated: 2026-08-10 (audit `t_5324ac11`; Slice A `t_e8f01b75`). This plan is the living
+prioritisation for the Deckd LOOP. It is rewritten against the current
+directives and repository reality each audit. `docs/LOOP_DIRECTIVES.md` wins
+over anything here where they conflict; `docs/DESIGN_PLAN.md` is the design
+thesis; `STATUS.md` keeps the verified-state log.
 
 ## Standard
 
-Deckd should read as one continuous physical card table: warm ivory paper stock, restrained crimson ink, warm ink typography, deterministic grain, hairline rules, and object-led controls. Setup is staging the same deck on the same surface; navigation is part of the table edge; motion explains physical actions without turning the app into a page carousel. The acceptance viewport is 375×812, with a desktop check as the second proof point.
+Deckd should read as one continuous physical card table: warm ivory paper
+stock, restrained crimson ink, warm ink typography, deterministic grain,
+hairline rules, and object-led controls. Setup is staging the same deck on
+the same surface; navigation is part of the table edge; motion explains
+physical actions without turning the app into a page carousel. Assisted
+freedom: the game helps, it does not restrict. The acceptance viewport is
+375×812, with a desktop check as the second proof point.
 
-## Outcome
+## Current state snapshot (verified 2026-08-10)
 
-**STANDARD MET for this visual LOOP slice.** Home, setup, play, and the pass ritual share one table-world language. The opening deal stagger is limited to the opening hand, later draws settle directly into the measured fan, and the setup token row scrolls above the fixed table-edge action dock at 375px. Native device touch/safe-area proof, a real two-device lobby run, and product operations such as RevenueCat configuration remain outside this visual slice.
+Branch `cleanup/ready-to-build`, head `c574869`. Gates green:
+`npm run typecheck` pass, `npm run lint` 0/0, `npx jest --runInBand` 7 suites /
+73 tests pass, `npx expo-doctor` 20/20 (per STATUS.md; typecheck/lint/jest
+re-confirmed this audit). Preview live at https://deckd-app.roxai.click
+(PM2 `deckd-app`), relay live at https://relay.roxai.click, landing at
+https://deckd.roxai.click.
 
-## Delivered slices
+### Directives — implemented vs missing
 
-- **Cards (P0):** `PlayingCard` keeps every shell on the branded 2.5:3.5 ratio; paper fronts use deterministic grain, warm ink/crimson suit treatment, corner indices, French pip layouts, and court/ace artwork. Branded Deckd, Noir, and Crimson backs render above the paper fallback. `HandFan` bounds two-card and ten-card states with restrained overlap; only the opening hand receives the deal stagger, while later drawn cards settle immediately into the measured fan.
-- **Setup ritual:** `HubLayer` stays inside the shared surface morph and stages recipe backs, selected recipe copy, player chips, option tokens, and the visible table-edge `Deal now` / lobby actions. Its setup `ScrollView` now fills the available surface so all five tokens can be scrolled above the fixed action dock at 375px. It preserves pass-and-play, resume, lobby, and preset behavior.
-- **Table edge:** `GlobalNavBar` now treats the bottom as a thin 6px table lip rather than a nav container. Home, Store, Presets, and Profile are labelled 44px-class outlined chips with active lift/rim/shadow and reduced-motion-safe stagger; Deal is a separate two-back deck object. The reserved height remains `NAV_BAR_RESERVE` so game surfaces do not collide with it.
-- **Gameplay guidance:** the engine exposes valid draw/flip/discard/reorder/pass/shuffle/end actions plus one non-blocking next-useful-move suggestion. Alternate actions remain available.
-- **Preview mode:** visual lock notes remain visible where useful, but taps are not hard-blocked during testing.
+| # | Directive | State | Evidence |
+|---|-----------|-------|----------|
+| 1 | Cards not knackered (P0) | **Done** | `PlayingCard` on 2.5:3.5 `SIZE_MAP`; `HandFan` bounds 2/10-card; web QA passes 375px+desktop |
+| 2 | Branded card backs (3 options) | **Done** | `BUILTIN_CARD_BACKS` = brand/noir/crimson, all `unlockedByDefault:true`; `PlayingCard` resolves via `backAsset`; cosmeticsStore equip/unlock wired |
+| 3 | Card fronts from vendored SVGs | **Done** | `CardFaceArtwork` + `CardCourt` from `vendor/card-fronts/`; react-native-svg pips/corner indices/court treatment recolored to palette |
+| 4 | Game setup full redesign | **Done** | `HubLayer` stages recipe backs, player chips, option tokens, table-edge Deal/Host dock; flexed `ScrollView` over fixed dock at 375px |
+| 5 | Presets redesign | **Done** | `PRESET_BACKS` maps each preset to a back; recipe cards + one-liner outcomes in HubLayer |
+| 6 | Nav bar integration | **Superseded by 11→13** | — |
+| 7 | Seamless setup→table transition | **Done** | shared `SurfaceMorphContext`, no route-wide page flip; `FlipCard` for faces only; reduce-motion respected |
+| 8 | Logo wherever possible | **Done** | `brand.logo`/`assets/logo.svg` via `lib/assets.ts`; iOS touch icon + manifest live; back face uses brand logo |
+| 9 | Table background texture | **Done** | `components/TableSurface.tsx` applies the selected theme's paper wash, inset frame, hairline rules, and deterministic `PAPER_GRAIN_PATH` inside `HubLayer` and `TableLayer`; 375px + desktop browser proof is clean |
+| 10 | Preview mode: no hard locks | **Done** | store/lobby affordances keep lock visuals but taps not blocked; Master gate removed in LobbyLayer |
+| 11 | Nav bar redesign (rail) | **Superseded by 13** | — |
+| 12 | Card faces: paper not pixels | **Done** | paper grain fronts, warm ink/crimson suits, corner indices, French pips, court treatment, no gold |
+| 13 | Nav v3: chips on table edge | **Done** | `GlobalNavBar` = thin 6px edge lip + 4 labelled chips (active lift/rim/shadow, reduce-motion stagger) + separate 2-back Deal deck object; `NAV_BAR_RESERVE` respected |
+| 14 | Setup: staging the deck | **Done** | HubLayer recipe-card fan, player chips, option tokens, deck-object Deal, lobby chip; shared table surface |
+| 15 | Priority: gameplay+visuals first | **Standing order** | build order enforced below; monetization parked |
 
-## Resolved P0 follow-ups
+### Engine / interaction state
 
-- `FanCard` now tracks the opening hand's card ids per session. The stable session `dealTrigger` still staggers the opening deal, while later drawn cards initialize directly in their measured fan slot; immediate and settled post-draw screenshots are identical.
-- The hub setup `ScrollView` now has a flex layout and an effective reserve spacer. At 375px the five table-token controls scroll from y=605–738 to y=427–551, above the Deal now dock beginning at y=638.
+- Event-sourced engine with zones (public/private/hidden), 52-card + jokers,
+  seeded shuffle, presets (freeplay, deal-2, blackjack-ish, poker-ish).
+- Actions: draw, flip, discard/play, reorder, pass turn, shuffle, end/reset.
+- **Assisted freedom wired:** `selectAvailableActions` (affordance set) +
+  `selectSuggestedAction` (one non-blocking next move) + `selectGuidanceState`
+  (semantic phase). TableLayer renders the suggestion + "Also open:" copy
+  without hiding alternate actions. Guidance is null while waiting on another
+  player.
+- **Turn ownership hardened:** TableLayer only wires hand gestures that the
+  current affordance set allows, and the relay host rejects out-of-turn hand
+  intents or moves outside the public discard zone. Waiting players can inspect
+  the table without mutating their hand.
+- **Manifest DSL scaffold exists** (`manifest.ts`: `GamePresetManifest`,
+  `SetupOp`, `ActionManifest`, `validateManifest`, `compileSetupOps`) but is
+  **not wired to the live session path** — `presets.ts` still uses code-based
+  `Preset.setup()`. The recipe schema (DESIGN_PLAN §6) is the planned evolution.
+- No game rules enforced beyond deal + free actions. Blackjack/poker are
+  "ish" (no win conditions, no scoring beyond `showHandSum` helper).
+- No win/end celebration or winner display (`session/end` event exists, no UI).
 
-## Fresh verification
+### Multiplayer state
 
-- `npm run typecheck` passed.
-- `npm run lint` passed with 0 errors and 0 warnings.
-- `npx jest --runInBand` passed: 7 suites, 71 tests.
-- `npx expo-doctor` passed: 20/20 checks.
-- Public smoke command `DECKD_QA_URL=https://deckd-app.roxai.click DECKD_QA_CACHEBUST=202608100051 node qa/deckd-visual-qa.cjs` passed. It reached Home → setup → Deal 2 each → table → ten-card draw → `PASS TURN` and reported `hasHubHeading`, `hasTableSurface`, `hasTwoCardHand`, `hasTenCardDrawState`, `hasGuidance`, and `hasPassVeil` as true with `errors: []`, plus `tokenCount: 5` and `tokensAboveDock: true` after exercising setup scroll.
-- The fresh public geometry probe recorded no horizontal overflow at 375×812 or 1440×900. At 375px, visible nav/deal controls stayed inside x=8–367 and y=742–806; at 1440px they stayed inside x=539–901 and y=830–894. Both viewports reported empty console/page errors.
+- **Relay transport built and wired:** `lib/relayTransport.ts` (WebSocket
+  client), `lib/relayProtocol.ts` (wire framing), `src/store/lobbyStore.ts`
+  (relay session + roster), `src/store/multiplayerBridge.ts` +
+  `src/store/syncLogic.ts` (host broadcast / guest fold / snapshot). Tests
+  cover lobbyStore, syncLogic, multiplayerBridge.
+- **LobbyLayer is the full relay flow** (landing/create/join/room) — the old
+  BLE scan UI is gone. Hosting gated cosmetically (Master pass visual, no hard
+  block per directive 10).
+- **Entitlement wired:** `lib/entitlement.ts` HMAC token +
+  `Purchases.addCustomerInfoUpdateListener` in `app/_layout.tsx`; RevenueCat
+  keys empty (preview mode).
+- **NOT verified end-to-end on two devices.** STATUS.md lists this as the
+  remaining multiplayer gate.
 
-## Preview deployment
+### Tech debt still open (PARKED_IDEAS.md)
 
-- `npx expo export --platform web` completed, `app-serve` was refreshed, and `pm2 restart deckd-app` reported the process online.
-- `https://deckd-app.roxai.click/` returned HTTP 200 with `x-roxai-router: deckd-app`; the cache-busted bundle returned HTTP 200 and the public 375px/desktop smoke checks rendered the new build.
+Unused assets (Gameboard.png/Pass.png), BLE dead weight (lib/ble.ts,
+bleProtocol.ts, bleStore, native module), CI on wrong branch, expo-audio
+unused, stale workspace file. All parked behind gameplay-first priority.
 
-## Guardrails for the next loop
+---
+
+## Highest-impact next slices (prioritised)
+
+Build order follows directive 15: visuals/gameplay first, monetization later.
+Each slice: one surface, typecheck+lint+jest+expo-doctor, 375px web proof,
+commit to `cleanup/ready-to-build`, deploy preview, verify 200.
+
+### Slice A — Table surface paper grain (directive 9) [P0, visual]
+
+**Why first:** the only directive still substantively missing; the `paperGrain`
+module already exists and explicitly says it is "shared by the table surface";
+it is the largest gap between "done" directives and the stated standard.
+
+**Scope:**
+- Add a `FeltBackground` (or fold into `TableLayer`/`HubLayer` root) that paints
+  `colors.surface` + the deterministic `PAPER_GRAIN_PATH` as a quiet SVG
+  overlay, ivory tone, no pattern tiles, no greens. Subtle.
+- Apply to `TableLayer` root and the shared hub surface family so setup and
+  play read as one continuous table.
+- No new deps; SVG via react-native-svg (installed). No raw hex outside
+  `src/lib/theme.ts`.
+- Verify 375px + desktop: grain visible but quiet, no overflow, no jitter.
+
+**Dependencies:** none. Self-contained visual slice.
+**Files:** `components/layers/TableLayer.tsx`, `components/layers/HubLayer.tsx`
+(shared surface), possibly a small `components/FeltBackground.tsx`.
+**Stop criteria:** directive 9 reads done in a side-by-side; web QA passes;
+gates green.
+
+**Delivered (`t_e8f01b75`):** Added `components/TableSurface.tsx` as the local
+material pass for both roots. It keeps the persistent canvas silhouette, then
+adds a theme-aware translucent stock layer, quiet central paper wash, inset
+hairline frame, table-edge rules, and the deterministic grain path. Setup uses
+a slightly calmer pass than play so recipe cards remain the focal object; no
+new dependency or raw color was introduced. Local Playwright proof completed
+setup → Deal now → table → draw at 375×812 and 1440×900 with zero page/console
+errors and no horizontal overflow.
+
+### Slice B — Recipe schema v1 (DESIGN_PLAN §6) [P0, gameplay foundation]
+
+**Why:** directive 15 build order step (2). The manifest scaffold exists but is
+unwired; the 4 code-based presets must become data so the free library
+(War/Go Fish/Old Maid/Crazy Eights/Sevens) and AI generation become "recipes,
+not code." This is the unlock for the whole game-library track.
+
+**Scope:**
+- Define `Recipe` types (deal pattern, actionPolicy, turnPolicy, winCondition,
+  helpers, variants) per DESIGN_PLAN §6 schema.
+- Implement `executeRecipe(recipe, input)` replacing each `Preset.setup()` body.
+- Migrate the 4 existing presets to recipes with **identical behavior** — all
+  71 tests must stay green (add recipe-specific tests).
+- `customPresets.ts` upgrades to the schema; user presets are recipes saved
+  locally.
+- No new actions yet (`card/ask`, match rules) — those land with the free
+  library in Slice C.
+
+**Dependencies:** none (engine is framework-free, tests cover it).
+**Files:** `src/engine/presets.ts` → `src/engine/recipes.ts` (or extend
+presets), `src/engine/manifest.ts` (align with schema), `src/engine/types.ts`,
+`src/store/presetsStore.ts`, engine tests.
+**Stop criteria:** 4 presets are recipes, behavior identical, 71 tests green +
+new recipe tests, `builtinPresets` exposes recipes.
+
+### Slice C — Free game library (directive 15 step 3) [P1, gameplay]
+
+**Why:** the "freedom needs recipes" thesis. War/Go Fish/Old Maid/Crazy
+Eights/Sevens are zero-engine-risk recipes that prove the schema works and give
+the app real games beyond deal-2.
+
+**Scope:** one recipe + minimal engine addition at a time:
+- War (2p) — flip, compare; pure recipe, no new action.
+- Go Fish (2-6) — needs `card/ask` action + `allowAsk` policy.
+- Old Maid (2-8) — joker = maid, pair-and-pass; `countPairs` helper.
+- Crazy Eights (2-7) — `matchRule: suitRank`, eights wild.
+- Sevens/Fan Tan (3-8) — `matchRule: sevenAround`.
+- Each gets a recipe card (back + one-liner) in the HubLayer fan / Presets list.
+
+**Dependencies:** Slice B (recipe schema). New engine actions behind schema
+flags only.
+**Files:** `src/engine/recipes.ts` (or per-game files), `src/engine/events.ts`
+(new `card/ask`), `src/engine/selectors.ts`, engine tests, `app/list.tsx` /
+HubLayer recipe fan.
+**Stop criteria:** each game playable pass-and-play, rules enforced by recipe
+flags, tests green, 375px proof.
+
+### Slice D — Full Blackjack + Hold'em (directive 15 step 4) [P1, Josh's explicit ask]
+
+**Why:** Josh named these explicitly. Blackjack already has a dealer + sum
+helper; upgrade to full dealer logic (draw-to-16/stand-on-17, soft ace,
+dealer toggle). Hold'em upgrades from "hole cards shell" to community table +
+hand-ranking helper.
+
+**Scope:**
+- Blackjack recipe: dealer AI logic in engine, dealer on/off toggle,
+  soft-ace handling, `showHandSum` already exists.
+- Texas Hold'em recipe: communal zones (flop/turn/river), hand-ranking helper
+  (no rule enforcement beyond deal order, per DESIGN_PLAN).
+- Both appear as premium-tier recipe cards.
+
+**Dependencies:** Slice B (schema). Hand-ranking is a helper, not a rule engine.
+**Files:** `src/engine/recipes.ts`, `src/engine/selectors.ts` (rank helper),
+`src/engine/types.ts` (communal zones already have `communalZoneId`), tests.
+**Stop criteria:** full dealer cycle works; Hold'em deals community + ranks
+hands; tests green.
+
+### Slice E — Native device proof + two-device lobby [P1, verification]
+
+**Why:** STATUS.md's two remaining "next actions." No native touch or
+two-device lobby claim can be made without device evidence. This is a
+verification slice, not a feature.
+
+**Scope:**
+- Run native build on a real phone: touch targets, safe areas,
+  reduced-motion, card rendering at device width.
+- Real two-device lobby test against `relay.roxai.click`: host creates, guest
+  joins, full turn cycle, snapshot reconnect.
+- Record evidence (screenshots/notes) in STATUS.md.
+
+**Dependencies:** relay live (it is). A second device.
+**Stop criteria:** both flows exercised on real targets; STATUS.md updated with
+device evidence; no claim made without it.
+
+---
+
+## Decisions (to make or confirm)
+
+1. **Recipe schema vs current Preset interface:** confirm the `Recipe` type
+   supersedes `Preset` (or that `Preset` wraps a `Recipe`). Recommendation:
+   `Preset` becomes a thin adapter over `Recipe` so existing selectors/stores
+   keep working during migration.
+2. **Where recipes live:** single `recipes.ts` vs per-game files under
+   `src/engine/recipes/`. Recommendation: per-game files once count > 4; keep a
+   `recipes/index.ts` barrel.
+3. **Premium library gating (parked):** per-recipe unlock vs Master bundle is
+   a monetization decision — stay parked until gameplay is right (directive 15).
+4. **AI generator (parked):** relay endpoint + schema validator + suit credits.
+   Build only after the recipe schema + free library prove the pattern.
+
+## Stop criteria for this LOOP audit task
+
+This audit task (`t_5324ac11`) is complete when:
+- `docs/LOOP_PLAN.md` reflects the current directives and repository reality
+  (done — this file).
+- The plan identifies the highest-impact next slices with dependencies,
+  decisions, and stop criteria (done above).
+- Verification/deployment requirements are noted (done below).
+- No speculative features are planned (recipe schema + free library are
+  directive 15 build order, not speculation).
+
+The two downstream children execute against this plan:
+- `t_e8f01b75` (visual) → Slice A is its highest-impact target.
+- `t_6e8ffc01` (interactions) → Slices B/C/D are its highest-impact targets.
+
+## Verification / deployment requirements (every slice)
+
+- `npm run typecheck` (node --stack_size=8000 wired in package.json)
+- `npm run lint` (0 errors, 0 warnings)
+- `npx jest --runInBand` (71 tests must stay green; add tests for new behavior)
+- `npx expo-doctor` (20/20)
+- 375×812 web proof via `npm run dev:web` + `qa/deckd-visual-qa.cjs`; desktop
+  geometry check at 1440×900
+- Deploy after meaningful slices: `npx expo export --platform web` → refresh
+  `app-serve/` → `pm2 restart deckd-app` → verify `https://deckd-app.roxai.click`
+  returns HTTP 200 with `x-roxai-router: deckd-app`
+- Commit each slice to `cleanup/ready-to-build` with a clear message
+- Update `STATUS.md` with one or two concise bullets per meaningful slice
+
+## Guardrails (unchanged)
 
 - One surface per slice; no route-wide page flip.
-- Use `src/lib/theme.ts` tokens for colors; no raw color sprawl or new dependencies.
+- `src/lib/theme.ts` tokens for colors; no raw hex sprawl or new dependencies.
 - Preserve pass-and-play behavior and the event-sourced engine.
-- Keep PREVIEW MODE usable: monetization visuals may look locked but taps cannot hard-block testing.
-- Do not claim native touch or real two-device lobby behavior without device evidence.
-
-## Remaining work
-
-1. Run the native build on a real phone for touch, safe-area, and reduced-motion feedback.
-2. Complete the real two-device lobby flow against `relay.roxai.click`.
-3. Keep RevenueCat product/key setup, entitlement operations, Rive, and broader game-library work parked behind the gameplay-first priority.
+- Keep PREVIEW MODE usable: monetization visuals may look locked but taps
+  cannot hard-block testing.
+- Do not claim native touch or real two-device lobby behavior without device
+  evidence.

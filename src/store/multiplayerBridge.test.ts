@@ -238,6 +238,96 @@ describe('multiplayerBridge', () => {
     expect(drawEvent!.toZoneId).toBe(handZoneId('guest-cid'));
   });
 
+  it('ignores guest hand intents outside the active turn', () => {
+    installMultiplayerBridge();
+
+    useLobbyStore.getState().hostLobby('Alice');
+    const hostSession = useLobbyStore.getState().session!;
+    const hostCid = useLobbyStore.getState().localClientId;
+    hostCallbacks.onOpen?.(hostSession);
+    hostCallbacks.onPlayersChanged?.([
+      { clientId: hostCid, nickname: 'Alice', isHost: true, joinedAt: 1 },
+      { clientId: 'guest-cid', nickname: 'Bob', isHost: false, joinedAt: 2 },
+    ]);
+
+    useGameStore.getState().createSession({
+      mode: 'online-host',
+      presetId: 'freeplay',
+      players: [
+        { id: hostCid, name: 'Alice', avatarSeed: hostCid },
+        { id: 'guest-cid', name: 'Bob', avatarSeed: 'guest-cid' },
+      ],
+      config: { includeJokers: false, fanStyle: 'wide' },
+      hostId: hostCid,
+    });
+
+    const guestCardId = useGameStore.getState().state.zones[ZONE_DRAW]!.cardIds[0]!;
+    useGameStore.getState().dealCard(guestCardId, handZoneId('guest-cid'), 'down');
+    const before = useGameStore.getState().state;
+    const faceBefore = before.cards[guestCardId]!.face;
+    hostSentEvents = [];
+
+    // Host still owns the active turn; guest gestures must be inert.
+    hostCallbacks.onIntentReceived?.('flip_card', { cardId: guestCardId }, 'guest-cid');
+    hostCallbacks.onIntentReceived?.(
+      'move_card',
+      { cardId: guestCardId, toZoneId: ZONE_DRAW, face: 'up' },
+      'guest-cid',
+    );
+
+    const after = useGameStore.getState().state;
+    expect(after.cards[guestCardId]!.face).toBe(faceBefore);
+    expect(after.zones[handZoneId('guest-cid')]!.cardIds).toContain(guestCardId);
+    expect(hostSentEvents).toHaveLength(0);
+  });
+
+  it('only accepts a current player discard intent into the public discard zone', () => {
+    installMultiplayerBridge();
+
+    useLobbyStore.getState().hostLobby('Alice');
+    const hostSession = useLobbyStore.getState().session!;
+    const hostCid = useLobbyStore.getState().localClientId;
+    hostCallbacks.onOpen?.(hostSession);
+    hostCallbacks.onPlayersChanged?.([
+      { clientId: hostCid, nickname: 'Alice', isHost: true, joinedAt: 1 },
+      { clientId: 'guest-cid', nickname: 'Bob', isHost: false, joinedAt: 2 },
+    ]);
+
+    useGameStore.getState().createSession({
+      mode: 'online-host',
+      presetId: 'freeplay',
+      players: [
+        { id: hostCid, name: 'Alice', avatarSeed: hostCid },
+        { id: 'guest-cid', name: 'Bob', avatarSeed: 'guest-cid' },
+      ],
+      config: { includeJokers: false, fanStyle: 'wide' },
+      hostId: hostCid,
+    });
+
+    const guestCardId = useGameStore.getState().state.zones[ZONE_DRAW]!.cardIds[0]!;
+    useGameStore.getState().dealCard(guestCardId, handZoneId('guest-cid'), 'down');
+    useGameStore.getState().endTurn(hostCid);
+    hostSentEvents = [];
+
+    hostCallbacks.onIntentReceived?.(
+      'move_card',
+      { cardId: guestCardId, toZoneId: ZONE_DRAW, face: 'up' },
+      'guest-cid',
+    );
+
+    expect(useGameStore.getState().state.zones[handZoneId('guest-cid')]!.cardIds).toContain(guestCardId);
+    expect(hostSentEvents).toHaveLength(0);
+
+    hostCallbacks.onIntentReceived?.(
+      'move_card',
+      { cardId: guestCardId, toZoneId: ZONE_DISCARD, face: 'down' },
+      'guest-cid',
+    );
+
+    expect(useGameStore.getState().state.zones[ZONE_DISCARD]!.cardIds).toContain(guestCardId);
+    expect(useGameStore.getState().state.cards[guestCardId]!.face).toBe('up');
+  });
+
   it('pass-and-play with no relay: bridge is inert, gameStore works normally', () => {
     installMultiplayerBridge();
 

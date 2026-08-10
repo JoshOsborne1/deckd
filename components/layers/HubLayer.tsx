@@ -13,6 +13,7 @@ import Animated, {
 import { ChevronLeft, Users } from 'lucide-react-native';
 import { CardButton } from '@components/CardButton';
 import { CardSection } from '@components/CardSection';
+import { TableSurface } from '@components/TableSurface';
 import { PlayingCard } from '@components/PlayingCard';
 import { GLOBAL_NAV_HEIGHT } from '@components/GlobalNavBar';
 
@@ -353,6 +354,7 @@ export function HubLayer({
       pointerEvents={interactive ? 'auto' : 'none'}
       style={[styles.root, { bottom: bottomInset }, rootStyle]}
     >
+      <TableSurface mode="setup" />
       <Animated.View
         style={[
           styles.header,

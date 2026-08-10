@@ -12,6 +12,7 @@ import { ChevronLeft, Clock, Flag, Menu, Shuffle } from 'lucide-react-native';
 import { AvatarPlaceholder } from '@components/AvatarPlaceholder';
 import { CardButton } from '@components/CardButton';
 import { CardSection } from '@components/CardSection';
+import { TableSurface } from '@components/TableSurface';
 import { PlayingCard } from '@components/PlayingCard';
 
 import { EventHistoryModal } from '@components/EventHistoryModal';
@@ -154,6 +155,9 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
     () => (viewerId ? selectAvailableActions(state, viewerId) : new Set<TableAction>()),
     [state, viewerId],
   );
+  const canFlipHand = availableActions.has('flip');
+  const canDiscardHand = availableActions.has('discard');
+  const canReorderHand = availableActions.has('reorder');
   const suggestedAction = useMemo(
     () => (viewerId ? selectSuggestedAction(state, viewerId) : null),
     [state, viewerId],
@@ -324,7 +328,7 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
 
   const handleCardPress = useCallback(
     (cardId: string) => {
-      if (!viewerId) return;
+      if (!viewerId || !isMyTurn || !canFlipHand) return;
       const card = state.cards[cardId];
       if (!card) return;
       if (card.zoneId === handZoneId(viewerId)) {
@@ -336,11 +340,12 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
         flipCard(cardId);
       }
     },
-    [viewerId, state.cards, isGuest, lobbySession, haptic, flipCard],
+    [viewerId, isMyTurn, canFlipHand, state.cards, isGuest, lobbySession, haptic, flipCard],
   );
 
   const handleCardLongPress = useCallback(
     (cardId: string) => {
+      if (!viewerId || !isMyTurn || !canDiscardHand) return;
       if (isGuest && lobbySession) {
         void lobbySession.sendIntent('move_card', { cardId, toZoneId: ZONE_DISCARD, face: 'up' });
         return;
@@ -348,7 +353,7 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
       haptic('medium');
       moveCard(cardId, ZONE_DISCARD, 'up');
     },
-    [isGuest, lobbySession, haptic, moveCard],
+    [viewerId, isMyTurn, canDiscardHand, isGuest, lobbySession, haptic, moveCard],
   );
 
   const handlePassTurn = useCallback(() => {
@@ -405,11 +410,15 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
 
   const handleReorder = useCallback(
     (order: CardId[]) => {
-      if (!viewerId || !isMyTurn) return;
+      if (!viewerId || !canReorderHand) return;
       reorderHand(viewerId, order);
     },
-    [viewerId, isMyTurn, reorderHand],
+    [viewerId, canReorderHand, reorderHand],
   );
+
+  const handHint = !isMyTurn
+    ? `Waiting for ${currentPlayerName || 'the next player'} · your hand stays ready`
+    : 'Tap flip · swipe up discard · drag sideways to reorder';
 
   /** While a recipient must long-press to reveal, hide the hand under the veil. */
   const handLocked = state.privacySeat !== null;
@@ -421,6 +430,7 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
         pointerEvents={active ? 'auto' : 'none'}
         style={[styles.root, { bottom: bottomInset }, surfaceStyle]}
       >
+        <TableSurface mode="play" />
         <View style={[styles.emptyWrap, { paddingTop: topInset + space.x5l }]}>
           <CardSection variant="surface" padded>
             <Text style={styles.emptyTitle}>Ready to deal</Text>
@@ -451,6 +461,7 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
       pointerEvents={active ? 'auto' : 'none'}
       style={[styles.root, { bottom: bottomInset }, surfaceStyle]}
     >
+      <TableSurface mode="play" />
       {/* Header */}
       <View style={[styles.header, { paddingTop: topInset + space.md }]}>
         <CardButton
@@ -654,10 +665,10 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
           <HandStack
             cards={localHand}
             faceFor={faceFor}
-            onCardPress={handleCardPress}
-            onCardLongPress={handleCardLongPress}
+            onCardPress={canFlipHand ? handleCardPress : undefined}
+            onCardLongPress={canDiscardHand ? handleCardLongPress : undefined}
             onReorder={handleReorder}
-            reorderEnabled={isMyTurn}
+            reorderEnabled={canReorderHand}
             size="md"
             dealTrigger={dealTrigger}
           />
@@ -667,17 +678,17 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
             viewerId={viewerId}
             faceFor={faceFor}
             fanStyle={state.config.fanStyle}
-            onCardPress={handleCardPress}
-            onCardLongPress={handleCardLongPress}
+            onCardPress={canFlipHand ? handleCardPress : undefined}
+            onCardLongPress={canDiscardHand ? handleCardLongPress : undefined}
             onReorder={handleReorder}
-            reorderEnabled={isMyTurn}
+            reorderEnabled={canReorderHand}
             size="md"
             dealTrigger={dealTrigger}
           />
         )}
         {!handLocked && localHand.length > 0 ? (
           <Text style={styles.handHint} accessibilityRole="text">
-            Tap flip · swipe up discard · drag sideways to reorder
+            {handHint}
           </Text>
         ) : null}
       </View>

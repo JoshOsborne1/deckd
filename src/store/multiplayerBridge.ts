@@ -23,7 +23,7 @@
 
 import type { GameEvent } from '@engine/events';
 import type { CardId, ZoneId, CardFace, PlayerId } from '@engine/types';
-import { handZoneId, tableZoneId } from '@engine/types';
+import { handZoneId, tableZoneId, ZONE_DISCARD } from '@engine/types';
 import { useGameStore } from '@store/gameStore';
 import { useLobbyStore } from '@store/lobbyStore';
 import { selectBroadcastDelta } from '@store/syncLogic';
@@ -96,6 +96,7 @@ function applyGuestAction(
   const game = useGameStore.getState();
   const lobby = useLobbyStore.getState();
   if (!fromClientId) return;
+  if (game.state.phase !== 'playing') return;
 
   // Map the guest's relay clientId to a game playerId. In online mode the
   // host creates the session with players mapped by clientId, so the
@@ -137,13 +138,17 @@ function applyGuestAction(
       // Only the current turn holder may move, and only their own cards.
       if (game.state.currentPlayerId !== playerId) return;
       if (!p.cardId || !p.toZoneId) return;
+      // The current UI intent is specifically "swipe up to discard". Do not
+      // let an untrusted payload move a private card into an arbitrary zone.
+      if (p.toZoneId !== ZONE_DISCARD) return;
       if (!ownsCard()) return;
-      game.moveCard(p.cardId, p.toZoneId, p.face);
+      game.moveCard(p.cardId, ZONE_DISCARD, 'up');
       break;
     }
     case 'flip_card': {
       // Flipping is only allowed on your own cards (privacy: never reveal
-      // another player's hidden card).
+      // another player's hidden card), during that player's turn.
+      if (game.state.currentPlayerId !== playerId) return;
       if (!p.cardId) return;
       if (!ownsCard()) return;
       game.flipCard(p.cardId);
