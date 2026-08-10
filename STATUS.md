@@ -1,6 +1,6 @@
 # Deckd status
 
-Last update: 2026-08-10 (LOOP relay verification slice).
+Last update: 2026-08-10 (rule systems, court cards, preview stage, nav sweep — `8f47622`).
 
 ## Deployment
 
@@ -28,6 +28,13 @@ Expo SDK 57, React Native 0.86, React 19, TypeScript strict. Expo Router app wit
 - **Motion and guidance:** setup/table remain a surface morph with physical card motion only; the opening hand staggers in while later drawn cards settle immediately into the measured fan, draw/discard press feedback remains, and the engine/table expose a single non-blocking next-useful-move suggestion while preserving alternate actions. Hand gestures and relay intents now follow the derived turn affordances, so waiting players can review their hand without accidentally changing it.
 - **Preview mode:** store/lobby affordances retain their locked-looking monetization language but do not hard-block taps during testing.
 - **Table surface paper pass (Aug 10 2026):** `TableSurface` now adds the selected theme's translucent paper stock, inset frame, hairline edge rules, and deterministic grain inside both setup and live play. The hub and table share a local material pass instead of relying only on the ambient canvas; the HubLayer stock now fades in with the home→setup morph so Home keeps its intended contrast.
+
+## Game engine + surface batch (Aug 10 2026, `8f47622`)
+
+- **Per-game rules engine** (`src/engine/rules.ts`): blackjack (TWIST/STICK/STAND, dealer auto-plays to 17, bust/winner calc; dealer is the LAST seat so pass-and-play opens on a real player) and poker (BURN/FLOP/TURN/RIVER/SHOWDOWN, FOLD/CHECK/CALL/RAISE, 5-of-7 showdown evaluator). Generic presets keep the original draw/flip/PASS UI. Rules emit only primitive events; guests route via `game_action` relay intent.
+- **Court cards:** full-panel custom Dealer/Host/Master SVG art in the house palette, mirrored like real courts. **Pip fix:** pips pixel-positioned below the corner zone, corners painted last.
+- **Store preview:** felt stage with staggered fan entrance and a flippable card showing the K♠ Master court. **FlipCard tap bug fixed:** invisible layout spacer no longer intercepts touches.
+- **Nav:** felt-sweep screen transition (reduce-motion-safe), bottom padding raised, deal text removed from the centre button.
 - **Presets library (Aug 10 2026):** the fanned recipe-card redesign is shipped in `4d6a51a` and keeps `/list` on the same table stock; the follow-up only centralizes preset back assets and removes render-phase animation mutation.
 
 ## Verification
