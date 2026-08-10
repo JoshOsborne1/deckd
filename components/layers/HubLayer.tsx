@@ -42,8 +42,8 @@ interface HubLayerProps {
   bottomInset: number;
 }
 
-type PlayerCount = 2 | 3 | 4 | 5 | 6;
-const PLAYER_OPTIONS: PlayerCount[] = [2, 3, 4, 5, 6];
+type PlayerCount = 1 | 2 | 3 | 4 | 5 | 6;
+const PLAYER_OPTIONS: PlayerCount[] = [1, 2, 3, 4, 5, 6];
 
 const PRESET_OUTCOMES: Record<Preset['id'], string> = {
   freeplay: 'Deal, draw, and flip freely',
@@ -195,14 +195,15 @@ export function HubLayer({
       return;
     }
 
-    // Pass-and-play: local players on one device.
+    // Pass-and-play: local players on one device. Solo (1 player) is
+    // blackjack against the virtual house.
     const players = Array.from({ length: playerCount }, (_, idx) => ({
       id: idx === 0 ? 'you' : `p${idx + 1}`,
       name: idx === 0 ? nickname : `Player ${idx + 1}`,
       avatarSeed: idx === 0 ? avatarSeed : `seat-${idx + 1}`,
     }));
     createSession({
-      mode: 'pass',
+      mode: playerCount === 1 ? 'solo' : 'pass',
       presetId: activePreset.id,
       players,
       config: { includeJokers, fanStyle, autoReshuffleDiscard: autoReshuffle },
@@ -481,12 +482,18 @@ export function HubLayer({
         <Animated.View style={[styles.playerHeading, playerTitleStyle]}>
           <View>
             <Text style={styles.sectionTitle}>Who’s at the table?</Text>
-            <Text style={styles.sectionKicker}>Pass the deck between {playerCount} people</Text>
+            <Text style={styles.sectionKicker}>
+              {playerCount === 1
+                ? 'Solo blackjack against the house'
+                : `Pass the deck between ${playerCount} people`}
+            </Text>
           </View>
         </Animated.View>
         <View style={styles.playerRow}>
           {PLAYER_OPTIONS.map((n, idx) => {
             const selected = n === playerCount;
+            // Solo is a blackjack-only mode: the house is the dealer.
+            const soloDisabled = n === 1 && activePreset.id !== 'blackjack';
             return (
               <StaggeredChip
                 key={n}
@@ -501,8 +508,16 @@ export function HubLayer({
                   size="sm"
                   elevated={false}
                   haptic="select"
-                  onPress={() => setPlayerCount(n)}
-                  style={selected ? { ...styles.playerChip, ...styles.playerChipActive } : styles.playerChip}
+                  disabled={soloDisabled}
+                  onPress={() => {
+                    if (n === 1) setPresetId('blackjack');
+                    setPlayerCount(n);
+                  }}
+                  style={{
+                    ...styles.playerChip,
+                    ...(selected ? styles.playerChipActive : {}),
+                    ...(soloDisabled ? styles.playerChipDisabled : {}),
+                  }}
                 >
                   <Text style={[styles.playerLabel, selected && styles.playerLabelActive]}>
                     {n}
@@ -1174,6 +1189,9 @@ const styles = StyleSheet.create({
   },
   playerChipActive: {
     ...shadow.card,
+  },
+  playerChipDisabled: {
+    opacity: 0.35,
   },
   playerLabel: {
     fontSize: 16,

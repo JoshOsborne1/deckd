@@ -105,6 +105,7 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
   const moveCard = useGameStore((s) => s.moveCard);
   const endTurn = useGameStore((s) => s.endTurn);
   const endSession = useGameStore((s) => s.endSession);
+  const startNextHand = useGameStore((s) => s.startNextHand);
   const dispatch = useGameStore((s) => s.dispatch);
   const reorderHand = useGameStore((s) => s.reorderHand);
 
@@ -645,22 +646,36 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
       {state.phase === 'ended' && (
         <View style={styles.endedBanner} pointerEvents="box-none">
           <View style={styles.endedCard}>
-            <Text style={styles.endedEyebrow}>SESSION OVER</Text>
+            <Text style={styles.endedEyebrow}>
+              {state.meta.mode === 'solo' ? 'HAND OVER' : 'SESSION OVER'}
+            </Text>
             <Text style={styles.endedTitle}>
-              {state.winnerId
+              {state.meta.mode === 'solo'
                 ? state.winnerId === viewerId
-                  ? 'You take the table'
-                  : `${state.players.find((p) => p.id === state.winnerId)?.name ?? 'Winner'} takes the table`
-                : 'Table cleared'}
+                  ? 'You beat the house'
+                  : 'House wins this hand'
+                : state.winnerId
+                  ? state.winnerId === viewerId
+                    ? 'You take the table'
+                    : `${state.players.find((p) => p.id === state.winnerId)?.name ?? 'Winner'} takes the table`
+                  : 'Table cleared'}
             </Text>
             <CardButton
               variant="primary"
               size="md"
               haptic="medium"
-              onPress={() => setViewMode('hub')}
+              onPress={() => {
+                if (state.meta.mode === 'solo') {
+                  startNextHand();
+                } else {
+                  setViewMode('hub');
+                }
+              }}
               style={styles.endedCta}
             >
-              <Text style={styles.endedCtaText}>Back to setup</Text>
+              <Text style={styles.endedCtaText}>
+                {state.meta.mode === 'solo' ? 'Next hand' : 'Back to setup'}
+              </Text>
             </CardButton>
           </View>
         </View>

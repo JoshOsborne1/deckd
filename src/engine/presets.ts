@@ -120,9 +120,9 @@ export const blackjackStylePreset: Preset = {
   id: 'blackjack',
   name: 'Blackjack-style',
   summary: '2 to each player face-up, dealer 1 up + 1 down. Scoring helper, no betting.',
-  minPlayers: 2,
+  minPlayers: 1,
   maxPlayers: 7,
-  supportsPlayerCount: (n) => n >= 2 && n <= 7,
+  supportsPlayerCount: (n) => n >= 1 && n <= 7,
   setup: ({ players, deckOrder }) => {
     const zones = buildCoreZones(players);
     const queue = deckOrder.slice();

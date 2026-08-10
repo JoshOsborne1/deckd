@@ -70,6 +70,9 @@ export interface GameStoreState {
   pauseSession: () => void;
   resumeSession: () => void;
   endSession: (winnerId?: PlayerId) => void;
+
+  /** Solo blackjack: deal a fresh hand with the same players. */
+  startNextHand: () => void;
 }
 
 const HOST_ACTOR: GameEvent['actorId'] = 'system';
@@ -174,6 +177,60 @@ export const useGameStore = create<GameStoreState>()(
       },
 
       resetSession: () => set({ events: [], seq: 0, state: emptyState() }),
+
+      startNextHand: () => {
+        const { state } = get();
+        if (state.meta.mode !== 'solo') return;
+        const preset = findPreset(state.config.presetId);
+        const seed = makeSeed();
+        const players = state.players.map((p) => ({
+          id: p.id,
+          name: p.name,
+          avatarSeed: p.avatarSeed,
+          seat: p.seat,
+        }));
+        const deckOrder = orderedDeckForPreset(seed, state.config.includeJokers);
+        const setup = preset.setup({ players, config: state.config, deckOrder });
+
+        const events: GameEvent[] = [];
+        let seq = 1;
+        events.push(
+          makeEvent(
+            {
+              type: 'session/start',
+              actorId: HOST_ACTOR,
+              meta: {
+                id: `sess-${seed}`,
+                createdAt: Date.now(),
+                rngSeed: seed,
+                mode: 'solo',
+                hostId: state.meta.hostId,
+              },
+              config: state.config,
+              players,
+              zones: setup.zones,
+            },
+            seq++,
+          ),
+        );
+        for (const deal of setup.initialDeals) {
+          events.push(
+            makeEvent(
+              {
+                type: 'card/deal',
+                actorId: HOST_ACTOR,
+                cardId: deal.cardId,
+                toZoneId: deal.toZoneId,
+                face: deal.face,
+              },
+              seq++,
+            ),
+          );
+        }
+        const nextState = foldEvents(events);
+        set({ events, seq: seq - 1, state: nextState });
+        return nextState;
+      },
 
       dispatch: (event) => {
         const { seq, events, state } = get();

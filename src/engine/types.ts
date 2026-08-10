@@ -63,7 +63,7 @@ export interface SessionMeta {
   id: string;
   createdAt: number;
   rngSeed: string;
-  mode: 'pass' | 'ble-host' | 'ble-guest' | 'online-host' | 'online-guest';
+  mode: 'pass' | 'solo' | 'ble-host' | 'ble-guest' | 'online-host' | 'online-guest';
   hostId: PlayerId;
 }
 

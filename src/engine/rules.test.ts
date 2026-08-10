@@ -216,4 +216,112 @@ describe('blackjack rules', () => {
     const end = events.find((e) => e.type === 'session/end')!;
     expect(end.winnerId).toBe('p1');
   });
+
+  test('solo: one player plus virtual house deals 2 up + dealer 1 up 1 down', () => {
+    // Mirrors gameStore: blackjack appends a virtual house seat (last = dealer).
+    const players = [
+      { id: 'you', name: 'You', seat: 0, avatarSeed: 'you' },
+      { id: 'house', name: 'House', seat: 1, avatarSeed: 'house' },
+    ];
+    const seed = makeSeed();
+    const deckOrder = shuffleInPlace(
+      buildDeck({ includeJokers: false }).map((c) => c.id),
+      mulberry32(seed),
+    );
+    const setup = blackjackStylePreset.setup({
+      players,
+      config: { includeJokers: false, fanStyle: 'wide', autoReshuffleDiscard: true, presetId: 'blackjack' },
+      deckOrder,
+    });
+    const youDeals = setup.initialDeals.filter((d) => d.toZoneId === handZoneId('you'));
+    const houseDeals = setup.initialDeals.filter((d) => d.toZoneId === handZoneId('house'));
+    expect(youDeals).toHaveLength(2);
+    expect(youDeals.every((d) => d.face === 'up')).toBe(true);
+    expect(houseDeals).toHaveLength(2);
+    expect(houseDeals[0]!.face).toBe('up');
+    expect(houseDeals[1]!.face).toBe('down');
+  });
+
+  test('solo: twist then stick hands the turn to the house, which auto-plays', () => {
+    const players = [
+      { id: 'you', name: 'You', seat: 0, avatarSeed: 'you' },
+      { id: 'house', name: 'House', seat: 1, avatarSeed: 'house' },
+    ];
+    const seed = makeSeed();
+    const deckOrder = shuffleInPlace(
+      buildDeck({ includeJokers: false }).map((c) => c.id),
+      mulberry32(seed),
+    );
+    const setup = blackjackStylePreset.setup({
+      players,
+      config: { includeJokers: false, fanStyle: 'wide', autoReshuffleDiscard: true, presetId: 'blackjack' },
+      deckOrder,
+    });
+    const events: GameEvent[] = [];
+    let seq = 1;
+    events.push({
+      type: 'session/start',
+      id: eventId(seq),
+      ts: Date.now(),
+      actorId: 'system',
+      seq: seq++,
+      meta: { id: `sess-${seed}`, createdAt: Date.now(), rngSeed: seed, mode: 'solo', hostId: 'you' },
+      config: { includeJokers: false, fanStyle: 'wide', autoReshuffleDiscard: true, presetId: 'blackjack' },
+      players,
+      zones: setup.zones,
+    });
+    for (const deal of setup.initialDeals) {
+      events.push({
+        type: 'card/deal',
+        id: eventId(seq),
+        ts: Date.now(),
+        actorId: 'system',
+        seq: seq++,
+        cardId: deal.cardId,
+        toZoneId: deal.toZoneId,
+        face: deal.face,
+      });
+    }
+    let state = foldEvents(events);
+
+    const rules = getGameRules('blackjack');
+    // Player twists (takes a card), then sticks.
+    const twist = rules.apply('twist', state, 'you');
+    expect(twist).not.toBeNull();
+    const twistDeal = twist!.find((e) => e.type === 'card/deal')!;
+    events.push({
+      type: 'card/deal',
+      id: eventId(++seq),
+      ts: Date.now(),
+      actorId: 'you',
+      seq,
+      cardId: twistDeal.cardId!,
+      toZoneId: twistDeal.toZoneId!,
+      face: twistDeal.face ?? 'up',
+    });
+    state = foldEvents(events);
+
+    const stick = rules.apply('stick', state, 'you');
+    expect(stick).not.toBeNull();
+    const turnEnd = stick!.find((e) => e.type === 'turn/end')!;
+    events.push({
+      type: 'turn/end',
+      id: eventId(++seq),
+      ts: Date.now(),
+      actorId: 'you',
+      seq,
+      playerId: turnEnd.playerId!,
+    });
+    state = foldEvents(events);
+    // Turn passes to the house (last seat).
+    expect(state.currentPlayerId).toBe('house');
+
+    // House auto-plays to 17+ or busts, ending the session.
+    const dealerEvents = blackjackDealerPlay(state);
+    const end = dealerEvents.find((e) => e.type === 'session/end');
+    expect(end).toBeDefined();
+    if (end!.winnerId !== undefined) {
+      expect(['you', 'house']).toContain(end!.winnerId);
+    }
+  });
 });
