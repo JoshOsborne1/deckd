@@ -231,8 +231,14 @@ wss.on('connection', (ws) => {
           if (room.host && room.host !== ws) {
             send(room.host, { type: 'relay', from: ws.clientId, payload: String(msg.payload || '') });
           }
-        } else {
+        } else if (msg.to === 'all') {
           broadcast(room, { type: 'relay', from: ws.clientId, payload: String(msg.payload || '') }, ws);
+        } else {
+          // Direct-addressed relay: send only to the named client.
+          const target = room.clients.get(msg.to);
+          if (target && target !== ws) {
+            send(target, { type: 'relay', from: ws.clientId, payload: String(msg.payload || '') });
+          }
         }
         break;
       }

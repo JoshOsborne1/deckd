@@ -38,6 +38,8 @@ export function formatGameEventLine(e: GameEvent): string {
       return `${head} session/resume`;
     case 'session/end':
       return `${head} session/end · winner=${e.winnerId ?? '—'}`;
+    case 'card/identify':
+      return `${head} card/identify · ${e.cardId} → ${e.realId}`;
     default: {
       const _exhaustive: never = e;
       return `${head} ${String(_exhaustive)}`;

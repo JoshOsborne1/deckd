@@ -11,7 +11,172 @@
 
 import { applyEvent, emptyState, foldEvents } from '@engine/state';
 import type { GameEvent } from '@engine/events';
-import type { GameState } from '@engine/types';
+import type { CardFace, GameState, ZoneId } from '@engine/types';
+
+/**
+ * Per-recipient privacy filter for online games.
+ *
+ * The host's event log contains every card id, and card ids are
+ * deterministic (`H-A`, `S-10`), so shipping the raw log to a guest lets
+ * them read every hidden card. This filter rewrites the log for one viewer:
+ *
+ * - Cards the viewer may see (public zones, their own private zones, and
+ *   any face-up card) keep their real ids.
+ * - Every other card id is replaced with an opaque placeholder (`p-0`,
+ *   `p-1`, …). The placeholder is stable across the whole log for that
+ *   viewer, so zone membership and movement stay consistent.
+ * - The moment a card becomes visible to the viewer (dealt to them, dealt
+ *   face-up to a public zone, revealed, flipped up), a `card/identify`
+ *   event is emitted immediately before the triggering event, remapping
+ *   the placeholder to the real id. The guest's reducer applies the
+ *   remap, then the event, in order.
+ * - The rngSeed is stripped from session/start: the guest must not be able
+ *   to reconstruct the deck order.
+ *
+ * Pure and framework-free so it can be unit-tested.
+ */
+
+const PLACEHOLDER_PREFIX = 'p-';
+
+export function filterEventsForViewer(events: GameEvent[], viewerId: string): GameEvent[] {
+  const placeholderByReal = new Map<string, string>();
+  const visible = new Set<string>();
+  const faces = new Map<string, CardFace>();
+  let nextPlaceholder = 0;
+  const out: GameEvent[] = [];
+
+  // Precompute zone visibility from session/start (the only event that
+  // defines zones). If there is no session/start, nothing is visible.
+  const zoneVisibility = new Map<ZoneId, boolean>();
+  const startEvent = events.find((e) => e.type === 'session/start');
+  if (startEvent && startEvent.type === 'session/start') {
+    for (const zone of startEvent.zones) {
+      zoneVisibility.set(
+        zone.id,
+        zone.visibility.kind === 'public' ||
+          (zone.visibility.kind === 'private' && zone.visibility.ownerId === viewerId),
+      );
+    }
+  }
+
+  const placeholderFor = (realId: string): string => {
+    let p = placeholderByReal.get(realId);
+    if (!p) {
+      p = `${PLACEHOLDER_PREFIX}${nextPlaceholder++}`;
+      placeholderByReal.set(realId, p);
+    }
+    return p;
+  };
+
+  const remap = (id: string): string => (visible.has(id) ? id : placeholderFor(id));
+
+  const markVisible = (realId: string, seq: number): void => {
+    if (visible.has(realId)) return;
+    visible.add(realId);
+    const p = placeholderByReal.get(realId);
+    if (p) {
+      out.push({
+        type: 'card/identify',
+        cardId: p,
+        realId,
+        id: `evt-id-${p}`,
+        ts: Date.now(),
+        actorId: 'system',
+        seq,
+      });
+    }
+  };
+
+  for (const event of events) {
+    switch (event.type) {
+      case 'session/start': {
+        // Rebuild zones with remapped card ids. Cards in zones the viewer
+        // can see keep real ids; everything else becomes a placeholder.
+        const zones = event.zones.map((zone) => {
+          const zoneVisible = zoneVisibility.get(zone.id) ?? false;
+          const cardIds = zone.cardIds.map((cid) => {
+            faces.set(cid, 'down');
+            if (zoneVisible) {
+              visible.add(cid);
+              return cid;
+            }
+            return placeholderFor(cid);
+          });
+          return { ...zone, cardIds };
+        });
+        out.push({
+          ...event,
+          meta: { ...event.meta, rngSeed: '' },
+          zones,
+        });
+        break;
+      }
+
+      case 'card/deal':
+      case 'card/move': {
+        const cardId = event.cardId;
+        const zoneVisible = zoneVisibility.get(event.toZoneId) ?? false;
+        const face = event.face ?? faces.get(cardId) ?? 'down';
+        faces.set(cardId, face);
+        if (zoneVisible || face === 'up') {
+          markVisible(cardId, event.seq);
+        }
+        out.push({
+          ...event,
+          cardId: remap(cardId),
+          ...(event.type === 'card/move' && event.toIndex !== undefined ? { toIndex: event.toIndex } : {}),
+        });
+        break;
+      }
+
+      case 'card/flip': {
+        const cardId = event.cardId;
+        const current = faces.get(cardId) ?? 'down';
+        const nextFace: CardFace = current === 'up' ? 'down' : 'up';
+        faces.set(cardId, nextFace);
+        if (nextFace === 'up') {
+          markVisible(cardId, event.seq);
+        }
+        out.push({ ...event, cardId: remap(cardId) });
+        break;
+      }
+
+      case 'card/reveal': {
+        faces.set(event.cardId, 'up');
+        markVisible(event.cardId, event.seq);
+        out.push({ ...event, cardId: remap(event.cardId) });
+        break;
+      }
+
+      case 'card/peek': {
+        out.push({ ...event, cardId: remap(event.cardId) });
+        break;
+      }
+
+      case 'hand/reorder': {
+        out.push({ ...event, order: event.order.map(remap) });
+        break;
+      }
+
+      case 'deck/shuffle': {
+        out.push({ ...event, newOrder: event.newOrder.map(remap) });
+        break;
+      }
+
+      case 'card/identify': {
+        // Host never emits these; pass through defensively.
+        out.push(event);
+        break;
+      }
+
+      default:
+        out.push(event);
+        break;
+    }
+  }
+
+  return out;
+}
 
 /**
  * Events from a remote batch that the local store has not already seen,

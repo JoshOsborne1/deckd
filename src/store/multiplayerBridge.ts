@@ -26,7 +26,7 @@ import type { CardId, ZoneId, CardFace, PlayerId } from '@engine/types';
 import { handZoneId, tableZoneId, ZONE_DISCARD } from '@engine/types';
 import { useGameStore } from '@store/gameStore';
 import { useLobbyStore } from '@store/lobbyStore';
-import { selectBroadcastDelta } from '@store/syncLogic';
+import { selectBroadcastDelta, filterEventsForViewer } from '@store/syncLogic';
 
 let unsubscribeGameStore: (() => void) | null = null;
 let lastBroadcastSeq = 0;
@@ -69,6 +69,10 @@ export function resetBridge(): void {
 /**
  * Host: broadcast the events that have landed since the last broadcast.
  * Called from the gameStore subscription. No-op if not connected or no session.
+ *
+ * Each guest receives a recipient-filtered view: hidden cards are replaced
+ * with stable placeholders so no guest can read another player's hand or the
+ * deck order from the event log.
  */
 function broadcastDelta(): void {
   const lobby = useLobbyStore.getState();
@@ -86,17 +90,26 @@ function broadcastDelta(): void {
     lastBroadcastSeq = 0;
   }
 
-  const delta = selectBroadcastDelta(game.events, lastBroadcastSeq);
+  const before = lastBroadcastSeq;
+  const delta = selectBroadcastDelta(game.events, before);
   if (delta.length === 0) return;
 
   lastBroadcastSeq = delta[delta.length - 1]!.seq;
-  void lobby.session.sendEvents(delta);
+
+  const guests = lobby.players.filter((p) => !p.isHost).map((p) => p.clientId);
+  for (const guestId of guests) {
+    const filtered = filterEventsForViewer(game.events, guestId).filter((e) => e.seq > before);
+    if (filtered.length > 0) {
+      void lobby.session.sendEventsTo?.(guestId, filtered);
+    }
+  }
 }
 
 /**
  * Host: send the full event chain to a rejoining/cold guest. This rebuilds
  * the guest from scratch rather than shipping a folded snapshot (keeps the
- * event log intact on the guest side).
+ * event log intact on the guest side). The chain is recipient-filtered so
+ * the guest only sees their own hand and public cards.
  */
 function sendFullSnapshot(): void {
   const lobby = useLobbyStore.getState();
@@ -106,7 +119,14 @@ function sendFullSnapshot(): void {
 
   lastBroadcastSeq = game.events[game.events.length - 1]!.seq;
   trackedSessionId = sessionIdOf(game.events);
-  void lobby.session.sendEvents([...game.events]);
+
+  const guests = lobby.players.filter((p) => !p.isHost).map((p) => p.clientId);
+  for (const guestId of guests) {
+    const filtered = filterEventsForViewer(game.events, guestId);
+    if (filtered.length > 0) {
+      void lobby.session.sendEventsTo?.(guestId, filtered);
+    }
+  }
 }
 
 /**

@@ -29,6 +29,8 @@ export interface RelaySession {
 
   /** Host: broadcast events to all guests. Guest: send intent to host. */
   sendEvents(events: GameEvent[]): Promise<void>;
+  /** Host: send events to a single guest (recipient-filtered privacy view). */
+  sendEventsTo?(clientId: string, events: GameEvent[]): Promise<void>;
   /** Guest: send an intent (join, ready, request_action) to host. */
   sendIntent(intent: string, payload: unknown): Promise<void>;
   /** Host: request a snapshot be sent to a specific guest (rejoin). */
@@ -286,6 +288,14 @@ class RelayTransport implements RelaySession {
       throw new Error('Only the host broadcasts events');
     }
     this.send({ type: 'relay', to: 'all', payload: JSON.stringify(events) });
+  }
+
+  /** Host: send events to a single guest (recipient-filtered privacy view). */
+  async sendEventsTo(clientId: string, events: GameEvent[]): Promise<void> {
+    if (this.role !== 'host') {
+      throw new Error('Only the host sends events');
+    }
+    this.send({ type: 'relay', to: clientId, payload: JSON.stringify(events) });
   }
 
   async sendIntent(intent: string, payload: unknown): Promise<void> {

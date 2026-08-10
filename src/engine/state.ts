@@ -198,6 +198,25 @@ export function applyEvent(prev: GameState, event: GameEvent): GameState {
       return next;
     }
 
+    case 'card/identify': {
+      // Guest-side privacy remap: the placeholder id becomes the real card id
+      // once the card is visible to this viewer. The placeholder keeps the
+      // same zone/order; only the id changes.
+      const placeholder = next.cards[event.cardId];
+      if (!placeholder) return next;
+      if (next.cards[event.realId]) return next; // already identified
+      const zone = next.zones[placeholder.zoneId];
+      if (!zone) return next;
+      next.cards[event.realId] = { ...placeholder, id: event.realId };
+      delete next.cards[event.cardId];
+      next.zones[placeholder.zoneId] = {
+        ...zone,
+        cardIds: zone.cardIds.map((cid) => (cid === event.cardId ? event.realId : cid)),
+      };
+      next.deckCardIds = next.deckCardIds.map((cid) => (cid === event.cardId ? event.realId : cid));
+      return next;
+    }
+
     case 'hand/reorder': {
       const zoneId = `hand:${event.playerId}`;
       const zone = next.zones[zoneId];

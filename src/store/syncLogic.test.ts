@@ -10,7 +10,7 @@ import { buildDeck, makeSeed, mulberry32, shuffleInPlace } from '@engine/deck';
 import { foldEvents } from '@engine/state';
 import { eventId } from '@engine/events';
 import type { GameEvent } from '@engine/events';
-import { ZONE_DISCARD, ZONE_DRAW, handZoneId } from '@engine/types';
+import { ZONE_DISCARD, ZONE_DRAW, ZONE_MUCK, handZoneId } from '@engine/types';
 import { freeplayPreset, dealTwoEachPreset } from '@engine/presets';
 import {
   selectDrawPileCount,
@@ -24,6 +24,7 @@ import {
   foldRemoteEvents,
   selectBroadcastDelta,
   applySnapshotWithTail,
+  filterEventsForViewer,
 } from '@store/syncLogic';
 
 function makeSessionEvents(
@@ -321,5 +322,104 @@ describe('host/guest simulation', () => {
     const result = foldRemoteEvents(sessionEvents, []);
     expect(result.applied).toBe(0);
     expect(result.events).toHaveLength(sessionEvents.length);
+  });
+});
+
+describe('filterEventsForViewer', () => {
+  it('hides opponent hands and the deck order behind placeholders', () => {
+    const sessionEvents = makeSessionEvents(
+      [{ id: 'host', name: 'Alice' }, { id: 'guest', name: 'Bob' }],
+      'deal-two-each',
+    );
+
+    const filtered = filterEventsForViewer(sessionEvents, 'guest');
+
+    // The guest's own hand keeps real ids; the host's hand and the draw pile
+    // become placeholders.
+    const start = filtered.find((e) => e.type === 'session/start');
+    expect(start).toBeDefined();
+    if (start && start.type === 'session/start') {
+      const guestHand = start.zones.find((z) => z.id === handZoneId('guest'));
+      const hostHand = start.zones.find((z) => z.id === handZoneId('host'));
+      const draw = start.zones.find((z) => z.id === ZONE_DRAW);
+      expect(guestHand?.cardIds.every((id) => !id.startsWith('p-'))).toBe(true);
+      expect(hostHand?.cardIds.every((id) => id.startsWith('p-'))).toBe(true);
+      expect(draw?.cardIds.every((id) => id.startsWith('p-'))).toBe(true);
+      // The rng seed must be stripped so the deck order cannot be rebuilt.
+      expect(start.meta.rngSeed).toBe('');
+    }
+  });
+
+  it('identifies a card the moment it becomes visible to the viewer', () => {
+    const sessionEvents = makeSessionEvents(
+      [{ id: 'host', name: 'Alice' }, { id: 'guest', name: 'Bob' }],
+      'freeplay',
+    );
+    const hostState = foldEvents(sessionEvents);
+    const drawTop = hostState.zones[ZONE_DRAW]!.cardIds[0]!;
+
+    // Host deals the top card face-up to the guest's hand.
+    const dealEvent: GameEvent = {
+      type: 'card/deal',
+      id: eventId(200),
+      ts: Date.now(),
+      actorId: 'host',
+      seq: 200,
+      cardId: drawTop,
+      toZoneId: handZoneId('guest'),
+      face: 'up',
+    };
+    const filtered = filterEventsForViewer([...sessionEvents, dealEvent], 'guest');
+
+    // A card/identify event must precede the deal, remapping the placeholder.
+    const identify = filtered.find((e) => e.type === 'card/identify');
+    expect(identify).toBeDefined();
+    if (identify && identify.type === 'card/identify') {
+      expect(identify.realId).toBe(drawTop);
+    }
+    const deal = filtered.find((e) => e.type === 'card/deal' && e.seq === 200);
+    expect(deal).toBeDefined();
+    if (deal && deal.type === 'card/deal') {
+      expect(deal.cardId).toBe(drawTop);
+    }
+
+    // Folding the filtered log must produce a state where the guest sees the
+    // real card in their hand.
+    const guestState = foldEvents(filtered);
+    expect(guestState.cards[drawTop]).toBeDefined();
+    expect(guestState.zones[handZoneId('guest')]!.cardIds).toContain(drawTop);
+  });
+
+  it('keeps placeholders stable across the log for hidden cards', () => {
+    const sessionEvents = makeSessionEvents(
+      [{ id: 'host', name: 'Alice' }, { id: 'guest', name: 'Bob' }],
+      'freeplay',
+    );
+    const hostState = foldEvents(sessionEvents);
+    const drawTop = hostState.zones[ZONE_DRAW]!.cardIds[0]!;
+
+    // Host moves a hidden card from the draw pile to the muck (still hidden).
+    const moveEvent: GameEvent = {
+      type: 'card/move',
+      id: eventId(300),
+      ts: Date.now(),
+      actorId: 'host',
+      seq: 300,
+      cardId: drawTop,
+      toZoneId: ZONE_MUCK,
+      face: 'down',
+    };
+    const filtered = filterEventsForViewer([...sessionEvents, moveEvent], 'guest');
+
+    const start = filtered.find((e) => e.type === 'session/start');
+    const move = filtered.find((e) => e.type === 'card/move' && e.seq === 300);
+    expect(start).toBeDefined();
+    expect(move).toBeDefined();
+    if (start && start.type === 'session/start' && move && move.type === 'card/move') {
+      const drawPlaceholder = start.zones.find((z) => z.id === ZONE_DRAW)!.cardIds[0]!;
+      expect(drawPlaceholder.startsWith('p-')).toBe(true);
+      // The same placeholder id is used in the move event.
+      expect(move.cardId).toBe(drawPlaceholder);
+    }
   });
 });

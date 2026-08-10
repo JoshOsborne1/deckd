@@ -32,6 +32,11 @@ export type GameEvent =
   | (BaseEvent & { type: 'card/flip'; cardId: CardId })
   | (BaseEvent & { type: 'card/peek'; cardId: CardId; byPlayerId: PlayerId })
   | (BaseEvent & { type: 'card/reveal'; cardId: CardId })
+  | (BaseEvent & {
+      type: 'card/identify';
+      cardId: CardId;
+      realId: CardId;
+    })
   | (BaseEvent & { type: 'hand/reorder'; playerId: PlayerId; order: CardId[] })
   | (BaseEvent & { type: 'turn/set'; playerId: PlayerId })
   | (BaseEvent & { type: 'turn/end'; playerId: PlayerId })

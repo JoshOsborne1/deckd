@@ -37,6 +37,7 @@ jest.mock('@lib/storage', () => ({
 // --- Mock relay transport: capture sent events + intents, let us relay ---
 
 let hostSentEvents: GameEvent[][] = [];
+let hostSentTo: { clientId: string; events: GameEvent[] }[] = [];
 let guestSentIntents: { intent: string; payload: unknown }[] = [];
 let hostCallbacks: {
   onOpen?: (s: RelaySession) => void;
@@ -60,6 +61,7 @@ jest.mock('@lib/relayTransport', () => ({
     if (opts.role === 'host') {
       hostCallbacks = cb;
       hostSentEvents = [];
+      hostSentTo = [];
       const session: RelaySession = {
         role: 'host',
         roomCode: opts.roomCode,
@@ -68,6 +70,9 @@ jest.mock('@lib/relayTransport', () => ({
         lastError: null,
         sendEvents: jest.fn(async (events: GameEvent[]) => {
           hostSentEvents.push(events);
+        }),
+        sendEventsTo: jest.fn(async (clientId: string, events: GameEvent[]) => {
+          hostSentTo.push({ clientId, events });
         }),
         sendIntent: jest.fn(async () => {
           throw new Error('Only guests send intents');
@@ -116,6 +121,7 @@ beforeEach(() => {
   resetBridge();
   resetStores();
   hostSentEvents = [];
+  hostSentTo = [];
   guestSentIntents = [];
   hostCallbacks = {};
   guestCallbacks = {};
@@ -148,11 +154,12 @@ describe('multiplayerBridge', () => {
       hostId: hostCid,
     });
 
-    // The bridge should have broadcast the session-start + deal events.
-    expect(hostSentEvents.length).toBeGreaterThan(0);
-    const firstBatch = hostSentEvents[0]!;
-    expect(firstBatch.length).toBeGreaterThan(0);
-    expect(firstBatch[0]!.type).toBe('session/start');
+    // The bridge should have sent the session-start + deal events to the guest.
+    expect(hostSentTo.length).toBeGreaterThan(0);
+    const guestBatch = hostSentTo.find((s) => s.clientId === 'guest-cid');
+    expect(guestBatch).toBeDefined();
+    expect(guestBatch!.events.length).toBeGreaterThan(0);
+    expect(guestBatch!.events[0]!.type).toBe('session/start');
     expect(getLastBroadcastSeq()).toBeGreaterThan(0);
   });
 
@@ -185,8 +192,8 @@ describe('multiplayerBridge', () => {
       hostId: hostCid,
     });
 
-    // Host answers snapshot: relay the broadcast events to the guest.
-    const broadcastEvents = hostSentEvents.flat();
+    // Host answers snapshot: relay the per-guest filtered events to the guest.
+    const broadcastEvents = hostSentTo.flatMap((s) => s.events);
     guestCallbacks.onEventsReceived?.(broadcastEvents);
 
     // Guest's gameStore should now mirror the host's.
@@ -219,20 +226,20 @@ describe('multiplayerBridge', () => {
       hostId: hostCid,
     });
 
-    hostSentEvents = []; // clear the session-start broadcast
+    hostSentTo = []; // clear the session-start broadcast
 
     // Guest must be the current player. Host is player 0, so first end the
     // host's turn to make the guest current.
     useGameStore.getState().endTurn(hostCid);
-    hostSentEvents = []; // clear the turn/end broadcast
+    hostSentTo = []; // clear the turn/end broadcast
 
     // Now the guest is the current player. Simulate the guest's draw intent
     // arriving at the host.
     hostCallbacks.onIntentReceived?.('draw_card', {}, 'guest-cid');
 
-    // The host should have applied the draw and broadcast a new event.
-    expect(hostSentEvents.length).toBeGreaterThan(0);
-    const lastBatch = hostSentEvents[hostSentEvents.length - 1]!;
+    // The host should have applied the draw and sent a new event to the guest.
+    expect(hostSentTo.length).toBeGreaterThan(0);
+    const lastBatch = hostSentTo[hostSentTo.length - 1]!.events;
     const drawEvent = lastBatch.find((e) => e.type === 'card/deal');
     expect(drawEvent).toBeDefined();
     expect(drawEvent!.toZoneId).toBe(handZoneId('guest-cid'));
@@ -265,7 +272,7 @@ describe('multiplayerBridge', () => {
     useGameStore.getState().dealCard(guestCardId, handZoneId('guest-cid'), 'down');
     const before = useGameStore.getState().state;
     const faceBefore = before.cards[guestCardId]!.face;
-    hostSentEvents = [];
+    hostSentTo = [];
 
     // Host still owns the active turn; guest gestures must be inert.
     hostCallbacks.onIntentReceived?.('flip_card', { cardId: guestCardId }, 'guest-cid');
@@ -278,7 +285,7 @@ describe('multiplayerBridge', () => {
     const after = useGameStore.getState().state;
     expect(after.cards[guestCardId]!.face).toBe(faceBefore);
     expect(after.zones[handZoneId('guest-cid')]!.cardIds).toContain(guestCardId);
-    expect(hostSentEvents).toHaveLength(0);
+    expect(hostSentTo).toHaveLength(0);
   });
 
   it('only accepts a current player discard intent into the public discard zone', () => {
@@ -307,7 +314,7 @@ describe('multiplayerBridge', () => {
     const guestCardId = useGameStore.getState().state.zones[ZONE_DRAW]!.cardIds[0]!;
     useGameStore.getState().dealCard(guestCardId, handZoneId('guest-cid'), 'down');
     useGameStore.getState().endTurn(hostCid);
-    hostSentEvents = [];
+    hostSentTo = [];
 
     hostCallbacks.onIntentReceived?.(
       'move_card',
@@ -316,7 +323,7 @@ describe('multiplayerBridge', () => {
     );
 
     expect(useGameStore.getState().state.zones[handZoneId('guest-cid')]!.cardIds).toContain(guestCardId);
-    expect(hostSentEvents).toHaveLength(0);
+    expect(hostSentTo).toHaveLength(0);
 
     hostCallbacks.onIntentReceived?.(
       'move_card',
@@ -344,7 +351,7 @@ describe('multiplayerBridge', () => {
     });
 
     // No broadcast should have happened (no relay session).
-    expect(hostSentEvents).toHaveLength(0);
+    expect(hostSentTo).toHaveLength(0);
 
     // Game state should be fine.
     const state = useGameStore.getState().state;
@@ -384,15 +391,15 @@ describe('multiplayerBridge', () => {
     });
 
     // Relay the session to the guest.
-    guestCallbacks.onEventsReceived?.(hostSentEvents.flat());
+    guestCallbacks.onEventsReceived?.(hostSentTo.flatMap((s) => s.events));
 
     // Host moves a card to discard.
     const drawTop = useGameStore.getState().state.zones[ZONE_DRAW]!.cardIds[0]!;
-    hostSentEvents = [];
+    hostSentTo = [];
     useGameStore.getState().moveCard(drawTop, ZONE_DISCARD, 'up');
 
     // Relay the move event to the guest.
-    guestCallbacks.onEventsReceived?.(hostSentEvents.flat());
+    guestCallbacks.onEventsReceived?.(hostSentTo.flatMap((s) => s.events));
 
     // Guest's discard top should match the host's.
     const guestDiscard = selectDiscardTopCard(useGameStore.getState().state);
@@ -432,7 +439,7 @@ describe('multiplayerBridge', () => {
     const hostCardId = hostHand.cardIds[0]!;
     const faceBefore = useGameStore.getState().state.cards[hostCardId]!.face;
 
-    hostSentEvents = [];
+    hostSentTo = [];
 
     // Malicious guest tries to flip the host's hidden card.
     hostCallbacks.onIntentReceived?.(
@@ -444,6 +451,6 @@ describe('multiplayerBridge', () => {
     // The card must be untouched and nothing broadcast.
     const faceAfter = useGameStore.getState().state.cards[hostCardId]!.face;
     expect(faceAfter).toBe(faceBefore);
-    expect(hostSentEvents).toHaveLength(0);
+    expect(hostSentTo).toHaveLength(0);
   });
 });
