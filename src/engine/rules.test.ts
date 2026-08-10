@@ -2,20 +2,21 @@ import { buildDeck, makeSeed, mulberry32, shuffleInPlace } from './deck';
 import { emptyState, foldEvents } from './state';
 import { eventId } from './events';
 import type { GameEvent } from './events';
-import { ZONE_DRAW, handZoneId } from './types';
-import { blackjackStylePreset } from './presets';
-import { blackjackDealerPlay, handValue, isBust } from './rules';
+import { ZONE_DRAW, communalZoneId, handZoneId } from './types';
+import { blackjackStylePreset, pokerStylePreset } from './presets';
+import { blackjackDealerPlay, evaluatePokerHand, getGameRules, handValue, isBust } from './rules';
 
-function makeBlackjackState(players: { id: string; name: string }[]) {
+function makeSession(players: { id: string; name: string }[], preset: 'blackjack' | 'poker' = 'blackjack') {
   const seed = makeSeed();
   const deckOrder = shuffleInPlace(
     buildDeck({ includeJokers: false }).map((c) => c.id),
     mulberry32(seed),
   );
   const playerObjs = players.map((p, seat) => ({ id: p.id, name: p.name, seat, avatarSeed: `seed-${p.id}` }));
-  const setup = blackjackStylePreset.setup({
+  const presetObj = preset === 'blackjack' ? blackjackStylePreset : pokerStylePreset;
+  const setup = presetObj.setup({
     players: playerObjs,
-    config: { includeJokers: false, fanStyle: 'wide', autoReshuffleDiscard: true, presetId: 'blackjack' },
+    config: { includeJokers: false, fanStyle: 'wide', autoReshuffleDiscard: true, presetId: preset },
     deckOrder,
   });
 
@@ -28,7 +29,7 @@ function makeBlackjackState(players: { id: string; name: string }[]) {
     actorId: 'system',
     seq: seq++,
     meta: { id: `sess-${seed}`, createdAt: Date.now(), rngSeed: seed, mode: 'pass', hostId: players[0]!.id },
-    config: { includeJokers: false, fanStyle: 'wide', autoReshuffleDiscard: true, presetId: 'blackjack' },
+    config: { includeJokers: false, fanStyle: 'wide', autoReshuffleDiscard: true, presetId: preset },
     players: playerObjs,
     zones: setup.zones,
   });
@@ -46,6 +47,102 @@ function makeBlackjackState(players: { id: string; name: string }[]) {
   }
   return foldEvents(events);
 }
+
+function makeBlackjackState(players: { id: string; name: string }[]) {
+  return makeSession(players, 'blackjack');
+}
+
+describe('poker rules', () => {
+  test('poker preset creates the communal zone so flop deals are accepted', () => {
+    const state = makeSession(
+      [
+        { id: 'p1', name: 'P1' },
+        { id: 'p2', name: 'P2' },
+      ],
+      'poker',
+    );
+    expect(state.zones[communalZoneId(0)]).toBeDefined();
+  });
+
+  test('evaluatePokerHand ranks pairs numerically (regression: string compare)', () => {
+    // Pair of tens vs pair of nines: tens must win.
+    const tens = evaluatePokerHand(['H-10', 'D-10', 'S-2', 'C-5', 'D-7', 'H-3', 'S-9']);
+    const nines = evaluatePokerHand(['H-9', 'D-9', 'S-2', 'C-5', 'D-7', 'H-3', 'S-10']);
+    expect(tens.category).toBe(1);
+    expect(nines.category).toBe(1);
+    expect(tens.tiebreak[0]).toBeGreaterThan(nines.tiebreak[0]!);
+  });
+
+  test('evaluatePokerHand detects a flush', () => {
+    const score = evaluatePokerHand(['H-2', 'H-5', 'H-8', 'H-J', 'H-K', 'D-3', 'S-4']);
+    expect(score.category).toBe(5);
+    expect(score.label).toBe('Flush');
+  });
+
+  test('evaluatePokerHand detects a straight and wheel', () => {
+    const straight = evaluatePokerHand(['H-9', 'D-10', 'S-J', 'C-Q', 'D-K', 'H-2', 'S-3']);
+    expect(straight.category).toBe(4);
+    const wheel = evaluatePokerHand(['H-A', 'D-2', 'S-3', 'C-4', 'D-5', 'H-9', 'S-9']);
+    expect(wheel.category).toBe(4);
+    expect(wheel.tiebreak[0]).toBe(5);
+  });
+
+  test('poker flop/turn/river apply and deal into the communal zone', () => {
+    const state = makeSession(
+      [
+        { id: 'p1', name: 'P1' },
+        { id: 'p2', name: 'P2' },
+      ],
+      'poker',
+    );
+    const rules = getGameRules('poker');
+    const host = state.meta.hostId;
+
+    const flop = rules.apply('flop', state, host)!;
+    const flopDeals = flop.filter((e) => e.type === 'card/deal');
+    expect(flopDeals).toHaveLength(3);
+    for (const deal of flopDeals) expect(deal.toZoneId).toBe(communalZoneId(0));
+
+    // Fold the whole flop sequence and verify the cards landed in community.
+    const streetEv = flop.find((e) => e.type === 'game/street');
+    const folded = foldEvents([
+      {
+        type: 'session/start',
+        id: eventId(1),
+        ts: Date.now(),
+        actorId: 'system',
+        seq: 1,
+        meta: state.meta,
+        config: state.config,
+        players: state.players,
+        zones: Object.values(state.zones),
+      },
+      ...flopDeals.map((deal, i) => ({
+        type: 'card/deal' as const,
+        id: eventId(i + 2),
+        ts: Date.now(),
+        actorId: 'system',
+        seq: i + 2,
+        cardId: deal.cardId!,
+        toZoneId: deal.toZoneId!,
+        face: 'up' as const,
+      })),
+      ...(streetEv
+        ? [{
+            type: 'game/street' as const,
+            id: eventId(10),
+            ts: Date.now(),
+            actorId: 'system',
+            seq: 10,
+            street: (streetEv as { street?: number }).street ?? 1,
+          }]
+        : []),
+    ]);
+    const communal = folded.zones[communalZoneId(0)];
+    expect(communal?.cardIds.length).toBe(3);
+    expect(folded.game?.street).toBe(1);
+  });
+});
 
 describe('blackjack rules', () => {
   test('handValue counts aces as 11 then demotes over 21', () => {
@@ -70,10 +167,35 @@ describe('blackjack rules', () => {
     const ends = events.filter((e) => e.type === 'session/end');
     expect(ends.length).toBe(1);
     const end = ends[0]!;
-    // Winner must be a real player id and the dealer must play to >= 17 or bust.
+    // Winner must be a real player id.
     expect(['dealer', 'p1']).toContain(end.winnerId);
-    const dealerValue = handValue(state, 'dealer');
-    expect(dealerValue < 17 || isBust(dealerValue)).toBe(false);
+    // Fold the dealer draws, then assert the dealer played to >= 17 or busted.
+    const deals = events.filter((e) => e.type === 'card/deal');
+    const finalState = foldEvents([
+      {
+        type: 'session/start',
+        id: eventId(1),
+        ts: Date.now(),
+        actorId: 'system',
+        seq: 1,
+        meta: state.meta,
+        config: state.config,
+        players: state.players,
+        zones: Object.values(state.zones),
+      },
+      ...deals.map((deal, i) => ({
+        type: 'card/deal' as const,
+        id: eventId(i + 2),
+        ts: Date.now(),
+        actorId: 'system',
+        seq: i + 2,
+        cardId: deal.cardId!,
+        toZoneId: deal.toZoneId!,
+        face: 'up' as const,
+      })),
+    ]);
+    const dealerValue = handValue(finalState, 'dealer');
+    expect(dealerValue < 17 && !isBust(dealerValue)).toBe(false);
   });
 
   test('dealer busts hand a win to the player', () => {

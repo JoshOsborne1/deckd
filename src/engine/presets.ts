@@ -1,5 +1,5 @@
 import type { Player, SessionConfig, Zone, ZoneId } from './types';
-import { ZONE_DISCARD, ZONE_DRAW, ZONE_MUCK, handZoneId, tableZoneId } from './types';
+import { ZONE_DISCARD, ZONE_DRAW, ZONE_MUCK, communalZoneId, handZoneId, tableZoneId } from './types';
 
 export interface PresetSetupInput {
   players: Player[];
@@ -30,6 +30,10 @@ function buildCoreZones(players: Player[]): Zone[] {
     { id: ZONE_DRAW, label: 'Draw pile', visibility: { kind: 'hidden' }, cardIds: [] },
     { id: ZONE_DISCARD, label: 'Discard', visibility: { kind: 'public' }, cardIds: [] },
     { id: ZONE_MUCK, label: 'Muck', visibility: { kind: 'hidden' }, cardIds: [] },
+    // Community row (poker flop/turn/river). Public, rendered only when it
+    // holds cards. Must exist before the first FLOP or canApplyEvent rejects
+    // the deal and poker silently deals nothing.
+    { id: communalZoneId(0), label: 'Community', visibility: { kind: 'public' }, cardIds: [] },
   ];
   for (const player of players) {
     zones.push({

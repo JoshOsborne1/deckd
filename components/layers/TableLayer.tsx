@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import Animated, {
   cancelAnimation,
   useAnimatedStyle,
@@ -44,13 +44,18 @@ import {
 } from '@engine/selectors';
 import {
   ZONE_DISCARD,
+  communalZoneId,
   handZoneId,
   type CardFace,
   type CardId,
   type CardInstance,
 } from '@engine/types';
 import type { GuidancePhase, TableAction } from '@engine/selectors';
-import { getGameRules, handValue, isBust, type GameAction, type GameActionSpec } from '@engine/rules';
+import {
+  getGameRules,
+  type GameAction,
+  type GameActionSpec,
+} from '@engine/rules';
 import { makeSeed, mulberry32, shuffleInPlace, ZONE_DRAW } from '@engine/index';
 import {
   alpha,
@@ -186,10 +191,17 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
     [viewerId, isGuest, lobbySession, haptic, gameAction],
   );
   const myHandValue = useMemo(
-    () => (viewerId ? handValue(state, viewerId) : 0),
-    [state, viewerId],
+    () => (viewerId ? rules.readout?.(state, viewerId) ?? null : null),
+    [rules, state, viewerId],
   );
-  const myBust = isBust(myHandValue);
+  const myBust = myHandValue !== null && myHandValue.includes('BUST');
+  const communityCards = useMemo(
+    () => state.zones[communalZoneId(0)]?.cardIds ?? [],
+    [state],
+  );
+  const streetLabel = state.game?.street
+    ? ['FLOP', 'TURN', 'RIVER'][state.game.street - 1] ?? null
+    : null;
   const guidanceState = useMemo<GuidancePhase>(
     () => (viewerId ? selectGuidanceState(state, viewerId) : 'waiting'),
     [state, viewerId],
@@ -602,6 +614,28 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
           )}
         </View>
 
+        {/* Community cards (poker flop/turn/river) */}
+        {communityCards.length > 0 && (
+          <View style={styles.communityRow} pointerEvents="none">
+            <Text style={styles.communityLabel}>{streetLabel}</Text>
+            <View style={styles.communityCards}>
+              {communityCards.map((cid) => {
+                const parsed = parseCardId(cid);
+                const card = state.cards[cid];
+                if (!parsed || !card) return null;
+                return (
+                  <PlayingCard
+                    key={cid}
+                    rank={parsed.rank}
+                    suit={parsed.suit}
+                    face={card.face}
+                    size="xs"
+                  />
+                );
+              })}
+            </View>
+          </View>
+        )}
       </View>
 
       {/* Ended banner */}
@@ -611,7 +645,9 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
             <Text style={styles.endedEyebrow}>SESSION OVER</Text>
             <Text style={styles.endedTitle}>
               {state.winnerId
-                ? `${state.players.find((p) => p.id === state.winnerId)?.name ?? 'Winner'} takes the table`
+                ? state.winnerId === viewerId
+                  ? 'You take the table'
+                  : `${state.players.find((p) => p.id === state.winnerId)?.name ?? 'Winner'} takes the table`
                 : 'Table cleared'}
             </Text>
             <CardButton
@@ -642,7 +678,12 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
         </Pressable>
 
         {ruleActions.length > 0 ? (
-          <View style={styles.ruleActions}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.ruleActionsScroll}
+            contentContainerStyle={styles.ruleActions}
+          >
             {ruleActions.map((spec) => (
               <CardButton
                 key={spec.id}
@@ -658,8 +699,8 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
                 </Text>
               </CardButton>
             ))}
-          </View>
-        ) : isPassMode || isOnline ? (
+          </ScrollView>
+        ) : (isPassMode || isOnline) && state.phase !== 'ended' ? (
           <CardButton
             variant="primary"
             size="md"
@@ -737,11 +778,9 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
             {handHint}
           </Text>
         ) : null}
-        {rules.id === 'blackjack' && localHand.length > 0 && (
+        {rules.readout && localHand.length > 0 && myHandValue !== null && (
           <View style={[styles.valuePill, myBust && styles.valuePillBust]}>
-            <Text style={styles.valuePillText}>
-              {myBust ? 'BUST' : `HAND ${myHandValue}`}
-            </Text>
+            <Text style={styles.valuePillText}>{myHandValue}</Text>
           </View>
         )}
       </View>
@@ -917,10 +956,25 @@ const styles = StyleSheet.create({
     gap: space.sm,
   },
   discardLabel: {
+    color: colors.inkSubtle,
     fontSize: 10,
+    fontFamily: fonts.bold,
+    letterSpacing: letterSpacing.caps,
+  },
+  communityRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.sm,
+  },
+  communityLabel: {
+    fontSize: 9,
     fontFamily: fonts.bold,
     color: colors.inkSubtle,
     letterSpacing: letterSpacing.caps,
+  },
+  communityCards: {
+    flexDirection: 'row',
+    gap: space.xs,
   },
   guidance: {
     position: 'absolute',
@@ -983,9 +1037,14 @@ const styles = StyleSheet.create({
   ruleActions: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent: 'flex-start',
     gap: space.xs,
+    paddingHorizontal: space.xs,
+  },
+  ruleActionsScroll: {
     flexShrink: 1,
+    flexGrow: 0,
+    maxWidth: '100%',
   },
   ruleActionBtn: {
     flexShrink: 1,

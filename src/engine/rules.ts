@@ -111,6 +111,11 @@ function blackjackActions(state: GameState, viewerId: PlayerId): GameActionSpec[
   if (state.currentPlayerId !== viewerId) return [];
   const dealer = state.players[state.players.length - 1];
   if (dealer && dealer.id === viewerId) return []; // dealer plays automatically
+  const drawEmpty = (state.zones['draw']?.cardIds.length ?? 0) === 0;
+  if (drawEmpty) {
+    // No cards left to take; only STICK remains.
+    return [BLACKJACK_ACTIONS[1]!];
+  }
   return BLACKJACK_ACTIONS;
 }
 
@@ -153,7 +158,7 @@ function blackjackReadout(state: GameState, playerId: PlayerId): string | null {
   const hand = state.zones[handZoneId(playerId)]?.cardIds ?? [];
   if (hand.length === 0) return null;
   const value = handValue(state, playerId);
-  return isBust(value) ? `${value} · BUST` : `${value}`;
+  return isBust(value) ? `HAND ${value} · BUST` : `HAND ${value}`;
 }
 
 /** Dealer plays to 17 after every player has stuck. Returns events. */
@@ -169,13 +174,17 @@ export function blackjackDealerPlay(state: GameState): PrimitiveEvent[] {
       events.push({ type: 'card/reveal', cardId: cid });
     }
   }
-  // Draw to 17.
+  // Draw to 17. State is immutable here, so track how many cards we have
+  // already drawn and index into the pile (re-reading cardIds[0] would deal
+  // the same card every iteration).
   let value = handValue(state, dealer.id);
   const draw = state.zones['draw'];
-  while (value < 17 && draw && draw.cardIds.length > 0) {
-    const top = draw.cardIds[0]!;
-    events.push({ type: 'card/deal', cardId: top, toZoneId: handZoneId(dealer.id), face: 'up' });
-    // Recompute with the new card appended.
+  let drawn = 0;
+  while (value < 17 && draw && draw.cardIds.length > drawn) {
+    const cid = draw.cardIds[drawn]!;
+    drawn += 1;
+    events.push({ type: 'card/deal', cardId: cid, toZoneId: handZoneId(dealer.id), face: 'up' });
+    // Recompute with the drawn cards appended.
     const nextHand = [...dealerHand, ...events.filter((e) => e.type === 'card/deal').map((e) => e.cardId!)];
     value = handValue(
       { ...state, zones: { ...state.zones, [handZoneId(dealer.id)]: { ...state.zones[handZoneId(dealer.id)]!, cardIds: nextHand } } },
@@ -305,18 +314,31 @@ export function evaluatePokerHand(cardIds: string[]): PokerHandScore {
   return best;
 }
 
+/** Numeric element-wise tiebreak: [10,9] beats [9,11] as numbers, not strings. */
+function beats(a: PokerHandScore, b: PokerHandScore): boolean {
+  if (a.category !== b.category) return a.category > b.category;
+  const len = Math.max(a.tiebreak.length, b.tiebreak.length);
+  for (let i = 0; i < len; i += 1) {
+    const av = a.tiebreak[i] ?? 0;
+    const bv = b.tiebreak[i] ?? 0;
+    if (av !== bv) return av > bv;
+  }
+  return false;
+}
+
 function pokerActions(state: GameState, viewerId: PlayerId): GameActionSpec[] {
   if (state.phase !== 'playing') return [];
   const specs: GameActionSpec[] = [];
   const isHost = state.meta.hostId === viewerId;
   const isCurrent = state.currentPlayerId === viewerId;
   const street = (state.game?.street ?? 0) as number;
+  const drawEmpty = (state.zones['draw']?.cardIds.length ?? 0) === 0;
 
   if (isHost) {
-    if (street === 0) specs.push({ id: 'burn', label: 'BURN', hint: 'Burn the top card', kind: 'host' });
-    if (street === 0) specs.push({ id: 'flop', label: 'FLOP', hint: 'Deal the flop (3 cards)', kind: 'host' });
-    if (street === 1) specs.push({ id: 'turn', label: 'TURN', hint: 'Deal the turn', kind: 'host' });
-    if (street === 2) specs.push({ id: 'river', label: 'RIVER', hint: 'Deal the river', kind: 'host' });
+    if (street === 0 && !drawEmpty) specs.push({ id: 'burn', label: 'BURN', hint: 'Burn the top card', kind: 'host' });
+    if (street === 0 && !drawEmpty) specs.push({ id: 'flop', label: 'FLOP', hint: 'Deal the flop (3 cards)', kind: 'host' });
+    if (street === 1 && !drawEmpty) specs.push({ id: 'turn', label: 'TURN', hint: 'Deal the turn', kind: 'host' });
+    if (street === 2 && !drawEmpty) specs.push({ id: 'river', label: 'RIVER', hint: 'Deal the river', kind: 'host' });
     if (street === 3) specs.push({ id: 'reveal', label: 'SHOWDOWN', hint: 'Reveal all hands', kind: 'host' });
   }
   if (isCurrent) {
@@ -351,7 +373,10 @@ function pokerApply(
       if (!isHost || street !== 0) return null;
       const events: PrimitiveEvent[] = [];
       for (let i = 0; i < 3; i += 1) {
-        const cid = top();
+        // Rules are pure: state never mutates, so index into the draw pile
+        // instead of re-reading cardIds[0] (which would deal the same card
+        // three times).
+        const cid = draw && draw.cardIds[i] ? draw.cardIds[i]! : null;
         if (!cid) break;
         events.push({ type: 'card/deal', cardId: cid, toZoneId: communalZoneId(0), face: 'up' });
       }
@@ -394,9 +419,7 @@ function pokerApply(
         const hand = state.zones[handZoneId(player.id)]?.cardIds ?? [];
         const community = state.zones[communalZoneId(0)]?.cardIds ?? [];
         const score = evaluatePokerHand([...hand, ...community]);
-        if (!bestScore || score.category > bestScore.category ||
-          (score.category === bestScore.category &&
-            score.tiebreak.join(',') > bestScore.tiebreak.join(','))) {
+        if (!bestScore || beats(score, bestScore)) {
           bestScore = score;
           bestPlayer = player.id;
         }
