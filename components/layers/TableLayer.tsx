@@ -325,7 +325,8 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
         const waitingFor = currentPlayerName || 'The next player';
         return {
           eyebrow: 'PASS THE TABLE',
-          title: `${waitingFor} is choosing`,
+          title:
+            waitingFor === 'You' ? "You're choosing" : `${waitingFor} is choosing`,
           detail: alternativeCopy || 'Review the table; your hand will be ready after the pass.',
         };
       }

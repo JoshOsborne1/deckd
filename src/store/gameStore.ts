@@ -113,6 +113,18 @@ export const useGameStore = create<GameStoreState>()(
           avatarSeed: p.avatarSeed,
           seat,
         }));
+        // Blackjack: append a virtual house seat (last = dealer) so every real
+        // player gets a turn and the house auto-plays last. Without this, the
+        // last real player (e.g. the guest in a 2-player online game) would be
+        // the dealer and never play.
+        if (preset.id === 'blackjack') {
+          players.push({
+            id: 'house',
+            name: 'House',
+            avatarSeed: 'house',
+            seat: players.length,
+          });
+        }
         const hostId = input.hostId ?? players[0]?.id ?? 'host';
 
         const deckOrder = orderedDeckForPreset(seed, config.includeJokers);

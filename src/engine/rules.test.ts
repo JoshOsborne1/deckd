@@ -167,8 +167,10 @@ describe('blackjack rules', () => {
     const ends = events.filter((e) => e.type === 'session/end');
     expect(ends.length).toBe(1);
     const end = ends[0]!;
-    // Winner must be a real player id.
-    expect(['dealer', 'p1']).toContain(end.winnerId);
+    // Winner is a real player id, or undefined on a push (dealer ties best).
+    if (end.winnerId !== undefined) {
+      expect(['dealer', 'p1']).toContain(end.winnerId);
+    }
     // Fold the dealer draws, then assert the dealer played to >= 17 or busted.
     const deals = events.filter((e) => e.type === 'card/deal');
     const finalState = foldEvents([
