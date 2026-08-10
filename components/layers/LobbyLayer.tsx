@@ -113,12 +113,13 @@ export function LobbyLayer({ active, topInset, bottomInset }: LobbyLayerProps) {
     return () => clearTimeout(t);
   }, [active]);
 
-  // Tear down the relay session when the layer is unmounted/inactive.
+  // Keep the relay session alive while the host/guest moves from the lobby
+  // into setup and play. The lobby layer stays mounted in the surface stack,
+  // so `active` changes are normal navigation, not a request to leave the
+  // room. The explicit Home action above is the intentional leave path.
   useEffect(() => {
-    if (active) return;
-    leaveLobby();
     return () => leaveLobby();
-  }, [active, leaveLobby]);
+  }, [leaveLobby]);
 
   return (
     <Animated.View
