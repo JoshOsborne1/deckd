@@ -1,6 +1,6 @@
 # Deckd status
 
-Last update: 2026-08-10 (LOOP final visual handoff).
+Last update: 2026-08-10 (LOOP relay verification slice).
 
 ## Deployment
 
@@ -38,12 +38,15 @@ Expo SDK 57, React Native 0.86, React 19, TypeScript strict. Expo Router app wit
 - Public setup scroll probe reported `tokenCount: 5` and `tokensAboveDock: true`; asset cache-busting is available through `DECKD_QA_CACHEBUST` for CDN previews.
 - Public geometry probe passed at 375×812 and 1440×900: document/body scroll widths matched each viewport, visible nav/deal controls stayed in bounds, and console/page errors were empty. The fresh public run served the deployed current bundle.
 - `qa/deckd-visual-qa.cjs` now asserts the pass veil as well as setup, card, table, guidance, and browser-error checks.
+- Public two-client relay proof passed with `qa/deckd-lobby-two-client.cjs`: independent 375×812 host + guest clients created/joined room `D6R3PV`, both reported `Relay: connected` and `Players: 2`, both reached the synced table, and a host draw propagated to the guest (`47 LEFT`; guest saw the host's three-card opponent hand); errors were empty.
+- Reduced-motion web proxy proof passed with `qa/deckd-responsive-reduced-motion-qa.cjs`: Playwright `prefers-reduced-motion: reduce` was true, Home → setup → table stayed at 375×812 with 44px+ controls and document/body scroll widths of 375; errors were empty. This is not native-device proof.
 
 ## Decisions
 
 - Setup/table remain a single-surface morph with physical card motion; no route-wide rotateY/page-turn transition was added because the brief rejects page-like handoffs.
 - Preview mode stays usable without RevenueCat products or keys; entitlement/product setup is not faked.
-- No native touch or real two-device lobby claim is made until those flows are exercised on the actual targets.
+- Lobby relay sessions intentionally survive the mounted layer changing from lobby → hub/table; the explicit Home action remains the leave path. This is required for a host to keep broadcasting after setup.
+- No native touch or physical two-device claim is made until those flows are exercised on the actual targets; this machine currently has no ADB device or emulator, while the live iPhone is not remotely automatable from this host.
 
 ## Immediate next actions
 
