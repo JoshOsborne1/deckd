@@ -25,6 +25,7 @@ import { useLobbyStore } from '@store/lobbyStore';
 import { useProfileStore } from '@store/profileStore';
 import { builtinPresets, type Preset } from '@engine/index';
 import type { FanStyle } from '@engine/types';
+import { PRESET_BACKS } from '@lib/presetAssets';
 import { resolvePresetForSession } from '@lib/presetResolve';
 import { useSessionHistoryStore } from '@store/sessionHistoryStore';
 import { useUserPresetsStore } from '@store/presetsStore';
@@ -44,12 +45,6 @@ interface HubLayerProps {
 type PlayerCount = 2 | 3 | 4 | 5 | 6;
 const PLAYER_OPTIONS: PlayerCount[] = [2, 3, 4, 5, 6];
 
-const PRESET_BACKS: Record<string, string> = {
-  freeplay: 'back-brand',
-  'deal-two-each': 'back-crimson',
-  blackjack: 'back-noir',
-  poker: 'back-crimson',
-};
 const PRESET_OUTCOMES: Record<Preset['id'], string> = {
   freeplay: 'Deal, draw, and flip freely',
   'deal-two-each': 'Two face-down cards each',
@@ -126,6 +121,18 @@ export function HubLayer({
 
   const { progress, reduceMotion } = useSurfaceMorph();
   const { reduceMotion: reduceMotionSystem } = useMotion();
+
+  // The local setup stock belongs to the hub, not to Home. Fade it in with
+  // the same morph so the home chrome keeps its intended contrast while the
+  // setup surface still lands as one continuous table at the end of the turn.
+  const setupSurfaceStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(
+      progress.value,
+      [0.15, 0.85],
+      [0, 1],
+      Extrapolation.CLAMP,
+    ),
+  }));
 
   const layerOpacity = useSharedValue(layerVisible ? 1 : 0);
   useEffect(() => {
@@ -354,7 +361,12 @@ export function HubLayer({
       pointerEvents={interactive ? 'auto' : 'none'}
       style={[styles.root, { bottom: bottomInset }, rootStyle]}
     >
-      <TableSurface mode="setup" />
+      <Animated.View
+        pointerEvents="none"
+        style={[StyleSheet.absoluteFill, setupSurfaceStyle]}
+      >
+        <TableSurface mode="setup" />
+      </Animated.View>
       <Animated.View
         style={[
           styles.header,

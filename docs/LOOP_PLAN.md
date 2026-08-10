@@ -91,6 +91,109 @@ unused, stale workspace file. All parked behind gameplay-first priority.
 
 ---
 
+## Slice selection — `t_8be4b895` audit (2026-08-10)
+
+**Selected surface: Presets / Library page — `app/list.tsx`** (the routed
+`/list` screen, reached via the "Presets" nav chip). This is the single
+highest-impact table-native surface to refine next.
+
+**Why this surface (vision + priority):**
+- Directive 15 build order is gameplay+visuals first; picking a recipe is the
+  gateway to every game, so the library is the highest-traffic non-game
+  surface. Store is monetization (parked); profile/settings are low-traffic
+  config. The library is the one that materially advances the gameplay loop.
+- DESIGN_PLAN §2 rejects "floating containers" and "pages"; the committed
+  `/list` is a flat `colors.bg` screen with boxed `CardSection` shells — exactly
+  the settings-form pattern Josh rejected for setup. The table, setup
+  (HubLayer), and nav (GlobalNavBar) already read as one continuous table; the
+  four routed pages do not, and `/list` is the most visible of them.
+- A table-native redesign of `/list` is **shipped** in commit `4d6a51a` and
+  deployed. The follow-up keeps its fanned recipe cards, Yours section, and
+  chip/token actions intact; only narrow correctness and table-continuity
+  fixes are allowed here.
+
+**Existing shortcomings to fix (traced in the uncommitted `app/list.tsx`):**
+1. **Render-phase SharedValue mutation (correctness bug).** `RecipeCard`
+   calls `flip.value = withTiming(...)` directly in the component body
+   (`app/list.tsx:278-280`). Mutating a Reanimated `SharedValue` during render
+   on every prop change is a footgun (warns in dev, can desync on fast
+   toggles). Move it into a `useEffect` keyed on `[active, reduceMotion]`.
+2. **Duplicated `PRESET_BACKS`.** The same `PRESET_BACKS` map exists in both
+   `app/list.tsx:20-25` and `components/layers/HubLayer.tsx:47-52`. Drift
+   risk. Extract to one shared export (e.g. `src/engine/visuals.ts` or a small
+   `src/lib/presetAssets.ts`) and import from both.
+3. **Flat root background.** Root is `backgroundColor: colors.bg` (cool
+   off-white `#FAFAFA`), not the warm table stock. The table-native version
+   already wraps content in `<TableSurface mode="setup" />` — keep that as
+   the material root and drop the opaque `colors.bg` so the page reads as the
+   same surface as setup/play, not a separate screen.
+4. The committed `/list` uses `CardButton`/`CardSection` shells (boxed
+  containers) — the redesign already replaces these with recipe-card and
+  chip/token primitives; keep that direction.
+
+**Affected components + design-token usage:**
+- `app/list.tsx` — the page (root container, recipe cards, owned cards,
+  editor, clone list). Already imports `TableSurface`, `PlayingCard`,
+  `NAV_BAR_RESERVE`, reanimated, lucide icons.
+- `components/TableSurface.tsx` — shared material pass; already used by the
+  uncommitted list. No change needed unless tone tuning is required.
+- `components/PlayingCard.tsx` — recipe/owned card backs (size `lg`/`sm`/`xs`).
+- `src/lib/theme.ts` — tokens used: `colors.bg` (drop as opaque root),
+  `colors.cardPaper`, `colors.cardEdge`, `alpha.*`, `radii.*`, `shadow.*`,
+  `space.*`, `textStyles.*`. No new colors needed; any new tone goes here
+  first. No raw hex outside theme.ts.
+- `NAV_BAR_RESERVE` (from `GlobalNavBar`) — bottom content padding (already
+  respected in the uncommitted list, line 71).
+
+**Responsive behavior at 375px (verified against the uncommitted layout):**
+- Recipe rail = horizontal `ScrollView`, 124px cards with -14px stagger → ~3
+  cards in view at 375px, scrolls horizontally. No overflow.
+- Owned section uses `gap`-based stacking; cards are full-width with 44px-min
+  action chips. Fits 375px.
+- Clone-list rows are 48px min height; "Add a recipe" button is 44px min.
+- `NAV_BAR_RESERVE` + `insets.bottom` padding keeps content clear of the nav.
+- Action: confirm no horizontal overflow and all controls ≥44px after the
+  render-mutation fix.
+
+**Precondition (preserved in the working tree):** the HubLayer `TableSurface`
+fade-in fix (`components/layers/HubLayer.tsx` — fades the setup surface from
+0→1 with morph progress so it stops washing out Home) must ship alongside the
+shared preset-asset extraction, since both touch the table-surface continuity
+story. Do NOT discard it.
+
+**Implementation recommendation for `t_7e03a0a6` (builder):**
+1. Commit the uncommitted HubLayer `TableSurface` fade-in fix first (it's a
+   one-block, already type-checked). Re-verify home is not washed out at 375px.
+2. Finish `app/list.tsx`: fix the `RecipeCard` render-mutation (move
+   `flip.value = withTiming(...)` into `useEffect`), extract `PRESET_BACKS`
+   to a shared export, and keep `TableSurface` as the material root (drop the
+   opaque `colors.bg` root).
+3. Keep the recipe-card fan, owned-card stack, chip/token actions, and
+   clone-list — they already match the directive 14 "staging the deck"
+   language. No new primitives needed.
+4. No new dependencies, no raw hex, TypeScript strict. Run typecheck, lint,
+   jest (73 must stay green), expo-doctor.
+5. Browser proof at 375×812: Home → Presets → select recipe → back; no
+  horizontal overflow, controls ≥44px, no console/page errors. Desktop
+  1440×900 geometry check.
+
+**Acceptance checklist:**
+- [x] HubLayer `TableSurface` fade-in fix committed; Home no longer washed
+      out at 375px.
+- [x] `RecipeCard` `flip` mutation moved out of render into `useEffect`.
+- [x] `PRESET_BACKS` extracted to one shared export, imported by both
+      `app/list.tsx` and `HubLayer.tsx`.
+- [x] `/list` root uses `TableSurface` material, not opaque `colors.bg`;
+      reads as the same surface as setup/play.
+- [x] `npm run typecheck` pass; `npm run lint` 0/0; `npx jest --runInBand`
+      73 pass; `npx expo-doctor` 20/20.
+- [x] 375×812 browser proof: no horizontal overflow, all controls ≥44px,
+      no console/page errors; desktop 1440×900 geometry check passes.
+- [x] No new dependencies, no raw hex outside `src/lib/theme.ts`.
+- [x] Commit to `cleanup/ready-to-build`; update STATUS.md with one bullet.
+
+---
+
 ## Highest-impact next slices (prioritised)
 
 Build order follows directive 15: visuals/gameplay first, monetization later.
@@ -127,6 +230,17 @@ a slightly calmer pass than play so recipe cards remain the focal object; no
 new dependency or raw color was introduced. Local Playwright proof completed
 setup → Deal now → table → draw at 375×812 and 1440×900 with zero page/console
 errors and no horizontal overflow.
+
+**Follow-up visual correction (`t_e8f01b75`, Aug 10 2026):** The setup
+`TableSurface` in `HubLayer` now fades from 0→1 with the existing home→setup
+morph progress instead of painting over Home while both layers are mounted.
+This preserves the continuous warm table at setup while restoring Home's
+intended crimson/ink contrast. The post-fix browser pass covered 375×812 and
+1440×900, with reduced-motion coverage at 375×812; widths matched each
+viewport, key nav/deal controls stayed in bounds, and page/console errors were
+empty. The routed Presets (`app/list.tsx`) redesign is already shipped; the
+remaining follow-up here is the narrow shared-asset/correctness pass plus
+native-device proof.
 
 ### Slice B — Recipe schema v1 (DESIGN_PLAN §6) [P0, gameplay foundation]
 
