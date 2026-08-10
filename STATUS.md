@@ -1,6 +1,6 @@
 # Deckd status
 
-Last update: 2026-08-10 (rule systems, court cards, preview stage, nav sweep — `8f47622`).
+Last update: 2026-08-10 (poker fixed + online blackjack house seat — `571daa6`, `7970086`).
 
 ## Deployment
 
@@ -37,17 +37,29 @@ Expo SDK 57, React Native 0.86, React 19, TypeScript strict. Expo Router app wit
 - **Nav:** felt-sweep screen transition (reduce-motion-safe), bottom padding raised, deal text removed from the centre button.
 - **Presets library (Aug 10 2026):** the fanned recipe-card redesign is shipped in `4d6a51a` and keeps `/list` on the same table stock; the follow-up only centralizes preset back assets and removes render-phase animation mutation.
 
+## Rules engine fix pass (Aug 10 2026, `571daa6` + `7970086`)
+
+- **Poker was dead end-to-end:** `communal:0` zone was never created, so `canApplyEvent` silently rejected every flop/turn/river deal. Presets now build the community zone; TableLayer renders the community row (xs cards + street label, inline) under the piles.
+- **Hand evaluator tiebreaks:** numeric element-wise compare (string `join` made pair of 10s lose to pair of 9s); `beats()` helper.
+- **Immutable-state draw indexing:** flop and blackjack dealer draw re-read `cardIds[0]` (pure rules never mutate), dealing the same card repeatedly. Both index into the pile by drawn count now.
+- **Empty-draw hygiene:** TWIST/BURN/FLOP/TURN/RIVER hidden when the draw pile is empty; blackjack falls back to STICK only.
+- **Rule bar at 375px:** horizontally scrollable instead of truncating labels (`F...`).
+- **Ended state:** "You take the table" winner copy (was "You takes the table"); PASS TURN hidden once ended.
+- **Online blackjack house seat:** gameStore appends a virtual `house` player (last seat = dealer) when creating a blackjack session. Previously the last REAL player was the dealer — in a 2-player online lobby the guest never got a turn. Pass ritual copy: "You're choosing" (was "You is choosing").
+- **Poker unit suite added:** communal zone, flush, straight/wheel, flop deals land, numeric-tiebreak regression. **82 tests total.**
+
 ## Verification
 
 - `npm run typecheck` passed.
 - `npm run lint` passed (0 errors, 0 warnings).
-- `npx jest --runInBand` passed 7 suites / 73 tests, including turn-aware relay intent regressions.
+- `npx jest --runInBand` passed 8 suites / **82 tests**, including poker communal-zone, evaluator tiebreak, flop-deal, and blackjack dealer-play regressions.
 - `npx expo-doctor` passed 20/20 checks.
 - Public smoke: `DECKD_QA_URL=https://deckd-app.roxai.click node qa/deckd-visual-qa.cjs` passed Home → setup → Deal 2 each → table → ten-card draw → `PASS TURN` → pass veil. The script reported all required surface flags true and `errors: []`.
 - Public setup scroll probe reported `tokenCount: 5` and `tokensAboveDock: true`; asset cache-busting is available through `DECKD_QA_CACHEBUST` for CDN previews.
 - Public geometry probe passed at 375×812 and 1440×900: document/body scroll widths matched each viewport, visible nav/deal controls stayed in bounds, and console/page errors were empty. The fresh public run served the deployed current bundle.
 - `qa/deckd-visual-qa.cjs` now asserts the pass veil as well as setup, card, table, guidance, and browser-error checks.
 - Public two-client relay proof passed with `qa/deckd-lobby-two-client.cjs`: independent 375×812 host + guest clients created/joined room `NN6H24`, both reported `Relay: connected` and `Players: 2`, both reached the synced table, and a host draw propagated to the guest (`47 LEFT`; guest saw the host's three-card opponent hand); errors were empty.
+- Public online-blackjack proof passed with `qa/deckd-lobby-blackjack-qa.cjs` (Aug 10): host created a blackjack lobby, stuck, guest resumed and got TWIST/STICK/STAND, twisted via `game_action` (HAND 5 → 15), host saw the guest's third card, zero console errors. This is the first real E2E proof that guests can play blackjack online.
 - Reduced-motion web proxy proof passed with `qa/deckd-responsive-reduced-motion-qa.cjs`: Playwright `prefers-reduced-motion: reduce` was true, Home → setup → table stayed at 375×812 with 44px+ controls and document/body scroll widths of 375; errors were empty. This is not native-device proof.
 - Local browser proof for `TableSurface` passed at 375×812 and 1440×900: setup → Deal now → table → draw completed, document/body scroll widths matched the viewport, key controls stayed in bounds, and console/page errors were empty.
 - Local post-fix visual proof passed at 375×812 and 1440×900: Home contrast remained healthy, setup/table stayed continuous, menu/deck controls remained in bounds, and page/body widths matched the viewport with no browser errors. Reduced-motion local proxy also passed at 375×812.
