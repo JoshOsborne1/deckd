@@ -14,6 +14,12 @@ import {
 
 export type RelayRole = 'host' | 'guest';
 
+/** Heartbeat interval and pong grace. A missed pong forces a reconnect. */
+const HEARTBEAT_INTERVAL_MS = 15000;
+const PONG_TIMEOUT_MS = 8000;
+/** Max reconnect attempts before giving up (1s, 2s, 4s, 8s, 15s, 15s…). */
+const MAX_RECONNECT_ATTEMPTS = 6;
+
 export interface RelaySession {
   readonly role: RelayRole;
   readonly roomCode: string;
@@ -69,6 +75,12 @@ class RelayTransport implements RelaySession {
   private nickname: string;
   private masterToken?: string;
   private closedByUser = false;
+  private url: string;
+  private reconnectAttempts = 0;
+  private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
+  private pongTimeout: ReturnType<typeof setTimeout> | null = null;
+  private fatalError = false;
 
   constructor(opts: {
     role: RelayRole;
@@ -85,7 +97,8 @@ class RelayTransport implements RelaySession {
     this.nickname = opts.nickname;
     this.masterToken = opts.masterToken;
     this.callbacks = opts.callbacks;
-    this.connect(opts.url ?? getRelayUrl());
+    this.url = opts.url ?? getRelayUrl();
+    this.connect(this.url);
   }
 
   private connect(url: string): void {
@@ -99,9 +112,17 @@ class RelayTransport implements RelaySession {
     }
 
     this.ws.onopen = () => {
+      this.reconnectAttempts = 0;
+      this.startHeartbeat();
       const msg: RelayClientMessage =
         this.role === 'host'
-          ? { type: 'create_room', clientId: this.clientId, nickname: this.nickname, masterToken: this.masterToken }
+          ? {
+              type: 'create_room',
+              clientId: this.clientId,
+              nickname: this.nickname,
+              masterToken: this.masterToken,
+              roomCode: this.roomCode,
+            }
           : { type: 'join_room', roomCode: this.roomCode, clientId: this.clientId, nickname: this.nickname };
       this.send(msg);
     };
@@ -120,10 +141,59 @@ class RelayTransport implements RelaySession {
     };
 
     this.ws.onclose = () => {
+      this.stopHeartbeat();
       if (this.closedByUser) return;
-      this.status = 'closed';
-      this.callbacks.onClose();
+      if (this.status === 'closed') return; // room_closed already handled
+      this.scheduleReconnect();
     };
+  }
+
+  /**
+   * Reconnect with exponential backoff. The same clientId is reused, so the
+   * server can reclaim the seat/room during its grace window. On success the
+   * guest re-requests a snapshot (bridge watches status transitions) and the
+   * host resumes broadcasting.
+   */
+  private scheduleReconnect(): void {
+    if (this.closedByUser) return;
+    if (this.fatalError || this.reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
+      this.status = 'closed';
+      this.lastError = this.fatalError ? this.lastError : 'Connection lost. Rejoin the lobby to continue.';
+      this.callbacks.onClose();
+      return;
+    }
+    this.reconnectAttempts += 1;
+    const delay = Math.min(1000 * 2 ** (this.reconnectAttempts - 1), 15000);
+    this.status = 'connecting';
+    this.lastError = 'Connection lost. Reconnecting…';
+    this.callbacks.onError(new Error(this.lastError));
+    this.reconnectTimer = setTimeout(() => {
+      this.connect(this.url);
+    }, delay);
+  }
+
+  private startHeartbeat(): void {
+    this.stopHeartbeat();
+    this.heartbeatTimer = setInterval(() => {
+      if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+        this.ws.send(JSON.stringify({ type: 'ping' }));
+        this.pongTimeout = setTimeout(() => {
+          // No pong in time — force close to trigger the reconnect path.
+          this.ws?.close();
+        }, PONG_TIMEOUT_MS);
+      }
+    }, HEARTBEAT_INTERVAL_MS);
+  }
+
+  private stopHeartbeat(): void {
+    if (this.heartbeatTimer) {
+      clearInterval(this.heartbeatTimer);
+      this.heartbeatTimer = null;
+    }
+    if (this.pongTimeout) {
+      clearTimeout(this.pongTimeout);
+      this.pongTimeout = null;
+    }
   }
 
   private handleServerMessage(msg: RelayServerMessage): void {
@@ -187,9 +257,20 @@ class RelayTransport implements RelaySession {
         this.status = 'error';
         this.lastError = msg.message;
         this.callbacks.onError(new Error(msg.message));
+        // Fatal protocol errors (room_not_found, room_full, master_required)
+        // will never succeed on retry. Mark fatal so the close handler gives
+        // up instead of reconnecting into the same error.
+        if (msg.code === 'room_not_found' || msg.code === 'room_full' || msg.code === 'master_required') {
+          this.fatalError = true;
+        }
+        this.ws?.close();
         break;
       }
       case 'pong':
+        if (this.pongTimeout) {
+          clearTimeout(this.pongTimeout);
+          this.pongTimeout = null;
+        }
         break;
     }
   }
@@ -222,6 +303,11 @@ class RelayTransport implements RelaySession {
 
   close(): void {
     this.closedByUser = true;
+    this.stopHeartbeat();
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
     this.send({ type: 'leave_room' });
     this.ws?.close();
     this.status = 'closed';

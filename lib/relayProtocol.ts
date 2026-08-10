@@ -22,7 +22,7 @@ export interface RelayPlayerInfo {
 // --- Client -> Server ---
 
 export type RelayClientMessage =
-  | { type: 'create_room'; clientId: string; nickname: string; masterToken?: string }
+  | { type: 'create_room'; clientId: string; nickname: string; masterToken?: string; roomCode?: string }
   | { type: 'join_room'; roomCode: string; clientId: string; nickname: string }
   | { type: 'leave_room' }
   | { type: 'relay'; to: 'host' | 'all'; payload: string }

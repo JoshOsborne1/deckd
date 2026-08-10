@@ -30,7 +30,24 @@ import { selectBroadcastDelta } from '@store/syncLogic';
 
 let unsubscribeGameStore: (() => void) | null = null;
 let lastBroadcastSeq = 0;
+let trackedSessionId: string | null = null;
 let installed = false;
+
+/**
+ * The session id of the first `session/start` event in the log, if any.
+ * Used to detect a new game in the same lobby: the event log restarts at
+ * seq 1, so the broadcast cursor must reset or the new game's opening
+ * events are silently suppressed.
+ */
+function sessionIdOf(events: GameEvent[]): string | null {
+  for (const ev of events) {
+    if (ev.type === 'session/start') {
+      const meta = (ev as { meta?: { id?: string } }).meta;
+      return meta?.id ?? null;
+    }
+  }
+  return null;
+}
 
 /**
  * The last seq the host has broadcast. Exposed for tests.
@@ -61,6 +78,14 @@ function broadcastDelta(): void {
   const game = useGameStore.getState();
   if (game.events.length === 0) return;
 
+  // New game in the same lobby: the log restarted at seq 1, so reset the
+  // cursor or the opening events of the new game are never broadcast.
+  const sessionId = sessionIdOf(game.events);
+  if (sessionId !== trackedSessionId) {
+    trackedSessionId = sessionId;
+    lastBroadcastSeq = 0;
+  }
+
   const delta = selectBroadcastDelta(game.events, lastBroadcastSeq);
   if (delta.length === 0) return;
 
@@ -80,6 +105,7 @@ function sendFullSnapshot(): void {
   if (game.events.length === 0) return;
 
   lastBroadcastSeq = game.events[game.events.length - 1]!.seq;
+  trackedSessionId = sessionIdOf(game.events);
   void lobby.session.sendEvents([...game.events]);
 }
 

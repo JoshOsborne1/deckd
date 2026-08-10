@@ -36,9 +36,9 @@ export async function purchaseProduct(productId: string): Promise<void> {
   }
 
   const pkgs = current.availablePackages;
-  const chosen = pickPackage(pkgs, productId) ?? pkgs[0];
+  const chosen = pickPackage(pkgs, productId);
   if (!chosen) {
-    throw new Error('No purchasable packages in the current offering.');
+    throw new Error(`Product "${productId}" is not available in the current offering.`);
   }
 
   await Purchases.purchasePackage(chosen);

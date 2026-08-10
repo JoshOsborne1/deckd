@@ -13,7 +13,7 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import { useRouter } from 'expo-router';
-import { ChevronRight, Lock, Shield, Zap } from 'lucide-react-native';
+import { Lock, Shield, Zap } from 'lucide-react-native';
 import { AvatarPlaceholder } from '@components/AvatarPlaceholder';
 import { CardButton } from '@components/CardButton';
 import { CardSection } from '@components/CardSection';
@@ -23,7 +23,7 @@ import { useMotion } from '@hooks/useMotion';
 import { useUiStore } from '@store/uiStore';
 import { useProfileStore } from '@store/profileStore';
 import { EASING_EMPHASIZED, MASCOT_BOUNCE_SCALE } from '@lib/motion';
-import { alpha, colors, fonts, motion, radii, shadow, space, textStyles } from '@theme';
+import { alpha, colors, fonts, motion, radii, space, textStyles } from '@theme';
 
 interface HomeLayerProps {
   /** True when viewMode === 'home' — drives tap gating. */
@@ -271,26 +271,6 @@ export function HomeLayer({
     };
   });
 
-  const saleRowStyle = useAnimatedStyle(() => {
-    const p = progress.value;
-    if (reduceMotion.value === 1) {
-      return { opacity: interpolate(p, [0, 1], [1, 0], Extrapolation.CLAMP) };
-    }
-    return {
-      opacity: interpolate(p, [0.12, 0.45], [1, 0], Extrapolation.CLAMP),
-      transform: [
-        {
-          translateY: interpolate(
-            p,
-            [0.12, 0.45],
-            [0, 50],
-            Extrapolation.CLAMP,
-          ),
-        },
-      ],
-    };
-  });
-
   return (
     <Animated.View
       pointerEvents={interactive ? 'auto' : 'none'}
@@ -433,20 +413,6 @@ export function HomeLayer({
             <Text style={styles.plusDesc}>
               Host lobbies. Friends join free.
             </Text>
-          </Pressable>
-        </Animated.View>
-
-        <Animated.View style={saleRowStyle}>
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => router.push('/store')}
-            style={({ pressed }) => [styles.saleRow, pressed && { opacity: 0.96 }]}
-          >
-            <View style={styles.saleBadge}>
-              <Text style={styles.saleBadgeText}>SALE</Text>
-            </View>
-            <Text style={styles.saleText}>Starter Bundle — 50% off</Text>
-            <ChevronRight size={20} color={colors.inkSubtle} />
           </Pressable>
         </Animated.View>
       </ScrollView>
@@ -626,34 +592,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 20,
     fontFamily: fonts.regular,
-  },
-  saleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.surface,
-    padding: space.lg,
-    borderRadius: radii.lg,
-    borderWidth: 1,
-    borderColor: colors.border,
-    ...shadow.card,
-  },
-  saleBadge: {
-    backgroundColor: colors.brand,
-    paddingHorizontal: space.sm,
-    paddingVertical: space.xs,
-    borderRadius: radii.xs + 2,
-    marginRight: space.md,
-  },
-  saleBadgeText: {
-    color: colors.surface,
-    fontSize: 10,
-    fontFamily: fonts.extra,
-  },
-  saleText: {
-    flex: 1,
-    fontSize: 14,
-    fontFamily: fonts.semibold,
-    color: colors.inkSoft,
   },
 });
 

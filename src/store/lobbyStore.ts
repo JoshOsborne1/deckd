@@ -21,6 +21,7 @@ import {
 } from '@lib/relayTransport';
 import { makeRoomCode, type RelayPlayerInfo } from '@lib/relayProtocol';
 import { computeMasterToken } from '@lib/entitlement';
+import { createPlatformStorage } from '@lib/storage';
 import type { GameSyncHandlers } from '@store/syncLogic';
 
 export type LobbyStatus = 'idle' | 'connecting' | 'connected' | 'error' | 'closed';
@@ -49,8 +50,30 @@ export interface LobbyState {
 /** Singleton handler registry — the transport callbacks delegate here. */
 let gameSyncHandlers: GameSyncHandlers = {};
 
+const CLIENT_ID_KEY = 'deckd.clientId';
+
 function makeClientId(): string {
   return `c-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+/**
+ * Stable device identity for relay sessions. Persisted so a reconnect after
+ * a network drop (or app restart) reuses the same clientId, letting the
+ * server reclaim the same seat/room during its grace window.
+ */
+function getStableClientId(): string {
+  try {
+    const storage = createPlatformStorage();
+    // Our platform storage is synchronous; the StateStorage type allows
+    // async, so narrow it for this read.
+    const existing = storage.getItem(CLIENT_ID_KEY) as string | null;
+    if (existing) return existing;
+    const fresh = makeClientId();
+    storage.setItem(CLIENT_ID_KEY, fresh);
+    return fresh;
+  } catch {
+    return makeClientId();
+  }
 }
 
 function buildCallbacks(set: (partial: Partial<LobbyState>) => void): RelayCallbacks {
@@ -106,7 +129,7 @@ export const useLobbyStore = create<LobbyState>()((set, get) => ({
     get().session?.close();
 
     const roomCode = makeRoomCode();
-    const clientId = makeClientId();
+    const clientId = getStableClientId();
 
     // Compute the host token the relay server expects when MASTER_TOKEN_SECRET
     // is set. The caller may pass an explicit token to override (tests); when
@@ -138,7 +161,7 @@ export const useLobbyStore = create<LobbyState>()((set, get) => ({
     get().session?.close();
 
     const code = roomCode.trim().toUpperCase();
-    const clientId = makeClientId();
+    const clientId = getStableClientId();
 
     set({
       session: null,

@@ -13,8 +13,6 @@
       "buildNumber": "1",
       "supportsTablet": false,
       "infoPlist": {
-        "NSCameraUsageDescription": "Deckd uses the camera to scan QR codes for multiplayer sessions.",
-        "NSPhotoLibraryUsageDescription": "Deckd saves game screenshots to your photo library.",
         "CFBundleURLTypes": [
           {
             "CFBundleURLSchemes": ["deckd"]

@@ -50,6 +50,22 @@ jest.mock('@lib/entitlement', () => ({
   computeMasterToken: jest.fn(() => undefined),
 }));
 
+// Mock platform storage: lobbyStore now reads a stable clientId from storage.
+// A real in-memory map keeps the stable-identity behaviour testable without
+// pulling react-native into the node test env.
+const storageMap = new Map<string, string>();
+jest.mock('@lib/storage', () => ({
+  createPlatformStorage: jest.fn(() => ({
+    getItem: (name: string) => storageMap.get(name) ?? null,
+    setItem: (name: string, value: string) => {
+      storageMap.set(name, value);
+    },
+    removeItem: (name: string) => {
+      storageMap.delete(name);
+    },
+  })),
+}));
+
 beforeEach(() => {
   useLobbyStore.setState({
     session: null,

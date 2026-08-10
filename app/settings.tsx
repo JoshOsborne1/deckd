@@ -49,29 +49,27 @@ export default function SettingsScreen() {
         <Text style={styles.eyebrow}>SETTINGS</Text>
         <Text style={styles.title}>Play without signal</Text>
         <Text style={styles.lede}>
-          Deckd is built for real-world tables: Bluetooth works when Wi‑Fi and cell do not. Optional online
-          modes are extra — never required.
+          Deckd is built for real-world tables: pass-and-play works with no network at all. Online
+          lobbies are optional — never required.
         </Text>
 
-        <CardSection variant="surface" tab eyebrow="PRIMARY" title="Bluetooth (offline)" style={styles.card}>
+        <CardSection variant="surface" tab eyebrow="OFFLINE" title="Pass and play" style={styles.card}>
           <View style={styles.row}>
             <Bluetooth size={22} color={colors.brand} />
             <View style={styles.rowText}>
               <Text style={styles.body}>
-                Host mode advertises a Deckd service on-device. Guests scan and connect — no router, no
-                account. iOS and Android may ask for Bluetooth permission; sessions are foreground-first.
+                One phone, one deck, pass it around. No router, no account, no signal needed.
               </Text>
             </View>
           </View>
         </CardSection>
 
-        <CardSection variant="surface" eyebrow="OPTIONAL" title="Network multiplayer" style={styles.card}>
+        <CardSection variant="surface" eyebrow="ONLINE" title="Network multiplayer" style={styles.card}>
           <View style={styles.row}>
             <Wifi size={22} color={colors.inkMuted} />
             <View style={styles.rowText}>
               <Text style={styles.body}>
-                When enabled, future builds can use LAN or a relay on top of the same event protocol. Does not
-                replace BLE.
+                Host a lobby and friends join free from anywhere. Requires a network connection.
               </Text>
             </View>
           </View>

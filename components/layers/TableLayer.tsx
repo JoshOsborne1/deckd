@@ -112,10 +112,12 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
   const lobbySession = useLobbyStore((s) => s.session);
   const localClientId = useLobbyStore((s) => s.localClientId);
 
-  /** True when there is an active relay session (online multiplayer). */
-  const isOnline = lobbySession !== null && (lobbyStatus === 'connected' || lobbyStatus === 'connecting');
-  /** Guest view: the relay session is a guest role. */
-  const isGuest = lobbySession?.role === 'guest';
+  /** True when the current game is an online relay session. Derived from the
+   *  game mode, not the session object, so it stays true when the socket
+   *  drops and the session is torn down (prevents the host-view fallback). */
+  const isOnline = state.meta.mode === 'online-host' || state.meta.mode === 'online-guest';
+  /** Guest view: the game was started as an online guest. */
+  const isGuest = state.meta.mode === 'online-guest';
 
   // Return to hub cleanly when the relay room closes or the session ends.
   useEffect(() => {
@@ -123,7 +125,7 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
       setViewMode('hub');
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lobbyStatus]);
+  }, [lobbyStatus, isOnline]);
 
   /** Device owner / session host — shuffle authority. */
   const hostPlayerId = state.meta.hostId || null;

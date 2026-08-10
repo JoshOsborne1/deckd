@@ -122,7 +122,7 @@ function PreviewStage({
 
 export default function StoreScreen() {
   const insets = useSafeAreaInsets();
-  const { reduceMotion } = useMotion();
+  const { reduceMotion, haptic } = useMotion();
   const hapticsEnabled = useProfileStore((s) => s.hapticsEnabled);
   const buttonHaptic = hapticsEnabled && !reduceMotion ? 'light' : false;
 
@@ -132,8 +132,6 @@ export default function StoreScreen() {
   const ownedThemeIds = useCosmeticsStore((s) => s.ownedTableThemeIds);
   const equipBack = useCosmeticsStore((s) => s.equipBack);
   const equipTableTheme = useCosmeticsStore((s) => s.equipTableTheme);
-  const unlockBack = useCosmeticsStore((s) => s.unlockBack);
-  const unlockTableTheme = useCosmeticsStore((s) => s.unlockTableTheme);
   const [previewBack, setPreviewBack] = useState<string | null>(null);
   const [previewFace, setPreviewFace] = useState<'up' | 'down'>('down');
 
@@ -215,10 +213,6 @@ export default function StoreScreen() {
                       setPreviewBack(item.back);
                       setPreviewFace('down');
                     }}
-                    onLongPress={() => {
-                      if (!owned) unlockBack(item.id);
-                      equipBack(item.id);
-                    }}
                   >
                     <View style={[styles.cardPreviewWrap, { borderColor: item.tint }]}>
                       <PlayingCard face="down" back={item.back} size="sm" elevated />
@@ -230,7 +224,14 @@ export default function StoreScreen() {
                     </View>
                   </Pressable>
                   <Text style={styles.itemTitle}>{item.title}</Text>
-                  <View
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={equipped ? `${item.title} equipped` : `Equip ${item.title}`}
+                    disabled={!owned || equipped}
+                    onPress={() => {
+                      if (hapticsEnabled) haptic('light');
+                      equipBack(item.id);
+                    }}
                     style={[
                       styles.pricePill,
                       owned && { backgroundColor: colors.brand, borderColor: colors.brand },
@@ -239,9 +240,9 @@ export default function StoreScreen() {
                     <Text
                       style={[styles.priceLabel, owned && { color: colors.surface }]}
                     >
-                      {equipped ? 'Equipped' : owned ? 'Owned' : item.price}
+                      {equipped ? 'Equipped' : owned ? 'Tap to equip' : item.price}
                     </Text>
-                  </View>
+                  </Pressable>
                 </CardSection>
               );
             })}
@@ -263,7 +264,7 @@ export default function StoreScreen() {
                   key={item.id}
                   style={[styles.themeCard, equipped && styles.themeCardActive]}
                   onPress={() => {
-                    if (!owned) unlockTableTheme(item.id);
+                    if (!owned) return;
                     equipTableTheme(item.id);
                   }}
                 >
