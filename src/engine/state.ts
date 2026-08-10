@@ -232,6 +232,22 @@ export function applyEvent(prev: GameState, event: GameEvent): GameState {
       return next;
     }
 
+    case 'game/street': {
+      next.game = { ...(next.game ?? { street: 0, folded: [], pot: 0 }), street: event.street };
+      return next;
+    }
+
+    case 'game/fold': {
+      const game = next.game ?? { street: 0, folded: [], pot: 0 };
+      next.game = {
+        ...game,
+        folded: game.folded.includes(event.playerId)
+          ? game.folded
+          : [...game.folded, event.playerId],
+      };
+      return next;
+    }
+
     case 'session/pause': {
       next.phase = 'paused';
       return next;

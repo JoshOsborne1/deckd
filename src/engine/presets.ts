@@ -123,8 +123,11 @@ export const blackjackStylePreset: Preset = {
     const zones = buildCoreZones(players);
     const queue = deckOrder.slice();
     const deals: PresetSetupResult['initialDeals'] = [];
-    const dealer = players[0];
-    const nonDealer = players.slice(1);
+    // The dealer is the LAST seat: pass-and-play starts on the host
+    // (players[0]), so the host gets a real turn and the house auto-plays
+    // when the turn cycles to the final player.
+    const dealer = players[players.length - 1];
+    const nonDealer = players.slice(0, -1);
     for (let round = 0; round < 2; round += 1) {
       for (const player of nonDealer) {
         const cardId = queue.shift();

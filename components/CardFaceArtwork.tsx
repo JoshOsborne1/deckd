@@ -149,6 +149,12 @@ function PipField({ count, suit, spec, color }: {
   color: string;
 }) {
   const pipSize = Math.max(9, Math.round(spec.center * (count >= 8 ? 0.34 : count >= 6 ? 0.38 : 0.46)));
+  // Keep the pip field clear of the corner indices: inset the layout box by
+  // the corner zone on all four sides so pips never collide with rank/suit.
+  const insetX = Math.max(6, Math.round(spec.corner * 0.95));
+  const insetY = Math.max(10, Math.round(spec.corner * 1.85));
+  const fieldW = Math.max(1, spec.width - spec.padding * 2 - insetX * 2);
+  const fieldH = Math.max(1, spec.height - spec.padding * 2 - insetY * 2);
   return (
     <View style={styles.pipField} pointerEvents="none">
       {PIP_LAYOUTS[count].map(([x, y], index) => (
@@ -159,9 +165,8 @@ function PipField({ count, suit, spec, color }: {
             {
               width: pipSize,
               height: pipSize,
-              left: `${x * 100}%`,
-              top: `${y * 100}%`,
-              transform: [{ translateX: -pipSize / 2 }, { translateY: -pipSize / 2 }],
+              left: spec.padding + insetX + x * fieldW - pipSize / 2,
+              top: spec.padding + insetY + y * fieldH - pipSize / 2,
             },
           ]}
         >
@@ -270,11 +275,6 @@ export function CardFaceArtwork({ rank, suit, jokerColor, spec }: {
     12,
     Math.min(Math.round(spec.center * 1.6), spec.width - spec.padding * 2 - 4),
   );
-  const courtGlyphSize = Math.max(
-    12,
-    Math.min(Math.round(spec.center * 0.8), spec.width - spec.padding * 2 - 20),
-  );
-  const courtMedallionSize = courtGlyphSize + 18;
 
   return (
     <View style={[styles.face, { padding: spec.padding, borderRadius: spec.radius }]}>
@@ -296,7 +296,7 @@ export function CardFaceArtwork({ rank, suit, jokerColor, spec }: {
             <CardCourt
               rank={rank as 'J' | 'Q' | 'K'}
               suit={suit}
-              size={courtMedallionSize}
+              spec={spec}
               color={color}
             />
           </View>

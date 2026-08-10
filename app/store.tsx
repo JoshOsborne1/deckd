@@ -1,7 +1,14 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Check, Lock } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Animated, {
+  interpolate,
+  useAnimatedStyle,
+  useSharedValue,
+  withDelay,
+  withSpring,
+} from 'react-native-reanimated';
 import { CardButton } from '@components/CardButton';
 import { CardSection } from '@components/CardSection';
 import { FlipCard } from '@components/FlipCard';
@@ -12,7 +19,7 @@ import { syncMasterPassFromCustomerInfo } from '@lib/entitlement';
 import { useProfileStore } from '@store/profileStore';
 import { useCosmeticsStore } from '@store/cosmeticsStore';
 import { BUILTIN_CARD_BACKS, BUILTIN_TABLE_THEMES } from '@engine/visuals';
-import { alpha, colors, fontSizes, fonts, letterSpacing, radii, shadow, space, textStyles } from '@theme';
+import { alpha, colors, fontSizes, fonts, letterSpacing, motion as motionTokens, radii, shadow, space, textStyles } from '@theme';
 
 interface StoreItem {
   id: string;
@@ -43,6 +50,75 @@ const BUNDLES = [
   { id: 'deckd_pass_shuffle', title: 'Shuffle Pass', summary: 'Host lobbies for 30 days', price: '£5.99' },
   { id: 'deckd_master', title: 'Master Pass', summary: 'Host lobbies forever', price: '£24.99' },
 ];
+
+function PreviewStage({
+  back,
+  face,
+  onFlip,
+}: {
+  back: string;
+  face: 'up' | 'down';
+  onFlip: () => void;
+}) {
+  const { reduceMotion } = useMotion();
+  const stage = useSharedValue(0);
+  const fanL = useSharedValue(0);
+  const fanR = useSharedValue(0);
+
+  useEffect(() => {
+    if (reduceMotion) {
+      stage.value = 1;
+      fanL.value = 1;
+      fanR.value = 1;
+      return;
+    }
+    stage.value = withSpring(1, motionTokens.spring.layerSoft);
+    fanL.value = withDelay(90, withSpring(1, motionTokens.spring.card));
+    fanR.value = withDelay(140, withSpring(1, motionTokens.spring.card));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const stageStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(stage.value, [0, 1], [0, 1]),
+    transform: [
+      { scale: interpolate(stage.value, [0, 1], [0.92, 1]) },
+      { translateY: interpolate(stage.value, [0, 1], [24, 0]) },
+    ],
+  }));
+  const fanLeftStyle = useAnimatedStyle(() => ({
+    opacity: fanL.value,
+    transform: [
+      { translateX: interpolate(fanL.value, [0, 1], [-70, -34]) },
+      { rotate: `${interpolate(fanL.value, [0, 1], [-24, -10])}deg` },
+    ],
+  }));
+  const fanRightStyle = useAnimatedStyle(() => ({
+    opacity: fanR.value,
+    transform: [
+      { translateX: interpolate(fanR.value, [0, 1], [70, 34]) },
+      { rotate: `${interpolate(fanR.value, [0, 1], [24, 10])}deg` },
+    ],
+  }));
+
+  return (
+    <Animated.View style={[styles.previewStage, stageStyle]}>
+      <View style={styles.previewFan}>
+        <Animated.View style={[styles.previewFanCard, fanLeftStyle]}>
+          <PlayingCard face="down" back="back-noir" size="sm" elevated />
+        </Animated.View>
+        <Animated.View style={[styles.previewFanCard, fanRightStyle]}>
+          <PlayingCard face="down" back="back-crimson" size="sm" elevated />
+        </Animated.View>
+      </View>
+      <Pressable onPress={onFlip}>
+        {/* rank/suit give the face side real artwork — without them PlayingCard
+            renders the back on BOTH sides and the flip looks like nothing. */}
+        <FlipCard face={face} back={back} rank="K" suit="spades" size="lg" />
+      </Pressable>
+      <Text style={styles.previewHint}>Tap the card to flip it</Text>
+    </Animated.View>
+  );
+}
 
 export default function StoreScreen() {
   const insets = useSafeAreaInsets();
@@ -250,12 +326,11 @@ export default function StoreScreen() {
 
       {previewBack && (
         <Pressable style={styles.previewOverlay} onPress={() => setPreviewBack(null)}>
-          <View style={styles.previewCardWrap}>
-            <Pressable onPress={() => setPreviewFace((f) => (f === 'up' ? 'down' : 'up'))}>
-              <FlipCard face={previewFace} back={previewBack} size="lg" />
-            </Pressable>
-            <Text style={styles.previewHint}>Tap to flip</Text>
-          </View>
+          <PreviewStage
+            back={previewBack}
+            face={previewFace}
+            onFlip={() => setPreviewFace((f) => (f === 'up' ? 'down' : 'up'))}
+          />
         </Pressable>
       )}
     </View>
@@ -418,6 +493,27 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     zIndex: 10,
   },
+  previewStage: {
+    alignItems: 'center',
+    gap: space.md,
+    backgroundColor: colors.tableFelt,
+    borderRadius: radii.lg,
+    paddingVertical: space.xl,
+    paddingHorizontal: space.xl,
+    borderWidth: 1,
+    borderColor: alpha.whiteOverlay20,
+    ...shadow.cardStrong,
+  },
+  previewFan: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: 84,
+    marginBottom: -space.sm,
+  },
+  previewFanCard: {
+    position: 'absolute',
+  },
   previewCardWrap: {
     alignItems: 'center',
     gap: space.md,
@@ -425,6 +521,6 @@ const styles = StyleSheet.create({
   previewHint: {
     fontFamily: fonts.medium,
     fontSize: fontSizes.body,
-    color: colors.surface,
+    color: alpha.whiteOverlay80,
   },
 });

@@ -37,6 +37,8 @@ export type GameEvent =
   | (BaseEvent & { type: 'turn/end'; playerId: PlayerId })
   | (BaseEvent & { type: 'privacy/enter'; playerId: PlayerId })
   | (BaseEvent & { type: 'privacy/exit' })
+  | (BaseEvent & { type: 'game/street'; street: number })
+  | (BaseEvent & { type: 'game/fold'; playerId: PlayerId })
   | (BaseEvent & { type: 'session/pause' })
   | (BaseEvent & { type: 'session/resume' })
   | (BaseEvent & { type: 'session/end'; winnerId?: PlayerId });

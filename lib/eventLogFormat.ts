@@ -28,6 +28,10 @@ export function formatGameEventLine(e: GameEvent): string {
       return `${head} privacy/enter · ${e.playerId}`;
     case 'privacy/exit':
       return `${head} privacy/exit`;
+    case 'game/street':
+      return `${head} game/street · ${e.street}`;
+    case 'game/fold':
+      return `${head} game/fold · ${e.playerId}`;
     case 'session/pause':
       return `${head} session/pause`;
     case 'session/resume':

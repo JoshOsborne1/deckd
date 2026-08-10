@@ -159,6 +159,15 @@ function applyGuestAction(
       game.endTurn(playerId);
       break;
     }
+    case 'game_action': {
+      // Route game-specific actions (twist/stick/flop/fold...) through the
+      // host's rules engine. The rules validate turn, phase, and ownership.
+      if (game.state.currentPlayerId !== playerId) return;
+      const action = (p as { action?: string }).action;
+      if (!action) return;
+      game.gameAction(action as import('@engine/rules').GameAction, playerId);
+      break;
+    }
     default:
       break;
   }

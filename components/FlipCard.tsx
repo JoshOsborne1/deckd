@@ -60,8 +60,8 @@ export function FlipCard({ face = 'up', spring, ...cardProps }: FlipCardProps) {
           <PlayingCard {...cardProps} face="down" />
         </Animated.View>
       )}
-      {/* Invisible copy reserves layout space. */}
-      <View style={{ opacity: 0 }}>
+      {/* Invisible copy reserves layout space. Must not intercept taps. */}
+      <View style={{ opacity: 0 }} pointerEvents="none">
         <PlayingCard {...cardProps} face="up" />
       </View>
     </View>

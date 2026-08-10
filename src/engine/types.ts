@@ -79,6 +79,12 @@ export interface GameState {
   cards: Record<CardId, CardInstance>;
   deckCardIds: CardId[];
   winnerId: PlayerId | null;
+  /** Per-game rule state (poker street, folded players, pot). */
+  game?: {
+    street: number;
+    folded: PlayerId[];
+    pot: number;
+  };
 }
 
 export const ZONE_DRAW: ZoneId = 'draw';

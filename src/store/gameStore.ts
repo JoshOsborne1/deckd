@@ -16,9 +16,11 @@ import {
   eventId,
   findPreset,
   foldEvents,
+  getGameRules,
   makeSeed,
   mulberry32,
   shuffleInPlace,
+  blackjackDealerPlay,
 } from '@engine/index';
 import {
   applySnapshotWithTail,
@@ -46,7 +48,7 @@ export interface GameStoreState {
   createSession: (input: CreateSessionInput) => GameState;
   resetSession: () => void;
 
-  dispatch: (event: EventPayload) => void;
+  dispatch: (event: EventPayload) => GameState;
   ingestRemoteEvents: (events: GameEvent[]) => { applied: number; lastSeq: number };
   applyRemoteSnapshot: (snapshot: GameState, nextSeq: number, tail?: GameEvent[]) => void;
 
@@ -56,6 +58,11 @@ export interface GameStoreState {
   revealCard: (cardId: CardId) => void;
   reorderHand: (playerId: PlayerId, order: CardId[]) => void;
   endTurn: (playerId: PlayerId) => void;
+
+  /** Route a game-specific action (twist, stick, flop, fold...) through the rules engine. */
+  gameAction: (action: import('@engine/rules').GameAction, playerId: PlayerId) => boolean;
+  setStreet: (street: number) => void;
+  foldPlayer: (playerId: PlayerId) => void;
 
   enterPrivacy: (playerId: PlayerId) => void;
   exitPrivacy: () => void;
@@ -162,6 +169,7 @@ export const useGameStore = create<GameStoreState>()(
         const full = makeEvent(event, nextSeq);
         const nextState = applyEvent(state, full);
         set({ events: [...events, full], seq: nextSeq, state: nextState });
+        return nextState;
       },
 
       ingestRemoteEvents: (incoming) => {
@@ -223,9 +231,79 @@ export const useGameStore = create<GameStoreState>()(
           order,
         }),
 
-      endTurn: (playerId) =>
-        get().dispatch({
+      endTurn: (playerId) => {
+        const { state } = get();
+        const nextState = get().dispatch({
           type: 'turn/end',
+          actorId: playerId,
+          playerId,
+        });
+        // Blackjack: when the turn lands on the dealer, run the house hand.
+        const rules = getGameRules(state.config.presetId);
+        const dealer = state.players[state.players.length - 1];
+        if (rules.id === 'blackjack' && nextState.currentPlayerId === dealer?.id) {
+          const dealerEvents = blackjackDealerPlay(nextState);
+          for (const ev of dealerEvents) {
+            if (ev.type === 'card/reveal') {
+              get().revealCard(ev.cardId!);
+            } else if (ev.type === 'card/deal') {
+              get().dealCard(ev.cardId!, ev.toZoneId!, ev.face ?? 'up');
+            } else if (ev.type === 'session/end') {
+              get().endSession(ev.winnerId);
+            }
+          }
+        }
+        return nextState;
+      },
+
+      gameAction: (action, playerId) => {
+        const { state } = get();
+        const rules = getGameRules(state.config.presetId);
+        const events = rules.apply(action, state, playerId);
+        if (!events || events.length === 0) return false;
+        for (const ev of events) {
+          switch (ev.type) {
+            case 'card/deal':
+              get().dealCard(ev.cardId!, ev.toZoneId!, ev.face ?? 'up');
+              break;
+            case 'card/move':
+              get().moveCard(ev.cardId!, ev.toZoneId!, ev.face ?? 'down');
+              break;
+            case 'card/flip':
+              get().flipCard(ev.cardId!);
+              break;
+            case 'card/reveal':
+              get().revealCard(ev.cardId!);
+              break;
+            case 'turn/end':
+              get().endTurn(ev.playerId!);
+              break;
+            case 'game/street':
+              get().setStreet(ev.street ?? 0);
+              break;
+            case 'game/fold':
+              get().foldPlayer(ev.playerId!);
+              break;
+            case 'session/end':
+              get().endSession(ev.winnerId);
+              break;
+            default:
+              break;
+          }
+        }
+        return true;
+      },
+
+      setStreet: (street) =>
+        get().dispatch({
+          type: 'game/street',
+          actorId: get().state.meta.hostId || HOST_ACTOR,
+          street,
+        }),
+
+      foldPlayer: (playerId) =>
+        get().dispatch({
+          type: 'game/fold',
           actorId: playerId,
           playerId,
         }),

@@ -50,6 +50,7 @@ import {
   type CardInstance,
 } from '@engine/types';
 import type { GuidancePhase, TableAction } from '@engine/selectors';
+import { getGameRules, handValue, isBust, type GameAction, type GameActionSpec } from '@engine/rules';
 import { makeSeed, mulberry32, shuffleInPlace, ZONE_DRAW } from '@engine/index';
 import {
   alpha,
@@ -162,6 +163,33 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
     () => (viewerId ? selectSuggestedAction(state, viewerId) : null),
     [state, viewerId],
   );
+
+  // --- Per-game rule actions (blackjack twist/stick, poker burn/flop/...) ---
+  const rules = useMemo(() => getGameRules(state.config.presetId), [state.config.presetId]);
+  const ruleActions = useMemo<GameActionSpec[]>(
+    () => (viewerId ? rules.actions(state, viewerId) : []),
+    [rules, state, viewerId],
+  );
+  const gameAction = useGameStore((s) => s.gameAction);
+  const handleGameAction = useCallback(
+    (action: GameAction) => {
+      if (!viewerId) return;
+      if (isGuest && lobbySession) {
+        // Guests send the intent; the host's rules engine validates it.
+        void lobbySession.sendIntent('game_action', { action });
+        return;
+      }
+      haptic('medium');
+      const ok = gameAction(action, viewerId);
+      if (!ok) haptic('error');
+    },
+    [viewerId, isGuest, lobbySession, haptic, gameAction],
+  );
+  const myHandValue = useMemo(
+    () => (viewerId ? handValue(state, viewerId) : 0),
+    [state, viewerId],
+  );
+  const myBust = isBust(myHandValue);
   const guidanceState = useMemo<GuidancePhase>(
     () => (viewerId ? selectGuidanceState(state, viewerId) : 'waiting'),
     [state, viewerId],
@@ -613,7 +641,25 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
           <Shuffle size={20} color={colors.inkMuted} />
         </Pressable>
 
-        {isPassMode || isOnline ? (
+        {ruleActions.length > 0 ? (
+          <View style={styles.ruleActions}>
+            {ruleActions.map((spec) => (
+              <CardButton
+                key={spec.id}
+                variant={spec.kind === 'host' ? 'secondary' : 'primary'}
+                size="sm"
+                haptic="medium"
+                onPress={() => handleGameAction(spec.id)}
+                style={styles.ruleActionBtn}
+                innerStyle={styles.ruleActionInner}
+              >
+                <Text style={styles.ruleActionText} numberOfLines={1}>
+                  {spec.label}
+                </Text>
+              </CardButton>
+            ))}
+          </View>
+        ) : isPassMode || isOnline ? (
           <CardButton
             variant="primary"
             size="md"
@@ -691,6 +737,13 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
             {handHint}
           </Text>
         ) : null}
+        {rules.id === 'blackjack' && localHand.length > 0 && (
+          <View style={[styles.valuePill, myBust && styles.valuePillBust]}>
+            <Text style={styles.valuePillText}>
+              {myBust ? 'BUST' : `HAND ${myHandValue}`}
+            </Text>
+          </View>
+        )}
       </View>
 
       {hasSession && guidanceState !== 'ended' && (
@@ -927,6 +980,26 @@ const styles = StyleSheet.create({
     gap: space.md,
     paddingTop: space.md,
   },
+  ruleActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: space.xs,
+    flexShrink: 1,
+  },
+  ruleActionBtn: {
+    flexShrink: 1,
+    minWidth: 0,
+  },
+  ruleActionInner: {
+    paddingHorizontal: space.sm,
+  },
+  ruleActionText: {
+    fontFamily: fonts.bold,
+    fontSize: fontSizes.caption,
+    letterSpacing: letterSpacing.cap,
+    color: colors.surface,
+  },
   endedBanner: {
     position: 'absolute',
     left: 0,
@@ -1005,6 +1078,23 @@ const styles = StyleSheet.create({
     color: colors.inkSubtle,
     letterSpacing: letterSpacing.cap,
     paddingHorizontal: space.xl,
+  },
+  valuePill: {
+    alignSelf: 'center',
+    marginTop: space.xs,
+    paddingHorizontal: space.md,
+    paddingVertical: space.xs,
+    borderRadius: radii.pill,
+    backgroundColor: colors.brand,
+  },
+  valuePillBust: {
+    backgroundColor: colors.ink,
+  },
+  valuePillText: {
+    fontFamily: fonts.bold,
+    fontSize: fontSizes.caption,
+    letterSpacing: letterSpacing.cap,
+    color: colors.surface,
   },
   hiddenHand: {
     height: 180,
