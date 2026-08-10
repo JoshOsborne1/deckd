@@ -58,7 +58,10 @@ const server = http.createServer((req, res) => {
       }
       res.writeHead(200, {
         'content-type': MIME[path.extname(filePath).toLowerCase()] || 'application/octet-stream',
-        'cache-control': 'no-cache',
+        // Hashed build assets are immutable; everything else revalidates.
+        'cache-control': /[a-f0-9]{16,}\.(js|css|png|webp|jpg)$/.test(filePath)
+          ? 'public, max-age=31536000, immutable'
+          : 'no-cache',
       });
       res.end(data);
     });

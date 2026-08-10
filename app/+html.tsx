@@ -32,6 +32,11 @@ export default function Root({ children }: PropsWithChildren) {
         <link rel="icon" href="/favicon.png" type="image/png" />
         {/* PWA manifest */}
         <link rel="manifest" href="/manifest.webmanifest" />
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `if ('serviceWorker' in navigator) { window.addEventListener('load', function () { navigator.serviceWorker.register('/sw.js').catch(function () {}); }); }`,
+          }}
+        />
         <ScrollViewStyleReset />
       </head>
       <body>{children}</body>
