@@ -5,6 +5,22 @@ const BASE_URL = process.env.DECKD_QA_URL ?? 'http://127.0.0.1:8082';
   const browser = await chromium.launch({ headless: true });
   const page = await browser.newPage({ viewport: { width: 375, height: 812 }, deviceScaleFactor: 1 });
   const errors = [];
+  const cacheBust = process.env.DECKD_QA_CACHEBUST;
+  if (cacheBust) {
+    const baseOrigin = new URL(BASE_URL).origin;
+    await page.route('**/*', async (route) => {
+      const requestUrl = new URL(route.request().url());
+      if (
+        requestUrl.origin === baseOrigin &&
+        (requestUrl.pathname.startsWith('/_expo/') || requestUrl.pathname.startsWith('/assets/'))
+      ) {
+        requestUrl.searchParams.set('qa', cacheBust);
+        await route.continue({ url: requestUrl.toString() });
+        return;
+      }
+      await route.continue();
+    });
+  }
   page.on('pageerror', (error) => errors.push(`pageerror: ${error.message}`));
   page.on('console', (message) => {
     if (message.type() === 'error') errors.push(`console: ${message.text()}`);
@@ -28,6 +44,34 @@ const BASE_URL = process.env.DECKD_QA_URL ?? 'http://127.0.0.1:8082';
   await page.waitForTimeout(700);
   await page.screenshot({ path: '.qa-current-hub-375.png', fullPage: false });
   const hubText = await page.locator('body').innerText();
+
+  // Setup keeps its action dock fixed to the table edge. Scroll the real
+  // setup surface before asserting that the token controls can get above it;
+  // a visible top edge alone is not enough touch proof at 375px.
+  const tokenLabels = [
+    'Jokers: 52 cards',
+    'Wide fan: hand layout',
+    'Tight fan: hand layout',
+    'Stack: hand layout',
+    'Reshuffle: when empty',
+  ];
+  const tokenButtons = tokenLabels.map((label) =>
+    page.getByRole('button', { name: label, exact: true }),
+  );
+  const setupScroll = tokenButtons[0].locator(
+    'xpath=ancestor::div[contains(@class, "r-150rngu")]',
+  ).first();
+  await setupScroll.hover();
+  await page.mouse.wheel(0, 220);
+  await page.waitForTimeout(220);
+  const tokenBoxes = await Promise.all(tokenButtons.map((button) => button.boundingBox()));
+  const dockButton = page.getByRole('button', { name: 'Deal now', exact: true });
+  const dockBox = await dockButton.boundingBox();
+  const tokensAboveDock = tokenBoxes.every(
+    (box) => Boolean(box && dockBox && box.y + box.height <= dockBox.y),
+  );
+  await page.mouse.wheel(0, -220);
+  await page.waitForTimeout(220);
 
   const dealPreset = page.getByRole('button', { name: /Deal 2 each/ });
   const dealPresetCount = await dealPreset.count();
@@ -66,6 +110,8 @@ const BASE_URL = process.env.DECKD_QA_URL ?? 'http://127.0.0.1:8082';
     navDealCount,
     dealPresetCount,
     dealNowCount,
+    tokenCount: tokenBoxes.filter(Boolean).length,
+    tokensAboveDock,
     hasHubHeading: hubText.includes('Choose a recipe'),
     hasTableSurface: bodyText.includes('YOUR TURN') || bodyText.includes('PASS TURN') || bodyText.includes('NEXT USEFUL MOVE'),
     hasTwoCardHand: bodyText.includes('2 CARDS'),
@@ -79,6 +125,7 @@ const BASE_URL = process.env.DECKD_QA_URL ?? 'http://127.0.0.1:8082';
   await browser.close();
   if (
     !result.hasHubHeading ||
+    !result.tokensAboveDock ||
     !result.hasTableSurface ||
     !result.hasTwoCardHand ||
     !result.hasTenCardDrawState ||

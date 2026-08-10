@@ -376,6 +376,7 @@ export function HubLayer({
 
       <ScrollView
         scrollEnabled={interactive}
+        style={styles.scrollView}
         contentContainerStyle={[
           styles.scroll,
           { paddingBottom: space.x5l },
@@ -799,6 +800,9 @@ const styles = StyleSheet.create({
   },
   scroll: {
     paddingHorizontal: space.xl,
+  },
+  scrollView: {
+    flex: 1,
   },
   scrollReserve: {
     height: GLOBAL_NAV_HEIGHT + space.xl,

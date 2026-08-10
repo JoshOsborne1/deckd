@@ -1,6 +1,6 @@
 # Deckd LOOP plan
 
-Last updated: 2026-08-10 (run `t_2d6f4e02`)
+Last updated: 2026-08-10 00:52 GMTDT (run `t_2d6f4e02`)
 
 ## Standard
 
@@ -8,15 +8,20 @@ Deckd should read as one continuous physical card table: warm ivory paper stock,
 
 ## Outcome
 
-**STANDARD MET for this visual LOOP slice.** Home, setup, play, and the pass ritual share one table-world language. Native device touch/safe-area proof, a real two-device lobby run, and product operations such as RevenueCat configuration remain outside this visual slice.
+**STANDARD MET for this visual LOOP slice.** Home, setup, play, and the pass ritual share one table-world language. The opening deal stagger is limited to the opening hand, later draws settle directly into the measured fan, and the setup token row scrolls above the fixed table-edge action dock at 375px. Native device touch/safe-area proof, a real two-device lobby run, and product operations such as RevenueCat configuration remain outside this visual slice.
 
 ## Delivered slices
 
 - **Cards (P0):** `PlayingCard` keeps every shell on the branded 2.5:3.5 ratio; paper fronts use deterministic grain, warm ink/crimson suit treatment, corner indices, French pip layouts, and court/ace artwork. Branded Deckd, Noir, and Crimson backs render above the paper fallback. `HandFan` bounds two-card and ten-card states with restrained overlap; only the opening hand receives the deal stagger, while later drawn cards settle immediately into the measured fan.
-- **Setup ritual:** `HubLayer` stays inside the shared surface morph and stages recipe backs, selected recipe copy, player chips, option tokens, and the visible table-edge `Deal now` / lobby actions. It preserves pass-and-play, resume, lobby, and preset behavior.
+- **Setup ritual:** `HubLayer` stays inside the shared surface morph and stages recipe backs, selected recipe copy, player chips, option tokens, and the visible table-edge `Deal now` / lobby actions. Its setup `ScrollView` now fills the available surface so all five tokens can be scrolled above the fixed action dock at 375px. It preserves pass-and-play, resume, lobby, and preset behavior.
 - **Table edge:** `GlobalNavBar` now treats the bottom as a thin 6px table lip rather than a nav container. Home, Store, Presets, and Profile are labelled 44px-class outlined chips with active lift/rim/shadow and reduced-motion-safe stagger; Deal is a separate two-back deck object. The reserved height remains `NAV_BAR_RESERVE` so game surfaces do not collide with it.
 - **Gameplay guidance:** the engine exposes valid draw/flip/discard/reorder/pass/shuffle/end actions plus one non-blocking next-useful-move suggestion. Alternate actions remain available.
 - **Preview mode:** visual lock notes remain visible where useful, but taps are not hard-blocked during testing.
+
+## Resolved P0 follow-ups
+
+- `FanCard` now tracks the opening hand's card ids per session. The stable session `dealTrigger` still staggers the opening deal, while later drawn cards initialize directly in their measured fan slot; immediate and settled post-draw screenshots are identical.
+- The hub setup `ScrollView` now has a flex layout and an effective reserve spacer. At 375px the five table-token controls scroll from y=605–738 to y=427–551, above the Deal now dock beginning at y=638.
 
 ## Fresh verification
 
@@ -24,8 +29,13 @@ Deckd should read as one continuous physical card table: warm ivory paper stock,
 - `npm run lint` passed with 0 errors and 0 warnings.
 - `npx jest --runInBand` passed: 7 suites, 71 tests.
 - `npx expo-doctor` passed: 20/20 checks.
-- Public smoke command `DECKD_QA_URL=https://deckd-app.roxai.click node qa/deckd-visual-qa.cjs` passed. It reached Home → setup → Deal 2 each → table → ten-card draw → `PASS TURN` and reported `hasHubHeading`, `hasTableSurface`, `hasTwoCardHand`, `hasTenCardDrawState`, `hasGuidance`, and `hasPassVeil` as true with `errors: []`.
+- Public smoke command `DECKD_QA_URL=https://deckd-app.roxai.click DECKD_QA_CACHEBUST=202608100051 node qa/deckd-visual-qa.cjs` passed. It reached Home → setup → Deal 2 each → table → ten-card draw → `PASS TURN` and reported `hasHubHeading`, `hasTableSurface`, `hasTwoCardHand`, `hasTenCardDrawState`, `hasGuidance`, and `hasPassVeil` as true with `errors: []`, plus `tokenCount: 5` and `tokensAboveDock: true` after exercising setup scroll.
 - The fresh public geometry probe recorded no horizontal overflow at 375×812 or 1440×900. At 375px, visible nav/deal controls stayed inside x=8–367 and y=742–806; at 1440px they stayed inside x=539–901 and y=830–894. Both viewports reported empty console/page errors.
+
+## Preview deployment
+
+- `npx expo export --platform web` completed, `app-serve` was refreshed, and `pm2 restart deckd-app` reported the process online.
+- `https://deckd-app.roxai.click/` returned HTTP 200 with `x-roxai-router: deckd-app`; the cache-busted bundle returned HTTP 200 and the public 375px/desktop smoke checks rendered the new build.
 
 ## Guardrails for the next loop
 

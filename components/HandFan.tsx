@@ -204,7 +204,13 @@ function FanCard({
   );
 }
 
-export function HandFan({
+export function HandFan(props: HandFanProps) {
+  // A new session gets a fresh opening-hand snapshot. Drawn cards keep the
+  // same child instance, so they cannot accidentally replay the opening deal.
+  return <HandFanContent key={props.dealTrigger ?? 'no-session'} {...props} />;
+}
+
+function HandFanContent({
   cards,
   faceFor,
   spread: spreadProp,
@@ -220,31 +226,9 @@ export function HandFan({
   const { reduceMotion } = useMotion();
   const resolvedSpread = resolveSpread(spreadProp, fanStyle);
   const [containerWidth, setContainerWidth] = useState(0);
-
-  // Capture the card ids that existed when this session's opening deal first
-  // materialised. New cards can mount with the same stable session trigger,
-  // but they are already settled and should not replay the opening flight.
-  const [openingDeal, setOpeningDeal] = useState<{
-    trigger: string | null;
-    ids: ReadonlySet<CardId>;
-  }>(() => ({
-    trigger: dealTrigger ?? null,
-    ids: dealTrigger ? new Set(cards.map((card) => card.id)) : new Set<CardId>(),
-  }));
-  useEffect(() => {
-    const nextTrigger = dealTrigger ?? null;
-    const shouldCapture =
-      openingDeal.trigger !== nextTrigger ||
-      (Boolean(dealTrigger) && openingDeal.ids.size === 0 && cards.length > 0);
-    if (!shouldCapture) return;
-
-    // Be tolerant of a render where the session key arrives one frame before
-    // the initial deal cards are folded into the local state.
-    setOpeningDeal({
-      trigger: nextTrigger,
-      ids: new Set(cards.map((card) => card.id)),
-    });
-  }, [cards, dealTrigger, openingDeal]);
+  const [openingDealIds] = useState<ReadonlySet<CardId>>(
+    () => new Set(cards.map((card) => card.id)),
+  );
 
   const total = cards.length;
   const cardWidth = SIZE_MAP[size].width;
@@ -314,7 +298,7 @@ export function HandFan({
           }
           reduceMotion={reduceMotion}
           dealTrigger={dealTrigger}
-          dealInitial={openingDeal.ids.has(card.id)}
+          dealInitial={openingDealIds.has(card.id)}
         />
       ))}
     </View>
