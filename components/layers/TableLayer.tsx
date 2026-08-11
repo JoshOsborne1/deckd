@@ -21,6 +21,7 @@ import { HandFan } from '@components/HandFan';
 import { HandStack } from '@components/HandStack';
 import { useLayerSurfaceEntrance } from '@hooks/useLayerSurfaceEntrance';
 import { useMotion } from '@hooks/useMotion';
+import { useTableSound } from '@hooks/useTableSound';
 import { DISCARD_PULSE_SCALE } from '@lib/motion';
 import { useUiStore } from '@store/uiStore';
 import { useCosmeticsStore } from '@store/cosmeticsStore';
@@ -95,6 +96,7 @@ interface GuidanceCopy {
 
 export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
   const { haptic, reduceMotion } = useMotion();
+  const { play: playSound } = useTableSound();
   const setViewMode = useUiStore((s) => s.setViewMode);
   const equippedBackId = useCosmeticsStore((s) => s.equippedBackId);
   const openPass = useUiStore((s) => s.openPass);
@@ -207,9 +209,17 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
       }
       haptic('medium');
       const ok = gameAction(action, viewerId);
+      if (ok) {
+        // Map rule actions to sound effects.
+        const soundName = action === 'flip' ? 'flip'
+          : action === 'discard' ? 'discard'
+          : action === 'flop' || action === 'turn' || action === 'river' || action === 'twist' || action === 'stick' ? 'deal'
+          : null;
+        if (soundName) playSound(soundName);
+      }
       if (!ok) haptic('error');
     },
-    [viewerId, isGuest, lobbySession, haptic, gameAction],
+    [viewerId, isGuest, lobbySession, haptic, gameAction, playSound],
   );
   const myHandValue = useMemo(
     () => (viewerId ? rules.readout?.(state, viewerId) ?? null : null),
@@ -257,6 +267,15 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
   const discardScale = useSharedValue(1);
   const discardOpacity = useSharedValue(1);
   const previousDiscardId = useRef(discardTop?.id ?? null);
+  const previousPhase = useRef(state.phase);
+
+  // Win sound: fires once when the session transitions to 'ended'.
+  useEffect(() => {
+    if (previousPhase.current !== 'ended' && state.phase === 'ended') {
+      playSound('win');
+    }
+    previousPhase.current = state.phase;
+  }, [state.phase, playSound]);
 
   const drawMotionStyle = useAnimatedStyle(() => ({
     opacity: drawOpacity.value,
@@ -423,8 +442,9 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
     const topCardId = selectDrawTopCardId(state);
     if (!topCardId) return;
     haptic('medium');
+    playSound('deal');
     dealCard(topCardId, handZoneId(viewerId), 'up');
-  }, [isMyTurn, viewerId, canUseGenericHandActions, isGuest, lobbySession, state, haptic, dealCard]);
+  }, [isMyTurn, viewerId, canUseGenericHandActions, isGuest, lobbySession, state, haptic, dealCard, playSound]);
 
   const handleCardPress = useCallback(
     (cardId: string) => {
@@ -437,10 +457,11 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
           return;
         }
         haptic('light');
+        playSound('flip');
         flipCard(cardId);
       }
     },
-    [viewerId, isMyTurn, canFlipHand, state.cards, isGuest, lobbySession, haptic, flipCard],
+    [viewerId, isMyTurn, canFlipHand, state.cards, isGuest, lobbySession, haptic, flipCard, playSound],
   );
 
   const handleCardLongPress = useCallback(
@@ -451,9 +472,10 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
         return;
       }
       haptic('medium');
+      playSound('discard');
       moveCard(cardId, ZONE_DISCARD, 'up');
     },
-    [viewerId, isMyTurn, canDiscardHand, isGuest, lobbySession, haptic, moveCard],
+    [viewerId, isMyTurn, canDiscardHand, isGuest, lobbySession, haptic, moveCard, playSound],
   );
 
   const handlePassTurn = useCallback(() => {
