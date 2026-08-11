@@ -10,11 +10,12 @@ import Animated, {
   withTiming,
   type SharedValue,
 } from 'react-native-reanimated';
-import { ChevronLeft, Users } from 'lucide-react-native';
+import { BookOpen, ChevronLeft, Users } from 'lucide-react-native';
 import { CardButton } from '@components/CardButton';
 import { CardSection } from '@components/CardSection';
 import { TableSurface } from '@components/TableSurface';
 import { PlayingCard } from '@components/PlayingCard';
+import { RulesSheet } from '@components/RulesSheet';
 import { GLOBAL_NAV_HEIGHT } from '@components/GlobalNavBar';
 
 import { useSurfaceMorph } from '@components/layers/SurfaceMorphContext';
@@ -123,6 +124,7 @@ export function HubLayer({
   const [includeJokers, setIncludeJokers] = React.useState(false);
   const [fanStyle, setFanStyle] = React.useState<FanStyle>('wide');
   const [autoReshuffle, setAutoReshuffle] = React.useState(true);
+  const [rulesOpen, setRulesOpen] = useState(false);
 
   const { progress, reduceMotion } = useSurfaceMorph();
   const { reduceMotion: reduceMotionSystem } = useMotion();
@@ -488,10 +490,21 @@ export function HubLayer({
             );
           })}
         </ScrollView>
-        <Animated.View style={[styles.selectedRecipeNote, presetDescStyle]}>
-          <View style={styles.selectedRecipeMark} />
-          <Text style={styles.presetDesc}>{activePreset.summary}</Text>
-        </Animated.View>
+        <View style={styles.recipeInfoRow}>
+          <Animated.View style={[styles.selectedRecipeNote, presetDescStyle]}>
+            <View style={styles.selectedRecipeMark} />
+            <Text style={styles.presetDesc}>{activePreset.summary}</Text>
+          </Animated.View>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`Read ${activePreset.name} rules`}
+            onPress={() => setRulesOpen(true)}
+            style={({ pressed }) => [styles.rulesChip, pressed && styles.rulesChipPressed]}
+          >
+            <BookOpen size={15} color={colors.brand} />
+            <Text style={styles.rulesChipText}>RULES</Text>
+          </Pressable>
+        </View>
 
         <Animated.View style={[styles.playerHeading, playerTitleStyle]}>
           <View>
@@ -637,6 +650,11 @@ export function HubLayer({
           </Animated.View>
         </View>
       </Animated.View>
+      <RulesSheet
+        visible={rulesOpen}
+        presetId={activePreset.id}
+        onClose={() => setRulesOpen(false)}
+      />
     </Animated.View>
   );
 }
@@ -1183,8 +1201,36 @@ const styles = StyleSheet.create({
   selectedRecipeNote: {
     flexDirection: 'row',
     alignItems: 'flex-start',
+    flex: 1,
+    paddingBottom: space.xs,
+  },
+  recipeInfoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.sm,
     marginTop: space.md,
     paddingBottom: space.xs,
+  },
+  rulesChip: {
+    minHeight: 44,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.xs,
+    paddingHorizontal: space.sm,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: alpha.brand20,
+    backgroundColor: alpha.brand10,
+  },
+  rulesChipPressed: {
+    transform: [{ scale: 0.97 }],
+    backgroundColor: colors.brandSoft,
+  },
+  rulesChipText: {
+    fontSize: 10,
+    fontFamily: fonts.bold,
+    color: colors.brand,
+    letterSpacing: letterSpacing.cap,
   },
   selectedRecipeMark: {
     width: 4,

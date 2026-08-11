@@ -74,6 +74,8 @@ export interface GameStoreState {
 
   /** Solo blackjack: deal a fresh hand with the same players. */
   startNextHand: () => void;
+  /** Offline pass-and-play: replay the ended table with the same seats. */
+  replaySession: () => void;
 }
 
 const HOST_ACTOR: GameEvent['actorId'] = 'system';
@@ -237,6 +239,24 @@ export const useGameStore = create<GameStoreState>()(
         const nextState = foldEvents(events);
         set({ events, seq: seq - 1, state: nextState });
         return nextState;
+      },
+
+      replaySession: () => {
+        const { state } = get();
+        if (state.meta.mode !== 'pass' || state.phase !== 'ended') return;
+        get().createSession({
+          mode: 'pass',
+          presetId: state.config.presetId,
+          players: state.players
+            .filter((player) => player.id !== 'house')
+            .map((player) => ({
+              id: player.id,
+              name: player.name,
+              avatarSeed: player.avatarSeed,
+            })),
+          config: state.config,
+          hostId: state.meta.hostId,
+        });
       },
 
       dispatch: (event) => {

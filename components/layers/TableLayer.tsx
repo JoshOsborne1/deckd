@@ -8,7 +8,7 @@ import Animated, {
   withSequence,
   withTiming,
 } from 'react-native-reanimated';
-import { ChevronLeft, Clock, Flag, Menu, Shuffle } from 'lucide-react-native';
+import { BookOpen, ChevronLeft, Clock, Flag, Menu, Shuffle } from 'lucide-react-native';
 import { AvatarPlaceholder } from '@components/AvatarPlaceholder';
 import { CardButton } from '@components/CardButton';
 import { CardSection } from '@components/CardSection';
@@ -16,6 +16,7 @@ import { TableSurface } from '@components/TableSurface';
 import { PlayingCard } from '@components/PlayingCard';
 
 import { EventHistoryModal } from '@components/EventHistoryModal';
+import { RulesSheet } from '@components/RulesSheet';
 import { HandFan } from '@components/HandFan';
 import { HandStack } from '@components/HandStack';
 import { useLayerSurfaceEntrance } from '@hooks/useLayerSurfaceEntrance';
@@ -98,6 +99,7 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
   const equippedBackId = useCosmeticsStore((s) => s.equippedBackId);
   const openPass = useUiStore((s) => s.openPass);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [rulesOpen, setRulesOpen] = useState(false);
 
   const state = useGameStore((s) => s.state);
   const events = useGameStore((s) => s.events);
@@ -107,6 +109,7 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
   const endTurn = useGameStore((s) => s.endTurn);
   const endSession = useGameStore((s) => s.endSession);
   const startNextHand = useGameStore((s) => s.startNextHand);
+  const replaySession = useGameStore((s) => s.replaySession);
   const dispatch = useGameStore((s) => s.dispatch);
   const reorderHand = useGameStore((s) => s.reorderHand);
 
@@ -495,6 +498,11 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
     setHistoryOpen(true);
   }, [haptic]);
 
+  const handleRules = useCallback(() => {
+    haptic('light');
+    setRulesOpen(true);
+  }, [haptic]);
+
   const handleEndSession = useCallback(() => {
     haptic('heavy');
     endSession(viewerId ?? undefined);
@@ -753,23 +761,48 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
                     : `${state.players.find((p) => p.id === state.winnerId)?.name ?? 'Winner'} takes the table`
                   : 'Table cleared'}
             </Text>
-            <CardButton
-              variant="primary"
-              size="md"
-              haptic="medium"
-              onPress={() => {
-                if (state.meta.mode === 'solo') {
-                  startNextHand();
-                } else {
-                  setViewMode('hub');
-                }
-              }}
-              style={styles.endedCta}
-            >
-              <Text style={styles.endedCtaText}>
-                {state.meta.mode === 'solo' ? 'Next hand' : 'Back to setup'}
-              </Text>
-            </CardButton>
+            <Text style={styles.endedMeta}>
+              Round complete · {state.turn} {state.turn === 1 ? 'turn' : 'turns'}
+            </Text>
+            {state.meta.mode === 'pass' ? (
+              <View style={styles.endedActions}>
+                <CardButton
+                  variant="primary"
+                  size="md"
+                  haptic="medium"
+                  onPress={replaySession}
+                  style={styles.endedCta}
+                >
+                  <Text style={styles.endedCtaText}>Replay table</Text>
+                </CardButton>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Back to setup"
+                  onPress={handleBackToHub}
+                  style={({ pressed }) => [styles.endedSecondary, pressed && styles.endedSecondaryPressed]}
+                >
+                  <Text style={styles.endedSecondaryText}>Back to setup</Text>
+                </Pressable>
+              </View>
+            ) : (
+              <CardButton
+                variant="primary"
+                size="md"
+                haptic="medium"
+                onPress={() => {
+                  if (state.meta.mode === 'solo') {
+                    startNextHand();
+                  } else {
+                    setViewMode('hub');
+                  }
+                }}
+                style={styles.endedCta}
+              >
+                <Text style={styles.endedCtaText}>
+                  {state.meta.mode === 'solo' ? 'Next hand' : 'Back to setup'}
+                </Text>
+              </CardButton>
+            )}
           </View>
         </View>
       )}
@@ -779,6 +812,8 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
         <Pressable
           onPress={handleShuffle}
           disabled={!isHost}
+          accessibilityRole="button"
+          accessibilityLabel="Shuffle deck"
           style={({ pressed }) => [
             styles.iconBtn,
             pressed && { opacity: 0.85 },
@@ -858,6 +893,8 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
         ) : (
           <Pressable
             onPress={handleHistory}
+            accessibilityRole="button"
+            accessibilityLabel="Open event log"
             style={({ pressed }) => [styles.iconBtn, pressed && { opacity: 0.85 }]}
           >
             <Menu size={20} color={colors.inkMuted} />
@@ -866,14 +903,27 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
 
         <Pressable
           onPress={handleHistory}
+          accessibilityRole="button"
+          accessibilityLabel="Open event log"
           style={({ pressed }) => [styles.iconBtn, pressed && { opacity: 0.85 }]}
         >
           <Clock size={20} color={colors.inkMuted} />
         </Pressable>
 
+        <Pressable
+          onPress={handleRules}
+          style={({ pressed }) => [styles.iconBtn, pressed && { opacity: 0.85 }]}
+          accessibilityRole="button"
+          accessibilityLabel="Read table rules"
+        >
+          <BookOpen size={20} color={colors.inkMuted} />
+        </Pressable>
+
         {isHost && (
           <Pressable
             onPress={handleEndSession}
+            accessibilityRole="button"
+            accessibilityLabel="End table"
             style={({ pressed }) => [styles.iconBtn, pressed && { opacity: 0.85 }]}
           >
             <Flag size={20} color={colors.brand} />
@@ -949,6 +999,11 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
         visible={historyOpen}
         events={events}
         onClose={() => setHistoryOpen(false)}
+      />
+      <RulesSheet
+        visible={rulesOpen}
+        presetId={state.config.presetId}
+        onClose={() => setRulesOpen(false)}
       />
     </Animated.View>
   );
@@ -1282,10 +1337,38 @@ const styles = StyleSheet.create({
   endedCta: {
     alignSelf: 'stretch',
   },
+  endedActions: {
+    alignSelf: 'stretch',
+    gap: space.xs,
+  },
   endedCtaText: {
     color: colors.surface,
     fontSize: fontSizes.small + 1,
     fontFamily: fonts.bold,
+  },
+  endedMeta: {
+    marginBottom: space.md,
+    fontSize: fontSizes.caption,
+    fontFamily: fonts.semibold,
+    color: colors.inkMuted,
+    letterSpacing: letterSpacing.cap,
+    textTransform: 'uppercase',
+  },
+  endedSecondary: {
+    minHeight: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  endedSecondaryPressed: {
+    backgroundColor: alpha.inkOverlay06,
+  },
+  endedSecondaryText: {
+    fontSize: fontSizes.small,
+    fontFamily: fonts.semibold,
+    color: colors.inkMuted,
   },
   iconBtn: {
     width: 44,
