@@ -292,66 +292,81 @@ function analyzeGuestFrames(frames, guestClientId, hostClientId) {
     // (host-only street actions) and possibly FOLD/CHECK/CALL/RAISE
     // (if the host is the current turn holder).
     await host.waitForTimeout(2000);
+    // Check what poker actions the host sees. With the blinds engine the host
+    // is the big blind and sees the BET rail (FOLD/CALL/RAISE) at the deal;
+    // BURN/FLOP appear only after the preflop round closes. So BURN/FLOP being
+    // absent at deal is EXPECTED — the street progression section below
+    // closes the round and then asserts BURN → FLOP → TURN → RIVER → SHOWDOWN.
     const hostTableBody = await body(host);
     await host.screenshot({ path: '.qa-holdem-host-dealt.png', fullPage: false });
     steps.hostTableDealt = true;
-
-    // Check what poker actions the host sees
-    const hostHasBurn = hostTableBody.includes('BURN');
-    const hostHasFlop = hostTableBody.includes('FLOP');
-    const hostHasFold = hostTableBody.includes('FOLD');
-    const hostHasCheck = hostTableBody.includes('CHECK');
-    const hostHasCall = hostTableBody.includes('CALL');
-    const hostHasRaise = hostTableBody.includes('RAISE');
+    // Visible/interactable controls only — raw body text includes hidden
+    // layered buttons and can falsely pass a dead bet rail.
+    const hostHasFold = (await visibleButtonCount(host, 'FOLD')) > 0;
+    const hostHasCheck = (await visibleButtonCount(host, 'CHECK')) > 0;
+    const hostHasCall = (await visibleButtonCount(host, 'CALL')) > 0;
+    const hostHasRaise = (await visibleButtonCount(host, 'RAISE')) > 0;
+    const hostHasBetRail = hostHasFold || hostHasCheck || hostHasCall || hostHasRaise;
     steps.hostActions = {
-      BURN: hostHasBurn,
-      FLOP: hostHasFlop,
+      BURN: false,
+      FLOP: false,
       FOLD: hostHasFold,
       CHECK: hostHasCheck,
       CALL: hostHasCall,
       RAISE: hostHasRaise,
+      BET_RAIL: hostHasBetRail,
     };
 
-    if (!hostHasBurn && !hostHasFlop) {
+    if (!hostHasBetRail) {
       gaps.push({
         file: 'components/layers/TableLayer.tsx',
         symptom:
-          'Host poker table does not show BURN/FLOP street actions after deal. ' +
+          'Host poker table shows no bet rail (FOLD/CHECK/CALL/RAISE) after deal. ' +
           'The poker rule action bar is not rendering for the online host. ' +
           'This may be the same viewerId/mode gap that affects online blackjack (TWIST/STICK not rendering).',
       });
     }
 
-    // --- Guest resumes into the table ---
-    // The table layer is already rendering underneath the lobby layer (all
-    // layers stay in the DOM per the deckd architecture), so a covering div
-    // from the table subtree intercepts the Resume button's pointer events.
-    // force:true bypasses the hit-test — the button is confirmed visible by
-    // exactButton's waitFor('visible') above.
-    await (await exactButton(guest, 'Start the table')).click({ force: true });
-    await waitForText(guest, 'Resume');
-    await (await exactButton(guest, 'Resume')).click({ force: true });
+    // --- Guest enters the table ---
+    // Normal click (NO force:true — force masks real pointer interception).
+    // With the blinds engine (3d13ee0) the guest sees the shared table once
+    // the host's filtered session/start stream is present (SYNCED + POT).
+    await (await exactButton(guest, 'Start the table')).click();
+    await waitForBody(guest, () =>
+      document.body.innerText.includes('SYNCED') &&
+      document.body.innerText.includes('POT'),
+    );
     await guest.waitForTimeout(2000);
     const guestTableBody = await body(guest);
     await guest.screenshot({ path: '.qa-holdem-guest-dealt.png', fullPage: false });
     steps.guestTableDealt = true;
 
-    // Check what the guest sees
-    const guestHasFold = guestTableBody.includes('FOLD');
-    const guestHasCheck = guestTableBody.includes('CHECK');
-    const guestHasCall = guestTableBody.includes('CALL');
-    const guestHasRaise = guestTableBody.includes('RAISE');
-    // Check for host-only street actions as VISIBLE, interactable BUTTONS.
-    // The layered-surface architecture keeps all layers in the DOM (hidden
-    // ones are off-screen/opacity-0), so we must check that the buttons are
-    // actually visible and not from a stale/polluted layer. The preset
-    // description "Burn/flop/turn/river" in the hub is not a button.
+    // Check what the guest sees. In Hold'em the host (big blind) acts FIRST,
+    // so at the deal the guest is typically NOT the turn holder and has no
+    // action bar — that is EXPECTED. Only flag a gap when the guest's turn is
+    // active ('YOU · TO PLAY' in the visible layer) but the bet actions are
+    // missing. Host-only street actions must NEVER appear for the guest;
+    // pokerActions gates BURN/FLOP/TURN/RIVER behind isHost (rules.ts).
+    async function visibleButtonCount(page, name) {
+      const loc = page.getByRole('button', { name, exact: true });
+      const n = await loc.count();
+      let visible = 0;
+      for (let i = 0; i < n; i += 1) {
+        if (await loc.nth(i).isVisible()) {
+          const box = await loc.nth(i).boundingBox();
+          if (box && box.width > 0 && box.height > 0) visible += 1;
+        }
+      }
+      return visible;
+    }
+    const guestHasFold = (await visibleButtonCount(guest, 'FOLD')) > 0;
+    const guestHasCheck = (await visibleButtonCount(guest, 'CHECK')) > 0;
+    const guestHasCall = (await visibleButtonCount(guest, 'CALL')) > 0;
+    const guestHasRaise = (await visibleButtonCount(guest, 'RAISE')) > 0;
     const guestBurnBtn = guest.getByRole('button', { name: 'BURN', exact: true });
     const guestFlopBtn = guest.getByRole('button', { name: 'FLOP', exact: true });
-    const guestHasBurnButton =
-      (await guestBurnBtn.count()) > 0 && (await guestBurnBtn.first().isVisible());
-    const guestHasFlopButton =
-      (await guestFlopBtn.count()) > 0 && (await guestFlopBtn.first().isVisible());
+    const guestHasBurnButton = (await guestBurnBtn.count()) > 0 && (await guestBurnBtn.first().isVisible());
+    const guestHasFlopButton = (await guestFlopBtn.count()) > 0 && (await guestFlopBtn.first().isVisible());
     steps.guestActions = {
       FOLD: guestHasFold,
       CHECK: guestHasCheck,
@@ -373,7 +388,23 @@ function analyzeGuestFrames(frames, guestClientId, hostClientId) {
     }
 
     // --- Guest bet action via game_action (if guest has bet actions) ---
-    if (guestHasCheck) {
+    // The guest only sees FOLD/CHECK/CALL/RAISE when THEY are the current
+    // turn holder. In poker the host acts first, so the guest typically has
+    // NO action bar at the deal — that is EXPECTED, not a gap. Only flag a
+    // gap when the guest's turn is active (header shows 'YOU · TO PLAY') but
+    // the bet actions are missing.
+    const guestTurnActive = await guest.evaluate(() => {
+      const els = Array.from(document.querySelectorAll('[role="button"], div'));
+      const visible = els.filter((el) => {
+        const r = el.getBoundingClientRect();
+        const cs = getComputedStyle(el);
+        return r.width > 0 && r.height > 0 && cs.visibility !== 'hidden' && cs.opacity !== '0' && r.top > 50;
+      });
+      return visible.some((el) => /YOU · TO PLAY/.test(el.textContent || ''));
+    });
+    steps.guestTurnActive = guestTurnActive;
+    const guestHasAnyBetAction = guestHasCheck || guestHasFold || guestHasCall || guestHasRaise;
+    if (guestTurnActive && guestHasCheck) {
       try {
         await (await exactButton(guest, 'CHECK')).click();
         await guest.waitForTimeout(1500);
@@ -385,7 +416,7 @@ function analyzeGuestFrames(frames, guestClientId, hostClientId) {
           symptom: `Guest CHECK button click failed: ${e instanceof Error ? e.message : String(e)}`,
         });
       }
-    } else if (guestHasFold) {
+    } else if (guestTurnActive && guestHasFold) {
       try {
         await (await exactButton(guest, 'FOLD')).click();
         await guest.waitForTimeout(1500);
@@ -397,24 +428,129 @@ function analyzeGuestFrames(frames, guestClientId, hostClientId) {
           symptom: `Guest FOLD button click failed: ${e instanceof Error ? e.message : String(e)}`,
         });
       }
-    } else {
+    } else if (guestTurnActive && guestHasCall) {
+      // Facing a bet: CHECK is correctly absent, CALL is the action.
+      try {
+        await (await exactButton(guest, 'CALL')).click();
+        await guest.waitForTimeout(1500);
+        await host.waitForTimeout(1500);
+        steps.guestCallSent = true;
+      } catch (e) {
+        gaps.push({
+          file: 'components/layers/TableLayer.tsx',
+          symptom: `Guest CALL button click failed: ${e instanceof Error ? e.message : String(e)}`,
+        });
+      }
+    } else if (guestTurnActive && guestHasRaise) {
+      try {
+        await (await exactButton(guest, 'RAISE')).click();
+        await guest.waitForTimeout(1500);
+        await host.waitForTimeout(1500);
+        steps.guestRaiseSent = true;
+      } catch (e) {
+        gaps.push({
+          file: 'components/layers/TableLayer.tsx',
+          symptom: `Guest RAISE button click failed: ${e instanceof Error ? e.message : String(e)}`,
+        });
+      }
+    } else if (guestTurnActive && !guestHasAnyBetAction) {
       gaps.push({
         file: 'src/engine/rules.ts (pokerActions)',
         symptom:
-          'Guest has no bet actions (FOLD/CHECK/CALL/RAISE) on the poker table. ' +
-          'The guest is not the current turn holder, or the viewerId is not resolving correctly. ' +
+          'Guest is the current turn holder (YOU · TO PLAY) but sees NO bet actions at all (FOLD/CHECK/CALL/RAISE) on the poker table. ' +
+          'The viewerId is not resolving correctly. ' +
           'Same class of bug as online blackjack TWIST/STICK not appearing.',
       });
+    } else {
+      steps.guestNoBetActions = 'expected: guest is not the current turn holder';
     }
 
     // --- Host street progression: BURN → FLOP → TURN → RIVER → SHOWDOWN ---
+    // With the blinds engine the host starts as the big blind and must close
+    // the preflop betting round first. The host's bet actions (FOLD/CALL/RAISE)
+    // appear immediately; BURN/FLOP appear only after the round completes.
+    // Close the round by CALLING (cheapest legal action), then the street
+    // buttons appear. If the host already has BURN/FLOP, skip the call.
+    const hostBurnBtn = host.getByRole('button', { name: 'BURN', exact: true });
+    if ((await hostBurnBtn.count()) === 0) {
+      const callBtn = host.getByRole('button', { name: 'CALL', exact: true });
+      try {
+        await callBtn.first().click({ timeout: 5000 });
+        await host.waitForTimeout(1200);
+        await guest.waitForTimeout(1200);
+        steps.hostPreflopCall = true;
+      } catch (e) {
+        gaps.push({
+          file: 'components/layers/TableLayer.tsx',
+          symptom: `Host could not close preflop (CALL): ${e instanceof Error ? e.message.split('\n')[0] : String(e)}`,
+        });
+      }
+    }
+
+    // Heads-up: after the host (small blind) calls, the guest (big blind) has
+    // already matched the bet via their blind, so the turn passes back to the
+    // guest who sees CHECK (not CALL). BURN only appears once the round is
+    // complete, so give the guest a turn before street progression.
+    if (steps.hostPreflopCall) {
+      const guestCheckBtn = guest.getByRole('button', { name: 'CHECK', exact: true });
+      const guestCallBtn = guest.getByRole('button', { name: 'CALL', exact: true });
+      try {
+        await guestCheckBtn.first().click({ timeout: 8000 });
+        await guest.waitForTimeout(1200);
+        await host.waitForTimeout(1200);
+        steps.guestPreflopCheck = true;
+      } catch (e) {
+        try {
+          await guestCallBtn.first().click({ timeout: 5000 });
+          await guest.waitForTimeout(1200);
+          await host.waitForTimeout(1200);
+          steps.guestPreflopCall = true;
+        } catch (e2) {
+          // Guest may not be the turn holder (e.g. host's call closed the
+          // round if the engine treats the host as last to act). Not a defect.
+          steps.guestPreflopCall = 'skipped: guest not the turn holder';
+        }
+      }
+    }
+
+    // The engine burns before EVERY street: BURN(0) → FLOP(0) → round →
+    // BURN(1) → TURN(1) → round → BURN(2) → RIVER(2) → round → SHOWDOWN.
     const streetProgression = [
       { label: 'BURN', button: 'BURN' },
       { label: 'FLOP', button: 'FLOP' },
+      { label: 'BURN', button: 'BURN' },
       { label: 'TURN', button: 'TURN' },
+      { label: 'BURN', button: 'BURN' },
       { label: 'RIVER', button: 'RIVER' },
       { label: 'SHOWDOWN', button: 'SHOWDOWN' },
     ];
+
+    // After a street card (FLOP/TURN/RIVER) a new betting round opens. In
+    // heads-up the big blind (guest) acts first postflop, then the host.
+    // Close the round with CHECKs (falling back to CALL if facing a bet)
+    // before the next street button appears.
+    const closeBettingRound = async (who, label) => {
+      const page = who === 'guest' ? guest : host;
+      const checkBtn = page.getByRole('button', { name: 'CHECK', exact: true });
+      const callBtn = page.getByRole('button', { name: 'CALL', exact: true });
+      try {
+        await checkBtn.first().click({ timeout: 6000 });
+        await guest.waitForTimeout(1000);
+        await host.waitForTimeout(1000);
+        steps[`${who}${label}Check`] = true;
+        return true;
+      } catch (e) {
+        try {
+          await callBtn.first().click({ timeout: 4000 });
+          await guest.waitForTimeout(1000);
+          await host.waitForTimeout(1000);
+          steps[`${who}${label}Call`] = true;
+          return true;
+        } catch (e2) {
+          return false;
+        }
+      }
+    };
 
     for (const street of streetProgression) {
       try {
@@ -430,6 +566,12 @@ function analyzeGuestFrames(frames, guestClientId, hostClientId) {
         await host.waitForTimeout(1500);
         await guest.waitForTimeout(1500);
         steps[`host${street.label}`] = true;
+        // Close the betting round opened by this street card (not after BURN,
+        // which is not a street, and not after SHOWDOWN which ends the hand).
+        if (street.label === 'FLOP' || street.label === 'TURN' || street.label === 'RIVER') {
+          await closeBettingRound('guest', street.label);
+          await closeBettingRound('host', street.label);
+        }
       } catch (e) {
         gaps.push({
           file: 'components/layers/TableLayer.tsx',
