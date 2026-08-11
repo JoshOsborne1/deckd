@@ -1,14 +1,14 @@
 import { buildDeck, mulberry32, shuffleInPlace } from './deck';
-import { emptyState, foldEvents } from './state';
+import { foldEvents } from './state';
 import { eventId } from './events';
 import type { GameEvent } from './events';
 import { ZONE_DRAW } from './types';
+import type { GameState, ZoneId } from './types';
 import {
   buildKlondikeLayout,
   buildFreeCellLayout,
   buildPyramidLayout,
   tableauRun,
-  canMoveRunToTableau,
   canMoveCardToFoundation,
   isKlondikeWon,
   freeCellColumnRun,
@@ -23,6 +23,7 @@ import {
   isKing,
   isPyramidWon,
   rankValue,
+  canStackOnTableau,
 } from './solitaire';
 
 function orderedDeck(): string[] {
@@ -30,7 +31,7 @@ function orderedDeck(): string[] {
 }
 
 function applyLayout(
-  layout: { zones: import('./types').Zone[]; initialDeals: { cardId: string; toZoneId: import('./types').ZoneId; face: 'up' | 'down' }[] },
+  layout: { zones: import('./types').Zone[]; initialDeals: { cardId: string; toZoneId: ZoneId; face: 'up' | 'down' }[] },
   hostId: string,
 ): GameState {
   const events: GameEvent[] = [];
@@ -52,8 +53,6 @@ function applyLayout(
   }
   return foldEvents(events);
 }
-
-import type { GameState } from './types';
 
 describe('solitaire helpers', () => {
   test('rankValue maps A=1, 10=10, J=11, Q=12, K=13', () => {
@@ -130,8 +129,7 @@ describe('Klondike move legality', () => {
   });
 });
 
-// Helper: check canStackOnTableau directly (imported indirectly via canMoveRunToTableau)
-import { canStackOnTableau } from './solitaire';
+// Helper: check canStackOnTableau directly.
 function canMoveRunToTableauDirect(movingCardId: string, targetCardId: string): boolean {
   return canStackOnTableau(movingCardId, targetCardId);
 }
