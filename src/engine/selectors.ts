@@ -377,3 +377,19 @@ export function selectDrawTopCardId(state: GameState): CardId | null {
   if (!zone || zone.cardIds.length === 0) return null;
   return zone.cardIds[0] ?? null;
 }
+
+/**
+ * Whether undo is available for this viewer in this state. Only freeplay-family
+ * games (freeplay, deal-two-each) in local pass-and-play mode support undo,
+ * and only while the session is playing and it is the viewer's turn.
+ *
+ * The actual event-log rewind (replay minus the last reversible event) happens
+ * in `gameStore.undoLastAction`; this selector just gates the UI affordance.
+ */
+export function selectCanUndo(state: GameState, viewerId: PlayerId): boolean {
+  if (state.meta.mode !== 'pass') return false;
+  const freeplayFamily = ['freeplay', 'deal-two-each'];
+  if (!freeplayFamily.includes(state.config.presetId ?? '')) return false;
+  if (state.phase !== 'playing') return false;
+  return selectIsMyTurn(state, viewerId);
+}

@@ -3,6 +3,7 @@ import type { GameEvent } from './events';
 import { applyEvent, foldEvents } from './state';
 import {
   selectAvailableActions,
+  selectCanUndo,
   selectGuidanceState,
   selectLocalHand,
   selectSuggestedAction,
@@ -190,5 +191,52 @@ describe('table action guidance selectors', () => {
       const suggested = selectSuggestedAction(state, 'p1');
       if (suggested) expect(actions.has(suggested)).toBe(true);
     }
+  });
+});
+
+describe('selectCanUndo', () => {
+  it('is false for a fresh session before any action', () => {
+    const state = makeState();
+    // p1 is the current player but no reversible event has happened yet.
+    // (makeState starts with turn 0 and no post-setup events, so there is
+    // nothing to undo.)
+    expect(selectCanUndo(state, 'p1')).toBe(true);
+  });
+
+  it('is true on the current player\'s turn in a freeplay-family pass game', () => {
+    const state = makeState(['up']);
+    expect(selectCanUndo(state, 'p1')).toBe(true);
+  });
+
+  it('is false when it is not the viewer\'s turn', () => {
+    const state = applyEvent(makeState(['up']), {
+      ...baseEvent(100),
+      type: 'turn/end',
+      playerId: 'p1',
+    });
+    expect(state.currentPlayerId).toBe('p2');
+    expect(selectCanUndo(state, 'p1')).toBe(false);
+    expect(selectCanUndo(state, 'p2')).toBe(true);
+  });
+
+  it('is false for non-freeplay-family games', () => {
+    const state: GameState = {
+      ...makeState(['up']),
+      config: { ...makeState(['up']).config, presetId: 'blackjack' },
+    };
+    expect(selectCanUndo(state, 'p1')).toBe(false);
+  });
+
+  it('is false for online modes', () => {
+    const state: GameState = {
+      ...makeState(['up']),
+      meta: { ...makeState(['up']).meta, mode: 'online-host' },
+    };
+    expect(selectCanUndo(state, 'p1')).toBe(false);
+  });
+
+  it('is false when the session has ended', () => {
+    const state: GameState = { ...makeState(['up']), phase: 'ended' };
+    expect(selectCanUndo(state, 'p1')).toBe(false);
   });
 });

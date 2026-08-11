@@ -72,6 +72,15 @@ export interface GameStoreState {
   resumeSession: () => void;
   endSession: (winnerId?: PlayerId) => void;
 
+  /**
+   * Undo the last reversible action for freeplay-family pass-and-play games.
+   * Replays the event log minus the last reversible event (card/deal,
+   * card/move, card/flip, card/reveal, hand/reorder) that occurred in the
+   * current player's turn. Returns true if an event was undone, false if
+   * nothing is reversible.
+   */
+  undoLastAction: () => boolean;
+
   /** Solo blackjack: deal a fresh hand with the same players. */
   startNextHand: () => void;
   /** Offline pass-and-play: replay the ended table with the same seats. */
@@ -452,6 +461,42 @@ export const useGameStore = create<GameStoreState>()(
           actorId: get().state.meta.hostId || HOST_ACTOR,
           winnerId,
         }),
+
+      undoLastAction: () => {
+        const { events, state } = get();
+        // Only freeplay-family pass-and-play games.
+        if (state.meta.mode !== 'pass') return false;
+        if (!['freeplay', 'deal-two-each'].includes(state.config.presetId ?? '')) return false;
+        if (state.phase !== 'playing') return false;
+
+        // Find the last reversible event. We scan backwards from the end,
+        // skipping non-reversible events (privacy, session lifecycle).
+        // We stop at the last turn/end — undo never crosses a turn boundary.
+        const reversible = new Set([
+          'card/deal',
+          'card/move',
+          'card/flip',
+          'card/reveal',
+          'hand/reorder',
+        ]);
+        let removeIndex = -1;
+        for (let i = events.length - 1; i >= 0; i--) {
+          const ev = events[i]!;
+          if (ev.type === 'turn/end') break; // never undo across a turn
+          if (ev.type === 'session/start') break; // nothing to undo before setup
+          if (reversible.has(ev.type)) {
+            removeIndex = i;
+            break;
+          }
+        }
+        if (removeIndex < 0) return false;
+
+        const nextEvents = events.slice(0, removeIndex).concat(events.slice(removeIndex + 1));
+        const nextState = foldEvents(nextEvents);
+        const nextSeq = removeIndex > 0 ? events[removeIndex - 1]!.seq : 0;
+        set({ events: nextEvents, seq: nextSeq, state: nextState });
+        return true;
+      },
     }),
     {
       name: 'game:active',

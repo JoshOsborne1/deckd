@@ -8,7 +8,7 @@ import Animated, {
   withSequence,
   withTiming,
 } from 'react-native-reanimated';
-import { BookOpen, ChevronLeft, Clock, Flag, Menu, Shuffle } from 'lucide-react-native';
+import { BookOpen, ChevronLeft, Clock, Flag, Menu, Shuffle, Undo2 } from 'lucide-react-native';
 import { AvatarPlaceholder } from '@components/AvatarPlaceholder';
 import { CardButton } from '@components/CardButton';
 import { CardSection } from '@components/CardSection';
@@ -31,6 +31,7 @@ import {
   parseCardId,
   parseJokerId,
   selectCardFace,
+  selectCanUndo,
   selectCurrentPlayerId,
   selectDiscardTopCard,
   selectDrawPileCount,
@@ -114,6 +115,7 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
   const replaySession = useGameStore((s) => s.replaySession);
   const dispatch = useGameStore((s) => s.dispatch);
   const reorderHand = useGameStore((s) => s.reorderHand);
+  const undoLastAction = useGameStore((s) => s.undoLastAction);
 
   const lobbyStatus = useLobbyStore((s) => s.status);
   const lobbySession = useLobbyStore((s) => s.session);
@@ -164,6 +166,10 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
   const currentPlayerId = useMemo(() => selectCurrentPlayerId(state), [state]);
   const isMyTurn = useMemo(
     () => (viewerId ? selectIsMyTurn(state, viewerId) : false),
+    [state, viewerId],
+  );
+  const canUndo = useMemo(
+    () => (viewerId ? selectCanUndo(state, viewerId) : false),
     [state, viewerId],
   );
   const availableActions = useMemo<ReadonlySet<TableAction>>(
@@ -520,6 +526,12 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
     setHistoryOpen(true);
   }, [haptic]);
 
+  const handleUndo = useCallback(() => {
+    haptic('medium');
+    playSound('flip');
+    undoLastAction();
+  }, [haptic, playSound, undoLastAction]);
+
   const handleRules = useCallback(() => {
     haptic('light');
     setRulesOpen(true);
@@ -844,6 +856,17 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
         >
           <Shuffle size={20} color={colors.inkMuted} />
         </Pressable>
+
+        {canUndo && (
+          <Pressable
+            onPress={handleUndo}
+            accessibilityRole="button"
+            accessibilityLabel="Undo last action"
+            style={({ pressed }) => [styles.iconBtn, pressed && { opacity: 0.85 }]}
+          >
+            <Undo2 size={20} color={colors.brand} />
+          </Pressable>
+        )}
 
         {usesRuleActionBar && state.phase !== 'ended' ? (
           ruleActions.length > 0 ? (
