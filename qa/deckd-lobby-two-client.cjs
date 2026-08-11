@@ -4,7 +4,10 @@ const baseUrl = process.env.DECKD_QA_URL ?? 'https://deckd-app.roxai.click/';
 
 async function exactButton(page, name, last = false) {
   const locator = page.getByRole('button', { name, exact: true });
-  await locator.first().waitFor({ state: 'attached', timeout: 30000 });
+  // Wait for visible (not just attached): the home layer's buttons exist in
+  // the DOM immediately but can be covered by a splash/loading overlay until
+  // hydration completes against the live CDN. Attached-only waits flake.
+  await locator.first().waitFor({ state: 'visible', timeout: 30000 });
   return last ? locator.last() : locator.first();
 }
 
@@ -41,9 +44,20 @@ async function waitForBody(page, predicate, timeout = 30000) {
   }
 
   try {
+    // Wait for the JS bundle to load and the app to hydrate. 'commit' returns
+    // before the bundle downloads; the app has a 5MB bundle from the CDN. Use
+    // 'domcontentloaded' (fires reliably, unlike 'networkidle' which hangs on
+    // the persistent relay WebSocket) and let the visible-button wait below
+    // gate on hydration. If the CDN is slow the button wait fails precisely.
     await Promise.all([
-      host.goto(baseUrl, { waitUntil: 'commit', timeout: 30000 }),
-      guest.goto(baseUrl, { waitUntil: 'commit', timeout: 30000 }),
+      host.goto(baseUrl, { waitUntil: 'domcontentloaded', timeout: 30000 }),
+      guest.goto(baseUrl, { waitUntil: 'domcontentloaded', timeout: 30000 }),
+    ]);
+    // Clear localStorage: the live origin persists stale sessions that pollute
+    // the AX tree and make text waits land on the wrong layer.
+    await Promise.all([
+      host.evaluate(() => localStorage.clear()),
+      guest.evaluate(() => localStorage.clear()),
     ]);
     await Promise.all([
       exactButton(host, 'Deal to friends'),
