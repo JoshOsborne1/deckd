@@ -46,7 +46,7 @@ interface HubLayerProps {
 type PlayerCount = 1 | 2 | 3 | 4 | 5 | 6;
 const PLAYER_OPTIONS: PlayerCount[] = [1, 2, 3, 4, 5, 6];
 
-const PRESET_OUTCOMES: Record<Preset['id'], string> = {
+const PRESET_OUTCOMES: Record<string, string> = {
   freeplay: 'Deal, draw, and flip freely',
   'deal-two-each': 'Two face-down cards each',
   war: 'Flip high, collect the battle',
@@ -57,7 +57,12 @@ const PRESET_OUTCOMES: Record<Preset['id'], string> = {
   klondike: 'Build four foundations from ace to king',
   blackjack: 'Dealer hand + scoring helper',
   poker: 'Hole cards, then community play',
+  freecell: 'Every card face-up · four free cells · solo',
+  pyramid: 'Pair to thirteen · dismantle the pyramid · solo',
 };
+
+/** Presets that are solo-only (1 player, no pass-and-play). */
+const SOLO_PRESETS = new Set(['klondike', 'freecell', 'pyramid']);
 
 /** Progress threshold above which Hub accepts taps. */
 const HUB_INTERACTIVE_THRESHOLD = 0.85;
@@ -177,6 +182,14 @@ export function HubLayer({
     [presetId],
   );
 
+  // FreeCell and Pyramid layouts are hardcoded to a 52-card deck (FreeCell
+  // 4×7 + 4×6, Pyramid 28 + 24). Enabling jokers silently drops 2 cards from
+  // those deals, so the token is hidden and the flag forced off for them.
+  const jokersSupported =
+    activePreset?.recipe.layout !== 'freecell' &&
+    activePreset?.recipe.layout !== 'pyramid';
+  const effectiveIncludeJokers = jokersSupported && includeJokers;
+
   const handlePresetSelect = (nextPreset: Preset) => {
     setPresetId(nextPreset.id);
     setPlayerCount((current) => {
@@ -224,7 +237,7 @@ export function HubLayer({
         mode: 'online-host',
         presetId: activePreset.id,
         players,
-        config: { includeJokers, fanStyle, autoReshuffleDiscard: autoReshuffle },
+        config: { includeJokers: effectiveIncludeJokers, fanStyle, autoReshuffleDiscard: autoReshuffle },
         hostId: localClientId,
       });
       useProfileStore.getState().bumpGamesPlayed();
@@ -243,7 +256,7 @@ export function HubLayer({
       mode: playerCount === 1 ? 'solo' : 'pass',
       presetId: activePreset.id,
       players,
-      config: { includeJokers, fanStyle, autoReshuffleDiscard: autoReshuffle },
+      config: { includeJokers: effectiveIncludeJokers, fanStyle, autoReshuffleDiscard: autoReshuffle },
       hostId: 'you',
     });
     useProfileStore.getState().bumpGamesPlayed();
@@ -538,10 +551,14 @@ export function HubLayer({
           <View>
             <Text style={styles.sectionTitle}>Who’s at the table?</Text>
             <Text style={styles.sectionKicker}>
-              {playerCount === 1
+              {SOLO_PRESETS.has(activePreset.id)
                 ? activePreset.id === 'klondike'
-                  ? 'Solo tableau and foundation play'
-                  : 'Solo blackjack against the house'
+                  ? 'Solo · build the four foundations'
+                  : activePreset.id === 'freecell'
+                    ? 'Solo · every card face-up'
+                    : 'Solo · pair to thirteen'
+                : playerCount === 1
+                ? 'Solo blackjack against the house'
                 : activePreset.id === 'go-fish'
                   ? 'Ask a rank, then keep fishing when you hit'
                   : activePreset.id === 'old-maid'
@@ -553,10 +570,12 @@ export function HubLayer({
         <View style={styles.playerRow}>
           {PLAYER_OPTIONS.map((n, idx) => {
             const selected = n === playerCount;
+            // Solo (1 player) is valid for blackjack and all solitaire presets.
+            const isSoloPreset = SOLO_PRESETS.has(activePreset.id);
             const outsideRecipeRange = n < activePreset.minPlayers || n > Math.min(activePreset.maxPlayers, 6);
-            // Solo is available for blackjack and Klondike; other recipes stay
-            // pass-and-play and should not expose an invalid player count.
-            const soloDisabled = n === 1 && !['blackjack', 'klondike'].includes(activePreset.id);
+            const soloDisabled = n === 1
+              ? activePreset.id !== 'blackjack' && !isSoloPreset
+              : isSoloPreset; // solitaire presets cannot take more than 1 player
             const playerDisabled = outsideRecipeRange || soloDisabled;
             return (
               <StaggeredChip
@@ -574,7 +593,7 @@ export function HubLayer({
                   haptic="select"
                   disabled={playerDisabled}
                   onPress={() => {
-                    if (n === 1 && activePreset.id !== 'klondike') setPresetId('blackjack');
+                    if (n === 1 && !SOLO_PRESETS.has(activePreset.id)) setPresetId('blackjack');
                     setPlayerCount(n);
                   }}
                   style={{
@@ -600,12 +619,14 @@ export function HubLayer({
         </Animated.View>
         <Animated.View style={optionsCardStyle}>
           <View style={styles.tokenGrid}>
-            <OptionToken
-              label="Jokers"
-              detail={includeJokers ? '54 cards' : '52 cards'}
-              selected={includeJokers}
-              onPress={() => setIncludeJokers((v) => !v)}
-            />
+            {jokersSupported && (
+              <OptionToken
+                label="Jokers"
+                detail={includeJokers ? '54 cards' : '52 cards'}
+                selected={includeJokers}
+                onPress={() => setIncludeJokers((v) => !v)}
+              />
+            )}
             <OptionToken
               label="Wide fan"
               detail="hand layout"

@@ -13,6 +13,8 @@ describe('rules guides', () => {
       'klondike',
       'blackjack',
       'poker',
+      'freecell',
+      'pyramid',
     ]);
 
     for (const guide of Object.values(RULES_GUIDES)) {

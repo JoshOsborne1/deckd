@@ -18,6 +18,25 @@ import {
   tableZoneId,
 } from './types';
 import { parseCardId } from './selectors';
+import {
+  PYRAMID_STOCK,
+  PYRAMID_WASTE,
+  PYRAMID_ZONE,
+  ZONE_WASTE,
+  canMoveCardToFoundation,
+  canMoveRunToFreeCellColumn,
+  canMoveRunToTableau,
+  foundationZoneId,
+  freeCellZoneId,
+  freeCellTableauZoneId,
+  isFreeCellWon,
+  isKing,
+  isPyramidCardFree,
+  isPyramidWon,
+  pyramidPairMatches,
+  tableauRun,
+  tableauZoneId,
+} from './solitaire';
 
 /**
  * Per-game rule systems.
@@ -51,6 +70,10 @@ export type GameAction =
   | 'raise'
   | 'reveal'
   | 'pair'
+  | 'cycleStock'
+  | 'restart'
+  | 'autoFoundation'
+  | `move:${string}`
   | `play:${string}`
   | `flip:${string}`
   | `move:${string}`
@@ -1377,6 +1400,247 @@ function noActions(): GameActionSpec[] {
   return [];
 }
 
+/** Exported so the UI can build tap-to-move actions from zone ids. */
+export function encodeMoveAction(from: string, to: string): GameAction {
+  return `move:${from}:to:${to}` as GameAction;
+}
+
+/** Shared by Klondike/FreeCell move actions: `move:<from>:to:<to>`. */
+function parseMoveAction(
+  action: GameAction,
+): { from: string; to: string } | null {
+  if (typeof action !== 'string' || !action.startsWith('move:')) return null;
+  const rest = action.slice('move:'.length);
+  const divider = rest.indexOf(':to:');
+  if (divider < 0) return null;
+  return { from: rest.slice(0, divider), to: rest.slice(divider + 4) };
+}
+
+/** Returns the card ids that would move from `from` zone (a single run or card). */
+function movableCardIds(state: GameState, from: string): { ids: string[]; isTopOnly: boolean } | null {
+  if (from === ZONE_WASTE) {
+    const zone = state.zones[ZONE_WASTE];
+    const top = zone?.cardIds[zone.cardIds.length - 1];
+    return top ? { ids: [top], isTopOnly: true } : null;
+  }
+  if (from.startsWith('tableau:')) {
+    const col = Number(from.slice('tableau:'.length));
+    if (Number.isNaN(col)) return null;
+    const run = tableauRun(state, col);
+    return run.length > 0 ? { ids: run, isTopOnly: false } : null;
+  }
+  if (from.startsWith('fc-tableau:')) {
+    const col = Number(from.slice('fc-tableau:'.length));
+    if (Number.isNaN(col)) return null;
+    const zone = state.zones[freeCellTableauZoneId(col)];
+    const top = zone?.cardIds[zone.cardIds.length - 1];
+    return top ? { ids: [top], isTopOnly: true } : null;
+  }
+  if (from.startsWith('free-cell:')) {
+    const idx = Number(from.slice('free-cell:'.length));
+    if (Number.isNaN(idx)) return null;
+    const zone = state.zones[freeCellZoneId(idx)];
+    const top = zone?.cardIds[zone.cardIds.length - 1];
+    return top ? { ids: [top], isTopOnly: true } : null;
+  }
+  return null;
+}
+
+/** Shared move resolver for Klondike and FreeCell. */
+function resolveMove(state: GameState, from: string, to: string): PrimitiveEvent[] | null {
+  const movable = movableCardIds(state, from);
+  if (!movable) return null;
+  const ids = movable.ids;
+  if (ids.length === 0) return null;
+
+  // Foundation moves: only a single card can go to a foundation.
+  if (to.startsWith('foundation:')) {
+    const fIdx = Number(to.slice('foundation:'.length));
+    if (Number.isNaN(fIdx) || ids.length > 1) return null;
+    const cardId = ids[0]!;
+    if (!canMoveCardToFoundation(state, cardId, fIdx)) return null;
+    return [{ type: 'card/move', cardId, toZoneId: foundationZoneId(fIdx), face: 'up' }];
+  }
+
+  // Tableau moves (Klondike).
+  if (to.startsWith('tableau:')) {
+    const col = Number(to.slice('tableau:'.length));
+    if (Number.isNaN(col)) return null;
+    if (!canMoveRunToTableau(state, ids, col)) return null;
+    return ids.map((cardId) => ({ type: 'card/move' as const, cardId, toZoneId: tableauZoneId(col), face: 'up' as const }));
+  }
+
+  // FreeCell column moves.
+  if (to.startsWith('fc-tableau:')) {
+    const col = Number(to.slice('fc-tableau:'.length));
+    if (Number.isNaN(col)) return null;
+    if (!canMoveRunToFreeCellColumn(state, ids, col)) return null;
+    return ids.map((cardId) => ({ type: 'card/move' as const, cardId, toZoneId: freeCellTableauZoneId(col), face: 'up' as const }));
+  }
+
+  // Free cell moves: only a single card.
+  if (to.startsWith('free-cell:')) {
+    const idx = Number(to.slice('free-cell:'.length));
+    if (Number.isNaN(idx) || ids.length > 1) return null;
+    const zone = state.zones[freeCellZoneId(idx)];
+    if (!zone || zone.cardIds.length > 0) return null; // free cell holds 1 card
+    return [{ type: 'card/move', cardId: ids[0]!, toZoneId: freeCellZoneId(idx), face: 'up' }];
+  }
+
+  return null;
+}
+
+// ---------------------------------------------------------------------------
+// FreeCell solitaire
+// ---------------------------------------------------------------------------
+
+function freeCellActions(state: GameState, _viewerId: PlayerId): GameActionSpec[] {
+  if (state.phase !== 'playing') return [];
+  const specs: GameActionSpec[] = [];
+  if (isFreeCellWon(state)) {
+    specs.push({ id: 'end', label: 'FINISH', hint: 'You cleared the board', kind: 'table' });
+  }
+  return specs;
+}
+
+function freeCellApply(action: GameAction, state: GameState, viewerId: PlayerId): PrimitiveEvent[] | null {
+  if (state.phase !== 'playing') return null;
+  if (action === 'end') {
+    return isFreeCellWon(state)
+      ? [{ type: 'session/end', winnerId: viewerId }]
+      : null;
+  }
+  const move = parseMoveAction(action);
+  if (!move) return null;
+  return resolveMove(state, move.from, move.to);
+}
+
+function freeCellReadout(state: GameState, _playerId: PlayerId): string | null {
+  let free = 0;
+  for (let i = 0; i < 4; i += 1) {
+    if ((state.zones[freeCellZoneId(i)]?.cardIds.length ?? 0) === 0) free += 1;
+  }
+  let foundationCount = 0;
+  for (let i = 0; i < 4; i += 1) {
+    foundationCount += state.zones[foundationZoneId(i)]?.cardIds.length ?? 0;
+  }
+  return `FREE ${free}/4 · FOUNDATION ${foundationCount}/52`;
+}
+
+// ---------------------------------------------------------------------------
+// Pyramid solitaire
+// ---------------------------------------------------------------------------
+
+/**
+ * Pyramid play action: `play:<indexA>:<indexB>` where indices reference either
+ * pyramid positions (0-27) or special tokens `stock` / `waste`.
+ */
+function parsePyramidPlay(
+  action: GameAction,
+): { a: string; b: string } | null {
+  if (typeof action !== 'string' || !action.startsWith('play:')) return null;
+  const rest = action.slice('play:'.length);
+  const divider = rest.indexOf(':');
+  if (divider < 0) return null;
+  return { a: rest.slice(0, divider), b: rest.slice(divider + 1) };
+}
+
+function pyramidCardId(state: GameState, token: string): string | null {
+  if (token === 'stock') {
+    return state.zones[PYRAMID_STOCK]?.cardIds[state.zones[PYRAMID_STOCK]!.cardIds.length - 1] ?? null;
+  }
+  if (token === 'waste') {
+    return state.zones[PYRAMID_WASTE]?.cardIds[state.zones[PYRAMID_WASTE]!.cardIds.length - 1] ?? null;
+  }
+  const idx = Number(token);
+  if (Number.isNaN(idx)) return null;
+  return state.zones[PYRAMID_ZONE]?.cardIds[idx] ?? null;
+}
+
+function pyramidActions(state: GameState, _viewerId: PlayerId): GameActionSpec[] {
+  if (state.phase !== 'playing') return [];
+  const specs: GameActionSpec[] = [];
+  const stockCount = state.zones[PYRAMID_STOCK]?.cardIds.length ?? 0;
+  if (stockCount > 0) {
+    specs.push({ id: 'cycleStock', label: 'DRAW', hint: 'Flip a card to the waste', kind: 'table' });
+  }
+  if (isPyramidWon(state)) {
+    specs.push({ id: 'end', label: 'FINISH', hint: 'You cleared the pyramid', kind: 'table' });
+  }
+  return specs;
+}
+
+function pyramidApply(action: GameAction, state: GameState, viewerId: PlayerId): PrimitiveEvent[] | null {
+  if (state.phase !== 'playing') return null;
+  if (action === 'end') {
+    return isPyramidWon(state)
+      ? [{ type: 'session/end', winnerId: viewerId }]
+      : null;
+  }
+  if (action === 'cycleStock') {
+    const stock = state.zones[PYRAMID_STOCK];
+    if (!stock || stock.cardIds.length === 0) return null;
+    const top = stock.cardIds[stock.cardIds.length - 1]!;
+    return [{ type: 'card/move', cardId: top, toZoneId: PYRAMID_WASTE, face: 'up' }];
+  }
+  if (action === 'restart') {
+    // No-op here; restart is handled by the store's startNextHand.
+    return null;
+  }
+  const play = parsePyramidPlay(action);
+  if (!play) return null;
+  const cardA = pyramidCardId(state, play.a);
+  const cardB = pyramidCardId(state, play.b);
+  if (!cardA) return null;
+
+  const events: PrimitiveEvent[] = [];
+
+  // Single King removal.
+  if (isKing(cardA) && (play.b === '' || play.b === cardA || play.b === play.a)) {
+    if (play.a !== 'stock' && play.a !== 'waste') {
+      const idx = Number(play.a);
+      if (!isPyramidCardFree(state, idx)) return null;
+    }
+    events.push({ type: 'card/move', cardId: cardA, toZoneId: ZONE_MUCK, face: 'down' });
+    if (isPyramidWon({ ...state, zones: { ...state.zones, [PYRAMID_ZONE]: { ...state.zones[PYRAMID_ZONE]!, cardIds: state.zones[PYRAMID_ZONE]!.cardIds.map((id) => (id === cardA ? '' : id)) } } })) {
+      events.push({ type: 'session/end', winnerId: viewerId });
+    }
+    return events;
+  }
+
+  if (!cardB) return null;
+  if (!pyramidPairMatches(cardA, cardB)) return null;
+
+  // Validate freedom: pyramid cards must be free; stock/waste are always accessible.
+  if (play.a !== 'stock' && play.a !== 'waste') {
+    const idxA = Number(play.a);
+    if (!Number.isNaN(idxA) && !isPyramidCardFree(state, idxA)) return null;
+  }
+  if (play.b !== 'stock' && play.b !== 'waste') {
+    const idxB = Number(play.b);
+    if (!Number.isNaN(idxB) && !isPyramidCardFree(state, idxB)) return null;
+  }
+
+  events.push({ type: 'card/move', cardId: cardA, toZoneId: ZONE_MUCK, face: 'down' });
+  events.push({ type: 'card/move', cardId: cardB, toZoneId: ZONE_MUCK, face: 'down' });
+
+  // Check win after removal.
+  const pyramidAfter = state.zones[PYRAMID_ZONE]!.cardIds.map((id) =>
+    (id === cardA || id === cardB) ? '' : id,
+  );
+  if (isPyramidWon({ ...state, zones: { ...state.zones, [PYRAMID_ZONE]: { ...state.zones[PYRAMID_ZONE]!, cardIds: pyramidAfter } } })) {
+    events.push({ type: 'session/end', winnerId: viewerId });
+  }
+  return events;
+}
+
+function pyramidReadout(state: GameState, _playerId: PlayerId): string | null {
+  const pyramidCount = state.zones[PYRAMID_ZONE]?.cardIds.filter((id) => id).length ?? 0;
+  const stock = state.zones[PYRAMID_STOCK]?.cardIds.length ?? 0;
+  const waste = state.zones[PYRAMID_WASTE]?.cardIds.length ?? 0;
+  return `PYRAMID ${pyramidCount}/28 · STOCK ${stock + waste}`;
+}
+
 // ---------------------------------------------------------------------------
 // Registry
 // ---------------------------------------------------------------------------
@@ -1439,6 +1703,18 @@ export const GAME_RULES: Record<string, GameRules> = {
     actions: pokerActions,
     apply: pokerApply,
     readout: pokerReadout,
+  },
+  freecell: {
+    id: 'freecell',
+    actions: freeCellActions,
+    apply: freeCellApply,
+    readout: freeCellReadout,
+  },
+  pyramid: {
+    id: 'pyramid',
+    actions: pyramidActions,
+    apply: pyramidApply,
+    readout: pyramidReadout,
   },
 };
 

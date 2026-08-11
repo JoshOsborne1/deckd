@@ -134,6 +134,32 @@ export const RULES_GUIDES: Record<string, RulesGuide> = {
     win: 'The highest-ranked live hand takes the table; folding leaves the pot to the last live player.',
     tableNote: 'Each player starts with 100 chips. Private hole cards stay private; community cards are always public.',
   },
+  freecell: {
+    id: 'freecell',
+    title: 'FreeCell',
+    summary: 'Every card face-up. Build the foundations with four free cells.',
+    steps: [
+      'Tap a card, then tap a destination to move it.',
+      'Stack columns in descending order, alternating red and black.',
+      'Use the four free cells to hold single cards while you rearrange.',
+      'Send Aces to the foundations, then build each suit up to King.',
+    ],
+    win: 'All 52 cards in the four foundations.',
+    tableNote: 'You can move a run of cards if you have enough free cells and empty columns.',
+  },
+  pyramid: {
+    id: 'pyramid',
+    title: 'Pyramid Solitaire',
+    summary: 'Pair cards to thirteen and dismantle the pyramid.',
+    steps: [
+      'Tap two free cards whose ranks add to thirteen (A=1, J=11, Q=12).',
+      'A King (13) is removed on its own — just tap it.',
+      'Only cards not covered by others are free to pair.',
+      'Tap the stock to draw; pair waste cards with free pyramid cards.',
+    ],
+    win: 'Clear all 28 cards from the pyramid.',
+    tableNote: 'The stock and waste are always available; pyramid cards must be uncovered.',
+  },
 };
 
 export function getRulesGuide(presetId: string | null | undefined): RulesGuide {

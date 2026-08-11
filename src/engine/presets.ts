@@ -259,6 +259,55 @@ export const pokerStylePreset = makePreset({
   helpers: { rankHand: true },
 });
 
+// ---------------------------------------------------------------------------
+// Solitaire presets
+//
+// Klondike ships from the shared recipe dispatch (`layout: 'klondike'` in
+// recipes.ts). FreeCell and Pyramid use the same dispatch pattern with their
+// own layout families; the store creates sessions via executeRecipe, so these
+// must never override `setup`.
+// ---------------------------------------------------------------------------
+
+export const freeCellPreset = makePreset({
+  id: 'freecell',
+  name: 'FreeCell',
+  oneLiner: 'Every card face-up. Build the foundations with four free cells.',
+  minPlayers: 1,
+  maxPlayers: 1,
+  backs: ['back-noir'],
+  deal: { pattern: 'none', rounds: 0, face: 'down', to: 'table' },
+  actionPolicy: {
+    allowDraw: false,
+    allowDiscard: false,
+    allowFlip: false,
+    allowPassTurn: false,
+    allowPlay: true,
+  },
+  turnPolicy: 'free',
+  winCondition: 'scoreTarget',
+  layout: 'freecell',
+});
+
+export const pyramidPreset = makePreset({
+  id: 'pyramid',
+  name: 'Pyramid',
+  oneLiner: 'Pair cards to thirteen and dismantle the pyramid.',
+  minPlayers: 1,
+  maxPlayers: 1,
+  backs: ['back-crimson'],
+  deal: { pattern: 'none', rounds: 0, face: 'down', to: 'table' },
+  actionPolicy: {
+    allowDraw: true,
+    allowDiscard: false,
+    allowFlip: false,
+    allowPassTurn: false,
+    allowPlay: true,
+  },
+  turnPolicy: 'free',
+  winCondition: 'scoreTarget',
+  layout: 'pyramid',
+});
+
 export const builtinPresets: Preset[] = [
   freeplayPreset,
   dealTwoEachPreset,
@@ -270,6 +319,8 @@ export const builtinPresets: Preset[] = [
   klondikePreset,
   blackjackStylePreset,
   pokerStylePreset,
+  freeCellPreset,
+  pyramidPreset,
 ];
 
 export function findPreset(id: string | null | undefined): Preset {
