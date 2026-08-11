@@ -2,7 +2,11 @@
 
 Josh's current directives for the Deckd LOOP. Latest wins over anything in ROADMAP.md / MVP_SCOPE.md where they conflict. Update this file as directives change; every loop run reads this first.
 
-Last updated: 2026-08-09
+Last updated: 2026-08-11
+
+## Build brief (supersedes doc order)
+
+**docs/AUDIT_2026-08-11.md is the authoritative build brief** (Josh, 2026-08-11): the verified gap list (what exists / what should exist / the "ready" bar G1-G9) and the dispatch order. Work it. Monetisation is PARKED — store products, keys, paywalls, RevenueCat wiring are NOT the goal. Gameplay, features, playability, visuals ARE the goal. Josh's standing order: build & push all day, no asking.
 
 ## Current directives
 
@@ -83,6 +87,12 @@ HubLayer currently reads as a settings form. Redesign as a deal-prep ritual on t
 
 ### 15. PRIORITY: gameplay + visuals FIRST, monetization LATER (Josh, 2026-08-09)
 Build order: (1) visual pass — cards, nav chips, setup page; (2) recipe schema (presets become data, `executeRecipe`); (3) free library: War, Go Fish, Old Maid, Crazy Eights, Sevens; (4) full Blackjack + Hold'em; (5) premium library push; (6) AI generator; (7) solitaire singles + lobby picker + real 2-device test. Monetization routes (suits as credits, premium library paywall, pass perks) are DESIGNED but NOT built until gameplay is right. See `docs/DESIGN_PLAN.md` for the full thesis; `docs/PARKED_IDEAS.md` for everything deferred.
+
+### 16. SOLO GAMES ARE A PILLAR (Josh, 2026-08-11)
+Solo play is first-class, not a side feature: solitaire (Klondike + at least one more layout) and blackjack against the computer are explicitly requested. Same table world, same animation quality, offline-capable (PWA shell already proven). Solo ships with the free library, not after it.
+
+### 17. PRODUCTION READY — BUILD ALL DAY (Josh, 2026-08-11)
+Josh's mandate: stop asking, just build & push all day. He knows the goal, the visuals exist, the scope is in docs/AUDIT_2026-08-11.md. Work the audit's dispatch order, slice by slice, gates green every time, deploy each slice to the live preview. Do not wait for direction. Monetisation is parked until gameplay is right.
 
 ## Standing rules (from AGENTS.md, unchanged)
 
