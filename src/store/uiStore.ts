@@ -22,11 +22,20 @@ export interface UiStoreState {
   viewMode: ViewMode;
   previousMode: ViewMode | null;
   passContext: PassContext | null;
+  /** Hand sort mode for freeplay-family games (rank/suit toggle). */
+  handSortMode: 'rank' | 'suit';
+  /** Whether the first-run hint has been dismissed. Persisted so it only
+   *  shows once across app launches. */
+  firstRunHintDismissed: boolean;
 
   setViewMode: (mode: ViewMode) => void;
   openPass: (ctx: PassContext) => void;
   closePass: () => void;
   resetToHome: () => void;
+  /** Toggle between 'rank' and 'suit' sort modes. */
+  toggleHandSortMode: () => void;
+  /** Mark the first-run hint as dismissed (persists across launches). */
+  dismissFirstRunHint: () => void;
 }
 
 export const useUiStore = create<UiStoreState>()(
@@ -35,6 +44,8 @@ export const useUiStore = create<UiStoreState>()(
       viewMode: 'home',
       previousMode: null,
       passContext: null,
+      handSortMode: 'rank',
+      firstRunHintDismissed: false,
 
       setViewMode: (mode) =>
         set((s) => ({
@@ -62,6 +73,11 @@ export const useUiStore = create<UiStoreState>()(
 
       resetToHome: () =>
         set({ viewMode: 'home', previousMode: null, passContext: null }),
+
+      toggleHandSortMode: () =>
+        set((s) => ({ handSortMode: s.handSortMode === 'rank' ? 'suit' : 'rank' })),
+
+      dismissFirstRunHint: () => set({ firstRunHintDismissed: true }),
     }),
     {
       name: 'ui:view',
@@ -69,6 +85,8 @@ export const useUiStore = create<UiStoreState>()(
       version: 1,
       partialize: (s) => ({
         viewMode: s.viewMode === 'pass' ? 'home' : s.viewMode,
+        handSortMode: s.handSortMode,
+        firstRunHintDismissed: s.firstRunHintDismissed,
       }),
     },
   ),

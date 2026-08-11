@@ -62,10 +62,30 @@ export function LobbyLayer({ active, topInset, bottomInset }: LobbyLayerProps) {
   const surfaceStyle = useLayerSurfaceEntrance(active);
 
   const goHome = useCallback(() => {
-    haptic('light');
-    leaveLobby();
-    setViewMode('home');
-  }, [haptic, leaveLobby, setViewMode]);
+    // Only confirm if there's an active relay session to leave.
+    if (lobbyStatus === 'connected' || lobbyStatus === 'connecting') {
+      Alert.alert(
+        'Leave the lobby?',
+        'You will disconnect from this room. You can rejoin with the code later.',
+        [
+          { text: 'Stay', style: 'cancel' },
+          {
+            text: 'Leave',
+            style: 'destructive',
+            onPress: () => {
+              haptic('light');
+              leaveLobby();
+              setViewMode('home');
+            },
+          },
+        ],
+      );
+    } else {
+      haptic('light');
+      leaveLobby();
+      setViewMode('home');
+    }
+  }, [haptic, leaveLobby, setViewMode, lobbyStatus]);
 
   const handleCreate = useCallback(() => {
     haptic('medium');
@@ -277,7 +297,11 @@ export function LobbyLayer({ active, topInset, bottomInset }: LobbyLayerProps) {
                     </View>
                   ))}
                 </View>
-              ) : null}
+              ) : (
+                <Text style={styles.emptyPlayersText}>
+                  Waiting for friends to join with the code.
+                </Text>
+              )}
               <Text style={styles.statusRow}>Relay: {relayStatusText(lobbyStatus, lastError)}</Text>
             </CardSection>
 
@@ -467,6 +491,14 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontFamily: fonts.regular,
     color: colors.ink,
+  },
+  emptyPlayersText: {
+    fontSize: 13,
+    fontFamily: fonts.regular,
+    color: colors.inkMuted,
+    marginTop: space.xs,
+    marginBottom: space.sm,
+    lineHeight: 19,
   },
 });
 

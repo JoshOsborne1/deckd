@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions, Alert } from 'react-native';
 import Animated, {
   cancelAnimation,
   useAnimatedStyle,
@@ -8,7 +8,7 @@ import Animated, {
   withSequence,
   withTiming,
 } from 'react-native-reanimated';
-import { BookOpen, ChevronLeft, Clock, Flag, Menu, Shuffle } from 'lucide-react-native';
+import { BookOpen, ChevronLeft, Clock, Flag, Menu, Shuffle, Undo2, ArrowDownAZ } from 'lucide-react-native';
 import { AvatarPlaceholder } from '@components/AvatarPlaceholder';
 import { CardButton } from '@components/CardButton';
 import { CardSection } from '@components/CardSection';
@@ -22,6 +22,7 @@ import { HandFan } from '@components/HandFan';
 import { HandStack } from '@components/HandStack';
 import { useLayerSurfaceEntrance } from '@hooks/useLayerSurfaceEntrance';
 import { useMotion } from '@hooks/useMotion';
+import { useTableSound } from '@hooks/useTableSound';
 import { DISCARD_PULSE_SCALE } from '@lib/motion';
 import { useUiStore } from '@store/uiStore';
 import { useCosmeticsStore } from '@store/cosmeticsStore';
@@ -31,6 +32,7 @@ import {
   parseCardId,
   parseJokerId,
   selectCardFace,
+  selectCanUndo,
   selectCurrentPlayerId,
   selectDiscardTopCard,
   selectDrawPileCount,
@@ -43,6 +45,8 @@ import {
   selectOpponentHandSize,
   selectOpponents,
   selectSuggestedAction,
+  sortHandCards,
+  type HandSortMode,
 } from '@engine/selectors';
 import {
   ZONE_DISCARD,
@@ -96,6 +100,7 @@ interface GuidanceCopy {
 
 export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
   const { haptic, reduceMotion } = useMotion();
+  const { play: playSound } = useTableSound();
   const setViewMode = useUiStore((s) => s.setViewMode);
   const equippedBackId = useCosmeticsStore((s) => s.equippedBackId);
   const openPass = useUiStore((s) => s.openPass);
@@ -113,10 +118,14 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
   const replaySession = useGameStore((s) => s.replaySession);
   const dispatch = useGameStore((s) => s.dispatch);
   const reorderHand = useGameStore((s) => s.reorderHand);
+  const undoLastAction = useGameStore((s) => s.undoLastAction);
 
   const lobbyStatus = useLobbyStore((s) => s.status);
   const lobbySession = useLobbyStore((s) => s.session);
   const localClientId = useLobbyStore((s) => s.localClientId);
+
+  const handSortMode = useUiStore((s) => s.handSortMode);
+  const toggleHandSortMode = useUiStore((s) => s.toggleHandSortMode);
 
   /** True when the current game is an online relay session. Derived from the
    *  game mode, not the session object, so it stays true when the socket
@@ -165,6 +174,10 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
     () => (viewerId ? selectIsMyTurn(state, viewerId) : false),
     [state, viewerId],
   );
+  const canUndo = useMemo(
+    () => (viewerId ? selectCanUndo(state, viewerId) : false),
+    [state, viewerId],
+  );
   const availableActions = useMemo<ReadonlySet<TableAction>>(
     () => (viewerId ? selectAvailableActions(state, viewerId) : new Set<TableAction>()),
     [state, viewerId],
@@ -210,9 +223,17 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
       }
       haptic('medium');
       const ok = gameAction(action, viewerId);
+      if (ok) {
+        // Map rule actions to sound effects.
+        const soundName = action === 'flip' ? 'flip'
+          : action === 'discard' ? 'discard'
+          : action === 'flop' || action === 'turn' || action === 'river' || action === 'twist' || action === 'stick' ? 'deal'
+          : null;
+        if (soundName) playSound(soundName);
+      }
       if (!ok) haptic('error');
     },
-    [viewerId, isGuest, lobbySession, haptic, gameAction],
+    [viewerId, isGuest, lobbySession, haptic, gameAction, playSound],
   );
   const myHandValue = useMemo(
     () => (viewerId ? rules.readout?.(state, viewerId) ?? null : null),
@@ -260,6 +281,15 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
   const discardScale = useSharedValue(1);
   const discardOpacity = useSharedValue(1);
   const previousDiscardId = useRef(discardTop?.id ?? null);
+  const previousPhase = useRef(state.phase);
+
+  // Win sound: fires once when the session transitions to 'ended'.
+  useEffect(() => {
+    if (previousPhase.current !== 'ended' && state.phase === 'ended') {
+      playSound('win');
+    }
+    previousPhase.current = state.phase;
+  }, [state.phase, playSound]);
 
   const drawMotionStyle = useAnimatedStyle(() => ({
     opacity: drawOpacity.value,
@@ -426,8 +456,9 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
     const topCardId = selectDrawTopCardId(state);
     if (!topCardId) return;
     haptic('medium');
+    playSound('deal');
     dealCard(topCardId, handZoneId(viewerId), 'up');
-  }, [isMyTurn, viewerId, canUseGenericHandActions, isGuest, lobbySession, state, haptic, dealCard]);
+  }, [isMyTurn, viewerId, canUseGenericHandActions, isGuest, lobbySession, state, haptic, dealCard, playSound]);
 
   const handleCardPress = useCallback(
     (cardId: string) => {
@@ -440,10 +471,11 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
           return;
         }
         haptic('light');
+        playSound('flip');
         flipCard(cardId);
       }
     },
-    [viewerId, isMyTurn, canFlipHand, state.cards, isGuest, lobbySession, haptic, flipCard],
+    [viewerId, isMyTurn, canFlipHand, state.cards, isGuest, lobbySession, haptic, flipCard, playSound],
   );
 
   const handleCardLongPress = useCallback(
@@ -454,9 +486,10 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
         return;
       }
       haptic('medium');
+      playSound('discard');
       moveCard(cardId, ZONE_DISCARD, 'up');
     },
-    [viewerId, isMyTurn, canDiscardHand, isGuest, lobbySession, haptic, moveCard],
+    [viewerId, isMyTurn, canDiscardHand, isGuest, lobbySession, haptic, moveCard, playSound],
   );
 
   const handlePassTurn = useCallback(() => {
@@ -501,14 +534,43 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
     setHistoryOpen(true);
   }, [haptic]);
 
+  const handleUndo = useCallback(() => {
+    haptic('medium');
+    playSound('flip');
+    undoLastAction();
+  }, [haptic, playSound, undoLastAction]);
+
+  const canSortHand = canUseGenericHandActions && localHand.length > 1 && isMyTurn;
+  const handleSortHand = useCallback(() => {
+    if (!viewerId || !canSortHand) return;
+    haptic('light');
+    const nextMode: HandSortMode = handSortMode === 'rank' ? 'suit' : 'rank';
+    toggleHandSortMode();
+    const sortedIds = sortHandCards(localHand.map((c) => c.id), nextMode);
+    reorderHand(viewerId, sortedIds);
+  }, [viewerId, canSortHand, haptic, handSortMode, toggleHandSortMode, localHand, reorderHand]);
+
   const handleRules = useCallback(() => {
     haptic('light');
     setRulesOpen(true);
   }, [haptic]);
 
   const handleEndSession = useCallback(() => {
-    haptic('heavy');
-    endSession(viewerId ?? undefined);
+    Alert.alert(
+      'End the table?',
+      'This ends the session for everyone. You can start a new one from the hub.',
+      [
+        { text: 'Keep playing', style: 'cancel' },
+        {
+          text: 'End table',
+          style: 'destructive',
+          onPress: () => {
+            haptic('heavy');
+            endSession(viewerId ?? undefined);
+          },
+        },
+      ],
+    );
   }, [haptic, endSession, viewerId]);
 
   const handleBackToHub = useCallback(() => {
@@ -833,6 +895,28 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
         >
           <Shuffle size={20} color={colors.inkMuted} />
         </Pressable>
+
+        {canUndo && (
+          <Pressable
+            onPress={handleUndo}
+            accessibilityRole="button"
+            accessibilityLabel="Undo last action"
+            style={({ pressed }) => [styles.iconBtn, pressed && { opacity: 0.85 }]}
+          >
+            <Undo2 size={20} color={colors.brand} />
+          </Pressable>
+        )}
+
+        {canSortHand && (
+          <Pressable
+            onPress={handleSortHand}
+            accessibilityRole="button"
+            accessibilityLabel={`Sort hand by ${handSortMode === 'rank' ? 'suit' : 'rank'}`}
+            style={({ pressed }) => [styles.iconBtn, pressed && { opacity: 0.85 }]}
+          >
+            <ArrowDownAZ size={20} color={colors.inkMuted} />
+          </Pressable>
+        )}
 
         {usesRuleActionBar && state.phase !== 'ended' ? (
           ruleActions.length > 0 ? (

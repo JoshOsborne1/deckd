@@ -12,6 +12,8 @@ interface ProfilePersisted {
   gamesPlayed: number;
   /** Optional LAN / relay multiplayer (supplementary to BLE). */
   networkMultiplayerEnabled: boolean;
+  /** Table sound effects (deal/flip/discard/win). Default on, subtle. */
+  soundEnabled: boolean;
 }
 
 export interface ProfileState {
@@ -23,12 +25,14 @@ export interface ProfileState {
   reduceMotionOverride: boolean;
   gamesPlayed: number;
   networkMultiplayerEnabled: boolean;
+  soundEnabled: boolean;
 
   setNickname: (nickname: string) => void;
   setAvatarSeed: (seed: string) => void;
   setHapticsEnabled: (v: boolean) => void;
   setReduceMotionOverride: (v: boolean) => void;
   setNetworkMultiplayerEnabled: (v: boolean) => void;
+  setSoundEnabled: (v: boolean) => void;
   bumpGamesPlayed: () => void;
   bumpStreak: () => void;
   resetProfile: () => void;
@@ -48,6 +52,7 @@ function defaultProfileValues(): ProfilePersisted {
     reduceMotionOverride: false,
     gamesPlayed: 0,
     networkMultiplayerEnabled: false,
+    soundEnabled: true,
   };
 }
 
@@ -61,6 +66,7 @@ export const useProfileStore = create<ProfileState>()(
       setHapticsEnabled: (v) => set({ hapticsEnabled: v }),
       setReduceMotionOverride: (v) => set({ reduceMotionOverride: v }),
       setNetworkMultiplayerEnabled: (v) => set({ networkMultiplayerEnabled: v }),
+      setSoundEnabled: (v) => set({ soundEnabled: v }),
       bumpGamesPlayed: () => set((s) => ({ gamesPlayed: s.gamesPlayed + 1 })),
       bumpStreak: () => set((s) => ({ streak: s.streak + 1 })),
       resetProfile: () => set(defaultProfileValues()),
@@ -68,7 +74,7 @@ export const useProfileStore = create<ProfileState>()(
     {
       name: 'profile:local',
       storage: createJSONStorage(() => createPlatformStorage()),
-      version: 3,
+      version: 4,
       partialize: (s) => ({
         nickname: s.nickname,
         avatarSeed: s.avatarSeed,
@@ -78,6 +84,7 @@ export const useProfileStore = create<ProfileState>()(
         reduceMotionOverride: s.reduceMotionOverride,
         gamesPlayed: s.gamesPlayed,
         networkMultiplayerEnabled: s.networkMultiplayerEnabled,
+        soundEnabled: s.soundEnabled,
       }),
       migrate: (persisted, version): ProfilePersisted => {
         const next = defaultProfileValues();
@@ -102,6 +109,8 @@ export const useProfileStore = create<ProfileState>()(
             version >= 3 && typeof old.networkMultiplayerEnabled === 'boolean'
               ? old.networkMultiplayerEnabled
               : false,
+          soundEnabled:
+            version >= 4 && typeof old.soundEnabled === 'boolean' ? old.soundEnabled : true,
         };
       },
       onRehydrateStorage: () => (state, error) => {

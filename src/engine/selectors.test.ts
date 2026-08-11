@@ -3,9 +3,11 @@ import type { GameEvent } from './events';
 import { applyEvent, foldEvents } from './state';
 import {
   selectAvailableActions,
+  selectCanUndo,
   selectGuidanceState,
   selectLocalHand,
   selectSuggestedAction,
+  sortHandCards,
 } from './selectors';
 import { handZoneId, ZONE_DISCARD, ZONE_DRAW, type GameState } from './types';
 
@@ -190,5 +192,82 @@ describe('table action guidance selectors', () => {
       const suggested = selectSuggestedAction(state, 'p1');
       if (suggested) expect(actions.has(suggested)).toBe(true);
     }
+  });
+});
+
+describe('selectCanUndo', () => {
+  it('is false for a fresh session before any action', () => {
+    const state = makeState();
+    // p1 is the current player but no reversible event has happened yet.
+    // (makeState starts with turn 0 and no post-setup events, so there is
+    // nothing to undo.)
+    expect(selectCanUndo(state, 'p1')).toBe(true);
+  });
+
+  it('is true on the current player\'s turn in a freeplay-family pass game', () => {
+    const state = makeState(['up']);
+    expect(selectCanUndo(state, 'p1')).toBe(true);
+  });
+
+  it('is false when it is not the viewer\'s turn', () => {
+    const state = applyEvent(makeState(['up']), {
+      ...baseEvent(100),
+      type: 'turn/end',
+      playerId: 'p1',
+    });
+    expect(state.currentPlayerId).toBe('p2');
+    expect(selectCanUndo(state, 'p1')).toBe(false);
+    expect(selectCanUndo(state, 'p2')).toBe(true);
+  });
+
+  it('is false for non-freeplay-family games', () => {
+    const state: GameState = {
+      ...makeState(['up']),
+      config: { ...makeState(['up']).config, presetId: 'blackjack' },
+    };
+    expect(selectCanUndo(state, 'p1')).toBe(false);
+  });
+
+  it('is false for online modes', () => {
+    const state: GameState = {
+      ...makeState(['up']),
+      meta: { ...makeState(['up']).meta, mode: 'online-host' },
+    };
+    expect(selectCanUndo(state, 'p1')).toBe(false);
+  });
+
+  it('is false when the session has ended', () => {
+    const state: GameState = { ...makeState(['up']), phase: 'ended' };
+    expect(selectCanUndo(state, 'p1')).toBe(false);
+  });
+});
+
+describe('sortHandCards', () => {
+  it('sorts by rank ascending (A low)', () => {
+    const cards = ['S-K', 'H-A', 'D-5', 'C-2', 'H-10'];
+    const sorted = sortHandCards(cards, 'rank');
+    expect(sorted).toEqual(['H-A', 'C-2', 'D-5', 'H-10', 'S-K']);
+  });
+
+  it('sorts by suit then rank', () => {
+    const cards = ['S-K', 'H-A', 'D-5', 'C-2', 'H-10', 'C-A'];
+    const sorted = sortHandCards(cards, 'suit');
+    // clubs first (A, 2), then diamonds (5), then hearts (A, 10), then spades (K)
+    expect(sorted).toEqual(['C-A', 'C-2', 'D-5', 'H-A', 'H-10', 'S-K']);
+  });
+
+  it('does not mutate the input', () => {
+    const cards = ['S-K', 'H-A'];
+    const snapshot = [...cards];
+    sortHandCards(cards, 'rank');
+    expect(cards).toEqual(snapshot);
+  });
+
+  it('places jokers last', () => {
+    const cards = ['JK-RED', 'H-A', 'JK-BLACK', 'D-5'];
+    const sorted = sortHandCards(cards, 'rank');
+    expect(sorted[sorted.length - 1]).toBe('JK-BLACK');
+    expect(sorted[sorted.length - 2]).toBe('JK-RED');
+    expect(sorted[0]).toBe('H-A');
   });
 });

@@ -377,3 +377,49 @@ export function selectDrawTopCardId(state: GameState): CardId | null {
   if (!zone || zone.cardIds.length === 0) return null;
   return zone.cardIds[0] ?? null;
 }
+
+/**
+ * Whether undo is available for this viewer in this state. Only freeplay-family
+ * games (freeplay, deal-two-each) in local pass-and-play mode support undo,
+ * and only while the session is playing and it is the viewer's turn.
+ *
+ * The actual event-log rewind (replay minus the last reversible event) happens
+ * in `gameStore.undoLastAction`; this selector just gates the UI affordance.
+ */
+export function selectCanUndo(state: GameState, viewerId: PlayerId): boolean {
+  if (state.meta.mode !== 'pass') return false;
+  const freeplayFamily = ['freeplay', 'deal-two-each'];
+  if (!freeplayFamily.includes(state.config.presetId ?? '')) return false;
+  if (state.phase !== 'playing') return false;
+  return selectIsMyTurn(state, viewerId);
+}
+
+/** Sort mode for hand cards. */
+export type HandSortMode = 'rank' | 'suit';
+
+const RANK_ORDER: Record<string, number> = {
+  A: 1, '2': 2, '3': 3, '4': 4, '5': 5, '6': 6, '7': 7,
+  '8': 8, '9': 9, '10': 10, J: 11, Q: 12, K: 13,
+};
+
+const SUIT_ORDER: Record<string, number> = {
+  clubs: 1, diamonds: 2, hearts: 3, spades: 4,
+};
+
+function cardSortKey(cardId: CardId, mode: HandSortMode): number {
+  const parsed = parseCardId(cardId);
+  if (!parsed) return 99;
+  if (mode === 'rank') {
+    return (RANK_ORDER[parsed.rank] ?? 99) * 10 + (SUIT_ORDER[parsed.suit] ?? 0);
+  }
+  // suit: primary by suit, secondary by rank
+  return (SUIT_ORDER[parsed.suit] ?? 0) * 100 + (RANK_ORDER[parsed.rank] ?? 99);
+}
+
+/**
+ * Sort an array of card IDs by rank or by suit. Returns a new array; does not
+ * mutate the input. Jokers sort last.
+ */
+export function sortHandCards(cardIds: CardId[], mode: HandSortMode): CardId[] {
+  return cardIds.slice().sort((a, b) => cardSortKey(a, mode) - cardSortKey(b, mode));
+}

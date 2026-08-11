@@ -1,7 +1,7 @@
 import { ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Bluetooth, Home, Wifi } from 'lucide-react-native';
+import { Bluetooth, Home, Volume2, Wifi } from 'lucide-react-native';
 import { CardButton } from '@components/CardButton';
 import { CardSection } from '@components/CardSection';
 import { useMotion } from '@hooks/useMotion';
@@ -19,6 +19,8 @@ export default function SettingsScreen() {
   const networkMultiplayerEnabled = useProfileStore((s) => s.networkMultiplayerEnabled);
   const setNetworkMultiplayerEnabled = useProfileStore((s) => s.setNetworkMultiplayerEnabled);
   const hapticsEnabled = useProfileStore((s) => s.hapticsEnabled);
+  const soundEnabled = useProfileStore((s) => s.soundEnabled);
+  const setSoundEnabled = useProfileStore((s) => s.setSoundEnabled);
 
   const back = () => {
     if (router.canGoBack()) router.back();
@@ -61,6 +63,29 @@ export default function SettingsScreen() {
                 One phone, one deck, pass it around. No router, no account, no signal needed.
               </Text>
             </View>
+          </View>
+        </CardSection>
+
+        <CardSection variant="surface" eyebrow="SOUND" title="Table sounds" style={styles.card}>
+          <View style={styles.row}>
+            <Volume2 size={22} color={colors.inkMuted} />
+            <View style={styles.rowText}>
+              <Text style={styles.body}>
+                Subtle effects for dealing, flipping, and discarding cards. Turn off for a silent table.
+              </Text>
+            </View>
+          </View>
+          <View style={styles.toggleRow}>
+            <Text style={styles.toggleLabel}>Sound effects</Text>
+            <Switch
+              value={soundEnabled}
+              onValueChange={(v) => {
+                if (hapticsEnabled) haptic('select');
+                setSoundEnabled(v);
+              }}
+              trackColor={{ false: alpha.inkOverlay12, true: alpha.brand20 }}
+              thumbColor={soundEnabled ? colors.brand : colors.surface}
+            />
           </View>
         </CardSection>
 
