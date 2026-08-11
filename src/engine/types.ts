@@ -102,3 +102,14 @@ export function tableZoneId(playerId: PlayerId): ZoneId {
 export function communalZoneId(index: number): ZoneId {
   return `communal:${index}`;
 }
+
+export const KLONDIKE_TABLEAU_COUNT = 7;
+export const KLONDIKE_FOUNDATION_SUITS = ['hearts', 'diamonds', 'clubs', 'spades'] as const satisfies readonly Suit[];
+
+export function klondikeTableauZoneId(index: number): ZoneId {
+  return `tableau:${index}`;
+}
+
+export function klondikeFoundationZoneId(suit: Suit): ZoneId {
+  return `foundation:${suit}`;
+}

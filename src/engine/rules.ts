@@ -1,6 +1,15 @@
-import type { GameState, Player, PlayerId, ZoneId } from './types';
+import type { CardInstance, GameState, Player, PlayerId, ZoneId } from './types';
 import type { Suit } from '@lib/types';
-import { ZONE_DRAW, ZONE_MUCK, communalZoneId, handZoneId, tableZoneId } from './types';
+import {
+  KLONDIKE_FOUNDATION_SUITS,
+  ZONE_DRAW,
+  ZONE_DISCARD,
+  ZONE_MUCK,
+  communalZoneId,
+  handZoneId,
+  klondikeFoundationZoneId,
+  tableZoneId,
+} from './types';
 import { parseCardId } from './selectors';
 
 /**
@@ -15,6 +24,7 @@ import { parseCardId } from './selectors';
 
 export type GameAction =
   | 'draw'
+  | 'recycle'
   | 'flip'
   | 'discard'
   | 'reorder'
@@ -35,6 +45,8 @@ export type GameAction =
   | 'reveal'
   | 'pair'
   | `play:${string}`
+  | `flip:${string}`
+  | `move:${string}`
   | `ask:${string}:${string}`;
 
 export interface GameActionSpec {
@@ -1018,6 +1030,184 @@ function pokerApply(
 // Freeplay / generic
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Klondike (draw one)
+// ---------------------------------------------------------------------------
+
+const KLONDIKE_RANK_ORDER: Record<string, number> = {
+  A: 1,
+  '2': 2,
+  '3': 3,
+  '4': 4,
+  '5': 5,
+  '6': 6,
+  '7': 7,
+  '8': 8,
+  '9': 9,
+  '10': 10,
+  J: 11,
+  Q: 12,
+  K: 13,
+};
+
+function klondikeRank(cardId: string): number {
+  const parsed = parseCardId(cardId);
+  return parsed ? KLONDIKE_RANK_ORDER[parsed.rank] ?? 0 : 0;
+}
+
+function klondikeIsRed(suit: Suit): boolean {
+  return suit === 'hearts' || suit === 'diamonds';
+}
+
+function klondikeDescendingAlternating(upperId: string, lowerId: string): boolean {
+  const upper = parseCardId(upperId);
+  const lower = parseCardId(lowerId);
+  if (!upper || !lower) return false;
+  return (
+    klondikeRank(upperId) === klondikeRank(lowerId) + 1 &&
+    klondikeIsRed(upper.suit) !== klondikeIsRed(lower.suit)
+  );
+}
+
+interface KlondikeRun {
+  sourceZone: GameState['zones'][string];
+  startIndex: number;
+  cards: CardInstance[];
+}
+
+/**
+ * Resolve the selected card and the face-up tail it carries. Tableau moves
+ * may carry a valid alternating-colour run; waste/foundation moves are
+ * intentionally single-card. This keeps the event stream primitive while
+ * retaining standard Klondike's useful stack movement.
+ */
+function klondikeRun(state: GameState, cardId: string): KlondikeRun | null {
+  const card = state.cards[cardId];
+  if (!card || card.face !== 'up') return null;
+  const sourceZone = state.zones[card.zoneId];
+  if (!sourceZone) return null;
+  const startIndex = sourceZone.cardIds.indexOf(cardId);
+  if (startIndex < 0) return null;
+
+  if (!sourceZone.id.startsWith('tableau:')) {
+    if (sourceZone.id !== ZONE_DISCARD && !sourceZone.id.startsWith('foundation:')) return null;
+    return { sourceZone, startIndex, cards: [card] };
+  }
+
+  const ids = sourceZone.cardIds.slice(startIndex);
+  const cards: CardInstance[] = [];
+  for (let index = 0; index < ids.length; index += 1) {
+    const next = state.cards[ids[index]!];
+    if (!next || next.face !== 'up') return null;
+    if (index > 0 && !klondikeDescendingAlternating(ids[index - 1]!, ids[index]!)) return null;
+    cards.push(next);
+  }
+  return { sourceZone, startIndex, cards };
+}
+
+function klondikeActions(state: GameState, viewerId: PlayerId): GameActionSpec[] {
+  if (state.phase !== 'playing' || state.currentPlayerId !== viewerId) return [];
+  const stock = state.zones[ZONE_DRAW];
+  const waste = state.zones['discard'];
+  if (stock && stock.cardIds.length > 0) {
+    return [{ id: 'draw', label: 'DRAW STOCK', hint: 'Turn one card into the waste', kind: 'table' }];
+  }
+  if (waste && waste.cardIds.length > 0) {
+    return [{ id: 'recycle', label: 'RECYCLE WASTE', hint: 'Return the waste to the stock', kind: 'table' }];
+  }
+  return [];
+}
+
+function klondikeApply(
+  action: GameAction,
+  state: GameState,
+  viewerId: PlayerId,
+): PrimitiveEvent[] | null {
+  if (state.phase !== 'playing' || state.currentPlayerId !== viewerId) return null;
+
+  if (action === 'draw') {
+    const cardId = state.zones[ZONE_DRAW]?.cardIds[0];
+    if (!cardId) return null;
+    return [{ type: 'card/move', cardId, toZoneId: 'discard', face: 'up' }];
+  }
+
+  if (action === 'recycle') {
+    const waste = state.zones['discard'];
+    if (!waste || waste.cardIds.length === 0 || (state.zones[ZONE_DRAW]?.cardIds.length ?? 0) > 0) return null;
+    return waste.cardIds
+      .slice()
+      .reverse()
+      .map((cardId) => ({ type: 'card/move' as const, cardId, toZoneId: ZONE_DRAW, face: 'down' as const }));
+  }
+
+  if (action.startsWith('flip:')) {
+    const cardId = action.slice('flip:'.length);
+    const card = state.cards[cardId];
+    const zone = card ? state.zones[card.zoneId] : undefined;
+    if (!card || card.face !== 'down' || !zone || !card.zoneId.startsWith('tableau:')) return null;
+    if (zone.cardIds[zone.cardIds.length - 1] !== cardId) return null;
+    return [{ type: 'card/flip', cardId }];
+  }
+
+  if (!action.startsWith('move:')) return null;
+  const payload = action.slice('move:'.length);
+  const divider = payload.indexOf('|');
+  if (divider <= 0) return null;
+  const cardId = payload.slice(0, divider);
+  const targetZoneId = payload.slice(divider + 1);
+  const run = klondikeRun(state, cardId);
+  const sourceZone = run?.sourceZone;
+  const targetZone = state.zones[targetZoneId];
+  if (!run || !targetZone || !sourceZone || targetZoneId === sourceZone.id) return null;
+  if (!targetZoneId.startsWith('tableau:') && !targetZoneId.startsWith('foundation:')) return null;
+
+  const firstCard = run.cards[0]!;
+  const parsed = parseCardId(firstCard.id);
+  if (!parsed) return null;
+  const rank = klondikeRank(firstCard.id);
+  const targetTopId = targetZone.cardIds[targetZone.cardIds.length - 1];
+
+  if (targetZoneId.startsWith('foundation:')) {
+    if (run.cards.length !== 1) return null;
+    const suit = targetZoneId.slice('foundation:'.length) as Suit;
+    if (!KLONDIKE_FOUNDATION_SUITS.includes(suit as (typeof KLONDIKE_FOUNDATION_SUITS)[number])) return null;
+    if (parsed.suit !== suit || rank !== targetZone.cardIds.length + 1) return null;
+  } else if (targetTopId) {
+    if (!klondikeDescendingAlternating(targetTopId, firstCard.id)) return null;
+  } else if (parsed.rank !== 'K') {
+    return null;
+  }
+
+  const events: PrimitiveEvent[] = run.cards.map((cardInRun) => ({
+    type: 'card/move' as const,
+    cardId: cardInRun.id,
+    toZoneId: targetZoneId,
+    face: 'up' as const,
+  }));
+  if (sourceZone.id.startsWith('tableau:')) {
+    const exposedId = sourceZone.cardIds[run.startIndex - 1];
+    if (exposedId && state.cards[exposedId]?.face === 'down') events.push({ type: 'card/flip', cardId: exposedId });
+  }
+
+  const foundationCount = KLONDIKE_FOUNDATION_SUITS.reduce(
+    (total, suit) => total + (state.zones[klondikeFoundationZoneId(suit)]?.cardIds.length ?? 0),
+    0,
+  );
+  if (targetZoneId.startsWith('foundation:') && foundationCount + run.cards.length === 52) {
+    events.push({ type: 'session/end', winnerId: viewerId });
+  }
+  return events;
+}
+
+function klondikeReadout(state: GameState, _playerId: PlayerId): string | null {
+  const foundationCount = KLONDIKE_FOUNDATION_SUITS.reduce(
+    (total, suit) => total + (state.zones[klondikeFoundationZoneId(suit)]?.cardIds.length ?? 0),
+    0,
+  );
+  const stockCount = state.zones[ZONE_DRAW]?.cardIds.length ?? 0;
+  return `FOUNDATION ${foundationCount}/52 · STOCK ${stockCount}`;
+}
+
 /** Generic presets keep the existing table UI (draw pile, flip, PASS TURN). */
 function noActions(): GameActionSpec[] {
   return [];
@@ -1067,6 +1257,12 @@ export const GAME_RULES: Record<string, GameRules> = {
     actions: sevensActions,
     apply: sevensApply,
     readout: sevensReadout,
+  },
+  klondike: {
+    id: 'klondike',
+    actions: klondikeActions,
+    apply: klondikeApply,
+    readout: klondikeReadout,
   },
   blackjack: {
     id: 'blackjack',

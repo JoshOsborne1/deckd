@@ -12,6 +12,7 @@ export const PRESET_BACKS: Record<string, string> = {
   'old-maid': 'back-crimson',
   'crazy-eights': 'back-brand',
   sevens: 'back-crimson',
+  klondike: 'back-brand',
   blackjack: 'back-noir',
   poker: 'back-crimson',
 };

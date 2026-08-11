@@ -97,6 +97,18 @@ export const RULES_GUIDES: Record<string, RulesGuide> = {
     win: 'The first player to play every card wins the round.',
     tableNote: 'The communal row shows the runs; your hand remains private until played.',
   },
+  klondike: {
+    id: 'klondike',
+    title: 'Klondike',
+    summary: 'Build four same-suit foundations from ace to king.',
+    steps: [
+      'Turn one card from the stock into the waste, or recycle the waste when the stock is empty.',
+      'Build tableau columns downward in alternating colors, with kings opening empty columns.',
+      'Move cards up to a foundation in suit order, starting with aces.',
+    ],
+    win: 'Move all 52 cards to the four foundations.',
+    tableNote: 'The first pass supports draw-one play with clear tableau, waste, stock, and foundation zones.',
+  },
   blackjack: {
     id: 'blackjack',
     title: 'Blackjack-style',

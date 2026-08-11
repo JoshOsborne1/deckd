@@ -191,6 +191,27 @@ export const sevensPreset = makePreset({
   winCondition: 'firstEmptyHand',
 });
 
+export const klondikePreset = makePreset({
+  id: 'klondike',
+  name: 'Klondike',
+  oneLiner: 'Build four foundations from ace to king. Draw one from the stock.',
+  minPlayers: 1,
+  maxPlayers: 1,
+  backs: ['back-brand'],
+  layout: 'klondike',
+  deal: { pattern: 'none', rounds: 0, face: 'down', to: 'table' },
+  actionPolicy: {
+    allowDraw: true,
+    allowDiscard: false,
+    allowFlip: true,
+    allowPassTurn: false,
+    allowPlay: true,
+  },
+  turnPolicy: 'free',
+  winCondition: 'scoreTarget',
+  helpers: { rankHand: true },
+});
+
 export const blackjackStylePreset = makePreset({
   id: 'blackjack',
   name: 'Blackjack-style',
@@ -246,6 +267,7 @@ export const builtinPresets: Preset[] = [
   oldMaidPreset,
   crazyEightsPreset,
   sevensPreset,
+  klondikePreset,
   blackjackStylePreset,
   pokerStylePreset,
 ];

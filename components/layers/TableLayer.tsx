@@ -17,6 +17,7 @@ import { PlayingCard } from '@components/PlayingCard';
 
 import { EventHistoryModal } from '@components/EventHistoryModal';
 import { RulesSheet } from '@components/RulesSheet';
+import { KlondikeLayout } from '@components/KlondikeLayout';
 import { HandFan } from '@components/HandFan';
 import { HandStack } from '@components/HandStack';
 import { useLayerSurfaceEntrance } from '@hooks/useLayerSurfaceEntrance';
@@ -168,7 +169,7 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
     () => (viewerId ? selectAvailableActions(state, viewerId) : new Set<TableAction>()),
     [state, viewerId],
   );
-  const canUseGenericHandActions = !['war', 'go-fish', 'old-maid', 'crazy-eights', 'sevens'].includes(state.config.presetId ?? '');
+  const canUseGenericHandActions = !['war', 'go-fish', 'old-maid', 'crazy-eights', 'sevens', 'klondike'].includes(state.config.presetId ?? '');
   const canFlipHand = canUseGenericHandActions && availableActions.has('flip');
   const canDiscardHand = canUseGenericHandActions && availableActions.has('discard');
   const canReorderHand = canUseGenericHandActions && availableActions.has('reorder');
@@ -180,6 +181,7 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
   // --- Per-game rule actions (blackjack twist/stick, poker burn/flop/...) ---
   const rules = useMemo(() => getGameRules(state.config.presetId), [state.config.presetId]);
   const isWar = rules.id === 'war';
+  const isKlondike = rules.id === 'klondike';
   const isContextualGame = ['go-fish', 'old-maid', 'crazy-eights', 'sevens'].includes(rules.id);
   const usesRuleActionBar = [
     'blackjack',
@@ -189,6 +191,7 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
     'old-maid',
     'crazy-eights',
     'sevens',
+    'klondike',
   ].includes(rules.id);
   const ruleActions = useMemo<GameActionSpec[]>(
     () => (viewerId ? rules.actions(state, viewerId) : []),
@@ -525,6 +528,8 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
     ? !isMyTurn
       ? `Waiting for ${currentPlayerName || 'the next player'} · watch the battle`
       : 'Tap FLIP to play the top card · highest rank takes the battle'
+    : isKlondike
+      ? 'Tap a face-up card, then a foundation or tableau destination'
     : rules.id === 'go-fish'
       ? !isMyTurn
         ? `Waiting for ${currentPlayerName || 'the next player'} · listen for the ask`
@@ -659,6 +664,8 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
               </View>
             ))}
           </View>
+        ) : isKlondike ? (
+          <KlondikeLayout state={state} onAction={handleGameAction} back={equippedBackId} />
         ) : (
           <View style={styles.tablePiles}>
             {/* Draw pile */}
@@ -748,10 +755,14 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
         <View style={styles.endedBanner} pointerEvents="box-none">
           <View style={styles.endedCard}>
             <Text style={styles.endedEyebrow}>
-              {state.meta.mode === 'solo' ? 'HAND OVER' : 'SESSION OVER'}
+              {isKlondike ? 'TABLE OVER' : state.meta.mode === 'solo' ? 'HAND OVER' : 'SESSION OVER'}
             </Text>
             <Text style={styles.endedTitle}>
-              {state.meta.mode === 'solo'
+              {isKlondike
+                ? state.winnerId === viewerId
+                  ? 'Foundations complete'
+                  : 'Table cleared'
+                : state.meta.mode === 'solo'
                 ? state.winnerId === viewerId
                   ? 'You beat the house'
                   : 'House wins this hand'
@@ -799,7 +810,7 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
                 style={styles.endedCta}
               >
                 <Text style={styles.endedCtaText}>
-                  {state.meta.mode === 'solo' ? 'Next hand' : 'Back to setup'}
+                  {state.meta.mode === 'solo' ? (isKlondike ? 'New deal' : 'Next hand') : 'Back to setup'}
                 </Text>
               </CardButton>
             )}
@@ -932,7 +943,7 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
       </View>
 
       {/* Local hand */}
-      <View style={[styles.hand, { paddingBottom: bottomInset + space.lg }]}>
+      {!isKlondike && <View style={[styles.hand, { paddingBottom: bottomInset + space.lg }]}>
         {handLocked ? (
           <View style={styles.hiddenHand}>
             <Text style={styles.hiddenText}>HAND LOCKED — REVEAL TO CONTINUE</Text>
@@ -967,14 +978,14 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
             {handHint}
           </Text>
         ) : null}
-        {rules.readout && (localHand.length > 0 || isWar || isContextualGame) && myHandValue !== null && (
+        {rules.readout && (localHand.length > 0 || isWar || isContextualGame || isKlondike) && myHandValue !== null && (
           <View style={[styles.valuePill, myBust && styles.valuePillBust]}>
             <Text style={styles.valuePillText}>{myHandValue}</Text>
           </View>
         )}
-      </View>
+      </View>}
 
-      {hasSession && guidanceState !== 'ended' && (
+      {hasSession && guidanceState !== 'ended' && !isKlondike && (
         <View
           style={styles.guidance}
           pointerEvents="none"

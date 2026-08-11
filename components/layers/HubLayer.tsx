@@ -54,6 +54,7 @@ const PRESET_OUTCOMES: Record<Preset['id'], string> = {
   'old-maid': 'Pair up, then draw for the maid',
   'crazy-eights': 'Match suit or rank · eights are wild',
   sevens: 'Open with sevens, build the runs',
+  klondike: 'Build four foundations from ace to king',
   blackjack: 'Dealer hand + scoring helper',
   poker: 'Hole cards, then community play',
 };
@@ -511,7 +512,9 @@ export function HubLayer({
             <Text style={styles.sectionTitle}>Who’s at the table?</Text>
             <Text style={styles.sectionKicker}>
               {playerCount === 1
-                ? 'Solo blackjack against the house'
+                ? activePreset.id === 'klondike'
+                  ? 'Solo tableau and foundation play'
+                  : 'Solo blackjack against the house'
                 : activePreset.id === 'go-fish'
                   ? 'Ask a rank, then keep fishing when you hit'
                   : activePreset.id === 'old-maid'
@@ -523,8 +526,11 @@ export function HubLayer({
         <View style={styles.playerRow}>
           {PLAYER_OPTIONS.map((n, idx) => {
             const selected = n === playerCount;
-            // Solo is a blackjack-only mode: the house is the dealer.
-            const soloDisabled = n === 1 && activePreset.id !== 'blackjack';
+            const outsideRecipeRange = n < activePreset.minPlayers || n > Math.min(activePreset.maxPlayers, 6);
+            // Solo is available for blackjack and Klondike; other recipes stay
+            // pass-and-play and should not expose an invalid player count.
+            const soloDisabled = n === 1 && !['blackjack', 'klondike'].includes(activePreset.id);
+            const playerDisabled = outsideRecipeRange || soloDisabled;
             return (
               <StaggeredChip
                 key={n}
@@ -539,15 +545,15 @@ export function HubLayer({
                   size="sm"
                   elevated={false}
                   haptic="select"
-                  disabled={soloDisabled}
+                  disabled={playerDisabled}
                   onPress={() => {
-                    if (n === 1) setPresetId('blackjack');
+                    if (n === 1 && activePreset.id !== 'klondike') setPresetId('blackjack');
                     setPlayerCount(n);
                   }}
                   style={{
                     ...styles.playerChip,
                     ...(selected ? styles.playerChipActive : {}),
-                    ...(soloDisabled ? styles.playerChipDisabled : {}),
+                    ...(playerDisabled ? styles.playerChipDisabled : {}),
                   }}
                 >
                   <Text style={[styles.playerLabel, selected && styles.playerLabelActive]}>

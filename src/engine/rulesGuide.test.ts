@@ -10,6 +10,7 @@ describe('rules guides', () => {
       'old-maid',
       'crazy-eights',
       'sevens',
+      'klondike',
       'blackjack',
       'poker',
     ]);

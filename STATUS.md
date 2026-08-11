@@ -1,6 +1,6 @@
 # Deckd status
 
-Last update: 2026-08-11 (free library rules + shared rules/replay surface — local gates green and preview redeployed; `t_9f20d120`).
+Last update: 2026-08-11 (solo Klondike draw-one slice — local gates and 375/1440 QA green; preview deployment in progress; `t_9f20d120`).
 
 ## Deployment
 
@@ -29,6 +29,11 @@ Expo SDK 57, React Native 0.86, React 19, TypeScript strict. Expo Router app wit
 - Added a shared `RulesSheet` with plain-English steps, end conditions, and table notes for every built-in recipe. Setup and live table both expose the same rules surface with a 48px Back to the table target and the existing warm paper/scrim language.
 - Offline pass-and-play end states now show a round/turn readout and offer Replay table or Back to setup; replay re-deals the same seats through the event-sourced store. Table icon controls also have explicit accessible names for QA and assistive tech.
 - `qa/deckd-rules-replay-qa.cjs` proves setup rules, live rules, end state, replay, 375×812 bounds, zero document overflow, and zero browser errors against the public preview.
+
+## Solo Klondike slice (2026-08-11, current LOOP continuation)
+
+- Added a serialisable one-player Klondike recipe with deterministic 28-card tableau / 24-card stock setup, public tableau/foundation zones, draw-one stock, waste recycle, exposed-card flips, alternating-colour run moves, foundation validation, and a 52-card win event.
+- Added the table-native `KlondikeLayout`, setup player-range guard, shared rules copy, fresh-deal replay path, focused engine coverage (109 tests total), and `qa/deckd-klondike-qa.cjs` for the real 375×812 + 1440×900 setup → rules → draw/recycle → end → new-deal flow.
 
 ## Product direction
 

@@ -3,6 +3,7 @@ import {
   ZONE_DISCARD,
   ZONE_DRAW,
   ZONE_MUCK,
+  KLONDIKE_TABLEAU_COUNT,
   communalZoneId,
   handZoneId,
   tableZoneId,
@@ -66,6 +67,8 @@ export interface Recipe {
   actionPolicy: RecipeActionPolicy;
   turnPolicy: RecipeTurnPolicy;
   winCondition: RecipeWinCondition;
+  /** Optional layout family for recipes with more than hand/table zones. */
+  layout?: 'klondike';
   helpers?: RecipeHelpers;
   variants?: RecipeVariants;
 }
@@ -129,6 +132,48 @@ function applyDealsToZones(zones: Zone[], deals: RecipeInitialDeal[]): Zone[] {
   });
 }
 
+function executeKlondikeRecipe(input: RecipeSetupInput): RecipeSetupResult {
+  const zones = [
+    ...buildCoreZones(input.players),
+    ...Array.from({ length: KLONDIKE_TABLEAU_COUNT }, (_, index) => ({
+      id: `tableau:${index}`,
+      label: `Tableau ${index + 1}`,
+      visibility: { kind: 'public' as const },
+      cardIds: [],
+    })),
+    ...(['hearts', 'diamonds', 'clubs', 'spades'] as const).map((suit) => ({
+      id: `foundation:${suit}`,
+      label: `${suit} foundation`,
+      visibility: { kind: 'public' as const },
+      cardIds: [],
+    })),
+  ];
+  const queue = input.deckOrder.slice();
+  const deals: RecipeInitialDeal[] = [];
+
+  // Standard Klondike: 1, 2, …, 7 cards to the tableau, with only each
+  // column's last card face-up. The remaining deck becomes the stock.
+  for (let column = 0; column < 7; column += 1) {
+    for (let row = 0; row <= column; row += 1) {
+      const cardId = queue.shift();
+      if (!cardId) continue;
+      deals.push({
+        cardId,
+        toZoneId: `tableau:${column}`,
+        face: row === column ? 'up' : 'down',
+      });
+    }
+  }
+
+  return {
+    zones: applyDealsToZones(
+      zones.map((zone) => zone.id === ZONE_DRAW ? { ...zone, cardIds: queue } : zone),
+      deals,
+    ),
+    initialDeals: deals,
+  };
+}
+
 function resolveDealFace(
   deal: RecipeDeal,
   isDealer: boolean,
@@ -154,6 +199,8 @@ function dealZoneId(deal: RecipeDeal, player: Player): ZoneId {
  * returns fresh arrays/objects, which makes recipes safe to test and persist.
  */
 export function executeRecipe(recipe: Recipe, input: RecipeSetupInput): RecipeSetupResult {
+  if (recipe.layout === 'klondike') return executeKlondikeRecipe(input);
+
   const zones = buildCoreZones(input.players).map((zone) =>
     recipe.deal.to === 'table' && zone.id.startsWith('table:')
       ? { ...zone, visibility: { kind: 'hidden' as const } }

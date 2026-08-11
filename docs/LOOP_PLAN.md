@@ -19,8 +19,8 @@ freedom: the game helps, it does not restrict. The acceptance viewport is
 ## Current state snapshot (verified 2026-08-11)
 
 Branch `cleanup/ready-to-build`. This run reconfirmed `npm run typecheck`,
-`npm run lint` (0 errors / 0 warnings), `npx jest --runInBand` (11 suites / 102
-tests), and `npx expo-doctor` (20/20) after adding the free-library rules slice.
+`npm run lint` (0 errors / 0 warnings), `npx jest --runInBand` (13 suites / 109
+tests), and `npx expo-doctor` (20/20) after adding the solo Klondike slice.
 Preview remains live at
 https://deckd-app.roxai.click
 (PM2 `deckd-app`), relay live at https://relay.roxai.click, landing at
@@ -50,7 +50,7 @@ https://deckd.roxai.click.
 
 - Event-sourced engine with zones (public/private/hidden), 52-card + jokers,
   seeded shuffle, presets (freeplay, deal-2, War, Go Fish, Old Maid, Crazy
-  Eights, Sevens, blackjack-ish, poker-ish).
+  Eights, Sevens, Klondike, blackjack-ish, poker-ish).
 - Actions: draw, flip, discard/play, reorder, pass turn, ask, pair, books,
   suit runs, shuffle, end/reset.
 - **Assisted freedom wired:** `selectAvailableActions` (affordance set) +
@@ -430,3 +430,30 @@ The two downstream children execute against this plan:
   cannot hard-block testing.
 - Do not claim native touch or real two-device lobby behavior without device
   evidence.
+
+## Current LOOP continuation — solo Klondike slice (2026-08-11)
+
+The next highest-impact gap is the solo pillar, not monetisation or further
+chrome churn. The working tree already contains the first Klondike path; this
+slice finishes it as a coherent draw-one table and verifies it before moving on.
+
+- **Material language:** the existing warm ivory/crimson/ink table remains the
+  material. Klondike adds a compact public tableau, stock/waste, and four suit
+  foundations using the existing paper card primitives; no new visual system.
+- **Engine decision:** keep the event-sourced primitive contract. A serialisable
+  `layout: 'klondike'` recipe creates seven tableau zones and four foundation
+  zones. Rules expose draw, recycle, flip, and legal single-card moves; the
+  first shipped variant is draw-one so the interaction stays legible at 375px.
+- **UI decision:** render the solitaire layout as one table object in
+  `components/KlondikeLayout.tsx`, not as a second route or page. The action
+  rail, rules sheet, ended banner, and replay/new-deal affordance remain shared.
+- **Acceptance:** deterministic 52-card setup with 28 tableau cards and 24 in
+  stock; legal alternating-colour/rank and foundation moves; automatic reveal
+  of exposed tableau cards; draw/recycle; foundation win event; fresh-deal
+  replay; focused engine coverage; typecheck/lint/Jest/Expo Doctor green; live
+  375×812 and 1440×900 geometry with no console errors.
+- **Stop/next:** do not add draw-three or a second solitaire layout in this
+  slice. After the public proof is shipped, the next gameplay gap is the
+  remaining rules/replay polish or Hold'em completeness, depending on the
+  downstream child outcomes. Monetisation, Rive, and native-device claims stay
+  parked.
