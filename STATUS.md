@@ -1,6 +1,6 @@
 # Deckd status
 
-Last update: 2026-08-11 (free library rules + mobile overflow hardening — local gates green; `t_9f20d120`).
+Last update: 2026-08-11 (free library rules + mobile overflow hardening — local gates green and preview redeployed; `t_9f20d120`).
 
 ## Deployment
 
@@ -22,6 +22,7 @@ Expo SDK 57, React Native 0.86, React 19, TypeScript strict. Expo Router app wit
 - Added playable War, Go Fish, Old Maid, Crazy Eights, and Sevens presets on the serialisable recipe path. The rule layer emits auditable primitive events, preserves private/hidden zones, exposes contextual action rails, and includes deterministic engine coverage for setup, turns, books/pairs, discard matching, and suit runs.
 - TableLayer now renders game-specific piles/readouts/guidance without leaking generic draw/discard gestures into rule games. The rule action rail keeps Blackjack/Poker visible and compacts rank-heavy actions at phone width.
 - Mobile web overflow hardening: the ambient and privacy rails stay inside the canvas. This preserves the warm ivory/crimson table language while preventing a focused recipe card from horizontally shifting the entire app root on RN Web.
+- Commit `e8de47f` is exported and live as `entry-a0eda8d54b3eddd5411bd7d465e2e6e7.js`; public core-flow, library, and desktop probes pass with zero page/console errors.
 
 ## Product direction
 
@@ -92,7 +93,7 @@ Expo SDK 57, React Native 0.86, React 19, TypeScript strict. Expo Router app wit
 
 ## Immediate next actions
 
-1. Export/deploy this verified slice to the app preview and run the public smoke probes.
+1. Continue the gameplay-first audit order from the deployed free-library baseline; the current slice is exported and live.
 2. Run a native device touch/safe-area/reduced-motion pass (physical iPhone + Android).
 3. Keep RevenueCat product/key work, Rive, and solitaire/premium-library expansion behind the gameplay-first priority.
 

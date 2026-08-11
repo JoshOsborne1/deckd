@@ -340,7 +340,7 @@ The authoritative audit order is active. Visual directives 1–14 are already
 recorded as shipped in the prior audit/status trail, so this run takes the
 highest-impact gameplay unlock rather than churn stable card chrome.
 
-### Slice B — Recipe schema v1 (complete; preview deployed)
+### Slices B/C — Recipe schema + free library rules (complete; preview deployed)
 
 - Material language remains the warm ivory/crimson/ink table: recipes are the
   data behind the deck and recipe-card objects, not a new UI surface.
@@ -351,10 +351,13 @@ highest-impact gameplay unlock rather than churn stable card chrome.
   `gameStore` now executes the recipe for new sessions and solo next hands.
 - Preserved round-robin ordering, poker setup behavior, community zone
   creation, and the virtual-house blackjack face policy. Added five focused
-  recipe tests; the full suite is now 9 suites / 92 tests.
-- Exported bundle `entry-e27548969d40e5764fca0676daa898c1.js` is live on
-  `https://deckd-app.roxai.click`; public 375px flow, 1440px geometry, and
-  rendered screenshot smoke all pass with no console/page errors.
+  recipe tests; the full suite is now 11 suites / 102 tests.
+- Free-library rules landed in commit `e8de47f` after the schema commit: War,
+  Go Fish, Old Maid, Crazy Eights, and Sevens now run through auditable
+  primitive-event loops with contextual action rails.
+- Exported bundle `entry-a0eda8d54b3eddd5411bd7d465e2e6e7.js` is live on
+  `https://deckd-app.roxai.click`; public core-flow, 375px library loops, and
+  1440px War geometry all pass with no console/page errors.
 
 ### Next decisions already made
 
