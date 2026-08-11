@@ -8,7 +8,7 @@ import Animated, {
   withSequence,
   withTiming,
 } from 'react-native-reanimated';
-import { BookOpen, ChevronLeft, Clock, Flag, Menu, Shuffle, Undo2 } from 'lucide-react-native';
+import { BookOpen, ChevronLeft, Clock, Flag, Menu, Shuffle, Undo2, ArrowDownAZ } from 'lucide-react-native';
 import { AvatarPlaceholder } from '@components/AvatarPlaceholder';
 import { CardButton } from '@components/CardButton';
 import { CardSection } from '@components/CardSection';
@@ -44,6 +44,8 @@ import {
   selectOpponentHandSize,
   selectOpponents,
   selectSuggestedAction,
+  sortHandCards,
+  type HandSortMode,
 } from '@engine/selectors';
 import {
   ZONE_DISCARD,
@@ -120,6 +122,9 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
   const lobbyStatus = useLobbyStore((s) => s.status);
   const lobbySession = useLobbyStore((s) => s.session);
   const localClientId = useLobbyStore((s) => s.localClientId);
+
+  const handSortMode = useUiStore((s) => s.handSortMode);
+  const toggleHandSortMode = useUiStore((s) => s.toggleHandSortMode);
 
   /** True when the current game is an online relay session. Derived from the
    *  game mode, not the session object, so it stays true when the socket
@@ -532,6 +537,16 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
     undoLastAction();
   }, [haptic, playSound, undoLastAction]);
 
+  const canSortHand = canUseGenericHandActions && localHand.length > 1 && isMyTurn;
+  const handleSortHand = useCallback(() => {
+    if (!viewerId || !canSortHand) return;
+    haptic('light');
+    const nextMode: HandSortMode = handSortMode === 'rank' ? 'suit' : 'rank';
+    toggleHandSortMode();
+    const sortedIds = sortHandCards(localHand.map((c) => c.id), nextMode);
+    reorderHand(viewerId, sortedIds);
+  }, [viewerId, canSortHand, haptic, handSortMode, toggleHandSortMode, localHand, reorderHand]);
+
   const handleRules = useCallback(() => {
     haptic('light');
     setRulesOpen(true);
@@ -865,6 +880,17 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
             style={({ pressed }) => [styles.iconBtn, pressed && { opacity: 0.85 }]}
           >
             <Undo2 size={20} color={colors.brand} />
+          </Pressable>
+        )}
+
+        {canSortHand && (
+          <Pressable
+            onPress={handleSortHand}
+            accessibilityRole="button"
+            accessibilityLabel={`Sort hand by ${handSortMode === 'rank' ? 'suit' : 'rank'}`}
+            style={({ pressed }) => [styles.iconBtn, pressed && { opacity: 0.85 }]}
+          >
+            <ArrowDownAZ size={20} color={colors.inkMuted} />
           </Pressable>
         )}
 
