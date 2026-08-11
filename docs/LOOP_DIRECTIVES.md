@@ -97,6 +97,9 @@ Josh's mandate: stop asking, just build & push all day. He knows the goal, the v
 ### 18. PARALLEL LANES (Josh, 2026-08-11 — do NOT duplicate)
 Solo pillar, sound/UX-pass, and multiplayer E2E are being built in PARALLEL branches (deckd-para-solo, deckd-para-holdem, deckd-para-ux) by separate workers on the Ollama lane. DO NOT start those slices here — focus on Hold'em completeness, then animation pass, then continuity/home. Merges come from the main repo when the lanes land. If a parallel branch's files change under you, expect a merge and resolve it.
 
+### 19. HOLD-TO-PEEK IS THE NEXT SLICE AFTER CURRENT PILLARS (Josh, 2026-08-11 — "Hell yeah!")
+Once the parallel lanes (solo, UX, multiplayer E2E) land and merge, build the dual-end one-phone mode FIRST: 2 players, one device, hands face-down at each end (~30% each, gameplay in the middle ~40%), hold-to-view rotates the player's own cards to face them while the other player physically blocks. Release = face-down again. Existing privacy veil + hand fan; TableLayer layout mode only, NO networking, NO engine change, no new deps. Full spec in `docs/PARKED_IDEAS.md` §B. Verify at 375px. The shared-table-phone mode (§A) stays parked — it's post-v1 multiplayer architecture.
+
 ## Standing rules (from AGENTS.md, unchanged)
 
 - TypeScript strict, NO new dependencies, no raw hex outside src/lib/theme.ts.
