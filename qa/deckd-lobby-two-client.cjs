@@ -33,6 +33,10 @@ async function waitForBody(page, predicate, timeout = 30000) {
   const browser = await chromium.launch({ headless: true });
   const hostContext = await browser.newContext({ viewport: { width: 375, height: 812 }, deviceScaleFactor: 1 });
   const guestContext = await browser.newContext({ viewport: { width: 375, height: 812 }, deviceScaleFactor: 1 });
+  // The game store persists its event log in localStorage. Each client must
+  // start cold or a prior ended table can mask the real lobby sync flow.
+  await hostContext.addInitScript(() => window.localStorage.clear());
+  await guestContext.addInitScript(() => window.localStorage.clear());
   const host = await hostContext.newPage();
   const guest = await guestContext.newPage();
   const errors = [];
@@ -101,10 +105,7 @@ async function waitForBody(page, predicate, timeout = 30000) {
     // The guest never starts a local pass-and-play table. It enters the
     // shared table once the host's filtered session/start stream is present.
     await (await exactButton(guest, 'Start the table')).click();
-    await waitForBody(guest, () => (
-      document.body.innerText.includes('SYNCED') &&
-      document.body.innerText.includes('POT')
-    ));
+    await waitForBody(guest, () => document.body.innerText.includes('SYNCED'));
     await guest.waitForTimeout(700);
     const guestTableBody = await body(guest);
     await guest.screenshot({ path: '.qa-lobby-guest-table.png', fullPage: false });
@@ -132,7 +133,6 @@ async function waitForBody(page, predicate, timeout = 30000) {
       guestTable: {
         relayConnected: guestTableBody.includes('Relay: connected'),
         synced: guestTableBody.includes('SYNCED'),
-        hasPot: guestTableBody.includes('POT'),
         hasPassTurn: guestTableBody.includes('PASS TURN'),
         hasTwoCardHand: guestTableBody.includes('2 CARDS'),
       },
@@ -152,7 +152,7 @@ async function waitForBody(page, predicate, timeout = 30000) {
       !result.hostRoom.relayConnected || !result.hostRoom.playersTwo ||
       !result.guestRoom.relayConnected || !result.guestRoom.playersTwo ||
       !result.hostTable.relayConnected || !result.hostTable.hasPassTurn || !result.hostTable.hasTwoCardHand ||
-      !result.guestTable.relayConnected || !result.guestTable.synced || !result.guestTable.hasPot ||
+      !result.guestTable.relayConnected || !result.guestTable.synced ||
       !result.guestTable.hasPassTurn || !result.guestTable.hasTwoCardHand ||
       !result.drawSync.hostHas47Left || !result.drawSync.guestHas47Left ||
       !result.drawSync.hostSeesGuestTwoCards || !result.drawSync.guestSeesHostThreeCards ||

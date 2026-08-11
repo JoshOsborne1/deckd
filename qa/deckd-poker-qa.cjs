@@ -10,6 +10,9 @@ const QA_SUFFIX = `${VIEWPORT_WIDTH}x${VIEWPORT_HEIGHT}`;
     viewport: { width: VIEWPORT_WIDTH, height: VIEWPORT_HEIGHT },
     deviceScaleFactor: 1,
   });
+  // The game store persists its event log in localStorage. Start every run
+  // from a cold client so a prior ended hand cannot mask setup or deal.
+  await context.addInitScript(() => window.localStorage.clear());
   const page = await context.newPage();
   const errors = [];
   const actions = [];
@@ -62,6 +65,7 @@ const QA_SUFFIX = `${VIEWPORT_WIDTH}x${VIEWPORT_HEIGHT}`;
   const preflop = {
     callClicked: preflopCall,
     checkClicked: preflopCheck,
+    potUpdated: bodyText.replace(/\s+/g, ' ').includes('POT 20'),
     hasBurn: bodyText.includes('BURN'),
     hasFlopBeforeBurn: bodyText.includes('FLOP'),
     errors: [...errors],
@@ -125,7 +129,7 @@ const QA_SUFFIX = `${VIEWPORT_WIDTH}x${VIEWPORT_HEIGHT}`;
     failures.push('initial poker ledger/actions are missing');
   }
   if (!initial.hasNoStreetControlBeforeBetting) failures.push('street controls were exposed before betting closed');
-  if (!preflop.callClicked || !preflop.checkClicked || !preflop.hasBurn || preflop.hasFlopBeforeBurn) {
+  if (!preflop.callClicked || !preflop.checkClicked || !preflop.potUpdated || !preflop.hasBurn || preflop.hasFlopBeforeBurn) {
     failures.push('preflop call/check did not expose burn-before-flop sequencing');
   }
   if (!afterFlop.burnClicked || !afterFlop.flopClicked || !afterFlop.checksClicked || !afterFlop.hasTurn) {

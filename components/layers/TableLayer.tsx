@@ -6,6 +6,7 @@ import Animated, {
   useSharedValue,
   withSpring,
   withSequence,
+  withDelay,
   withTiming,
 } from 'react-native-reanimated';
 import { BookOpen, ChevronLeft, Clock, Flag, Menu, Shuffle, Undo2, ArrowDownAZ } from 'lucide-react-native';
@@ -96,6 +97,62 @@ interface GuidanceCopy {
   eyebrow: string;
   title: string;
   detail: string;
+}
+
+interface CommunityStreetCardProps {
+  card: CardInstance;
+  delay: number;
+  reduceMotion: boolean;
+}
+
+/**
+ * A street card lands from the deck line instead of appearing as a static
+ * row. Each keyed card owns its entrance so a later turn/river card settles
+ * into the existing community row without replaying the opening deal.
+ */
+function CommunityStreetCard({ card, delay, reduceMotion }: CommunityStreetCardProps) {
+  const parsed = parseCardId(card.id);
+  const opacity = useSharedValue(reduceMotion ? 1 : 0);
+  const translateY = useSharedValue(reduceMotion ? 0 : -14);
+  const scale = useSharedValue(reduceMotion ? 1 : 0.96);
+
+  useEffect(() => {
+    cancelAnimation(opacity);
+    cancelAnimation(translateY);
+    cancelAnimation(scale);
+
+    if (reduceMotion) {
+      opacity.value = withTiming(1, { duration: motion.duration.fast });
+      translateY.value = 0;
+      scale.value = 1;
+      return;
+    }
+
+    opacity.value = 0;
+    translateY.value = -14;
+    scale.value = 0.96;
+    opacity.value = withDelay(delay, withTiming(1, { duration: motion.duration.base }));
+    translateY.value = withDelay(delay, withSpring(0, motion.spring.card));
+    scale.value = withDelay(delay, withSpring(1, motion.spring.card));
+  }, [card.id, delay, opacity, reduceMotion, scale, translateY]);
+
+  const entranceStyle = useAnimatedStyle(() => ({
+    opacity: opacity.value,
+    transform: reduceMotion ? [] : [{ translateY: translateY.value }, { scale: scale.value }],
+  }));
+
+  if (!parsed) return null;
+
+  return (
+    <Animated.View style={entranceStyle}>
+      <PlayingCard
+        rank={parsed.rank}
+        suit={parsed.suit}
+        face={card.face}
+        size="xs"
+      />
+    </Animated.View>
+  );
 }
 
 export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
@@ -292,6 +349,8 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
   const drawOpacity = useSharedValue(1);
   const discardScale = useSharedValue(1);
   const discardOpacity = useSharedValue(1);
+  const endedOpacity = useSharedValue(0);
+  const endedTranslateY = useSharedValue(10);
   const previousDiscardId = useRef(discardTop?.id ?? null);
   const previousPhase = useRef(state.phase);
 
@@ -311,6 +370,29 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
     opacity: discardOpacity.value,
     transform: reduceMotion ? [] : [{ scale: discardScale.value }],
   }));
+  const endedMotionStyle = useAnimatedStyle(() => ({
+    opacity: endedOpacity.value,
+    transform: reduceMotion ? [] : [{ translateY: endedTranslateY.value }],
+  }));
+
+  useEffect(() => {
+    cancelAnimation(endedOpacity);
+    cancelAnimation(endedTranslateY);
+    if (state.phase !== 'ended') {
+      // eslint-disable-next-line react-hooks/immutability
+      endedOpacity.value = 0;
+      // eslint-disable-next-line react-hooks/immutability
+      endedTranslateY.value = 10;
+      return;
+    }
+    if (reduceMotion) {
+      endedOpacity.value = withTiming(1, { duration: motion.duration.fast });
+      endedTranslateY.value = 0;
+      return;
+    }
+    endedOpacity.value = withTiming(1, { duration: motion.duration.base });
+    endedTranslateY.value = withSpring(0, motion.spring.sheet);
+  }, [endedOpacity, endedTranslateY, reduceMotion, state.phase]);
 
   useEffect(() => {
     const nextDiscardId = discardTop?.id ?? null;
@@ -861,17 +943,15 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
           <View style={styles.communityRow} pointerEvents="none">
             <Text style={styles.communityLabel}>{streetLabel}</Text>
             <View style={styles.communityCards}>
-              {communityCards.map((cid) => {
-                const parsed = parseCardId(cid);
+              {communityCards.map((cid, index) => {
                 const card = state.cards[cid];
-                if (!parsed || !card) return null;
+                if (!card) return null;
                 return (
-                  <PlayingCard
+                  <CommunityStreetCard
                     key={cid}
-                    rank={parsed.rank}
-                    suit={parsed.suit}
-                    face={card.face}
-                    size="xs"
+                    card={card}
+                    delay={index * motion.stagger.deal}
+                    reduceMotion={reduceMotion}
                   />
                 );
               })}
@@ -882,7 +962,7 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
 
       {/* Ended banner */}
       {state.phase === 'ended' && (
-        <View style={styles.endedBanner} pointerEvents="box-none">
+        <Animated.View style={[styles.endedBanner, endedMotionStyle]} pointerEvents="box-none">
           <View style={styles.endedCard}>
             <Text style={styles.endedEyebrow}>
               {isKlondike ? 'TABLE OVER' : state.meta.mode === 'solo' ? 'HAND OVER' : 'SESSION OVER'}
@@ -946,7 +1026,7 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
               </CardButton>
             )}
           </View>
-        </View>
+        </Animated.View>
       )}
 
       {isPoker && state.phase !== 'ended' && ruleActions.length > 0 && (

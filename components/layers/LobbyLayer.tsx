@@ -12,6 +12,7 @@ import { useUiStore } from '@store/uiStore';
 import { useProfileStore } from '@store/profileStore';
 import { useCosmeticsStore } from '@store/cosmeticsStore';
 import { useLobbyStore, type LobbyStatus } from '@store/lobbyStore';
+import { useGameStore } from '@store/gameStore';
 import { alpha, colors, fonts, letterSpacing, radii, shadow, space } from '@theme';
 
 interface LobbyLayerProps {
@@ -45,6 +46,8 @@ function relayStatusText(status: LobbyStatus, lastError: string | null): string 
 export function LobbyLayer({ active, topInset, bottomInset }: LobbyLayerProps) {
   const { haptic } = useMotion();
   const setViewMode = useUiStore((s) => s.setViewMode);
+  const gameMode = useGameStore((s) => s.state.meta.mode);
+  const resetSession = useGameStore((s) => s.resetSession);
   const nickname = useProfileStore((s) => s.nickname);
   const hasMasterPass = useCosmeticsStore((s) => s.hasMasterPass);
 
@@ -74,6 +77,7 @@ export function LobbyLayer({ active, topInset, bottomInset }: LobbyLayerProps) {
             style: 'destructive',
             onPress: () => {
               haptic('light');
+              if (gameMode === 'online-host' || gameMode === 'online-guest') resetSession();
               leaveLobby();
               setViewMode('home');
             },
@@ -82,10 +86,11 @@ export function LobbyLayer({ active, topInset, bottomInset }: LobbyLayerProps) {
       );
     } else {
       haptic('light');
+      if (gameMode === 'online-host' || gameMode === 'online-guest') resetSession();
       leaveLobby();
       setViewMode('home');
     }
-  }, [haptic, leaveLobby, setViewMode, lobbyStatus]);
+  }, [haptic, leaveLobby, setViewMode, lobbyStatus, gameMode, resetSession]);
 
   const handleCreate = useCallback(() => {
     haptic('medium');
