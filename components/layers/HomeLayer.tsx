@@ -1,5 +1,5 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import Animated, {
   Extrapolation,
   interpolate,
@@ -7,23 +7,18 @@ import Animated, {
   useAnimatedReaction,
   useAnimatedStyle,
   useSharedValue,
-  withDelay,
-  withSequence,
-  withSpring,
   withTiming,
 } from 'react-native-reanimated';
-import { useRouter } from 'expo-router';
-import { Lock, Shield, Zap } from 'lucide-react-native';
 import { AvatarPlaceholder } from '@components/AvatarPlaceholder';
-import { CardButton } from '@components/CardButton';
-import { CardSection } from '@components/CardSection';
 import { PlayingCard } from '@components/PlayingCard';
+import { TableSurface } from '@components/TableSurface';
 import { useSurfaceMorph } from '@components/layers/SurfaceMorphContext';
 import { useMotion } from '@hooks/useMotion';
 import { useUiStore } from '@store/uiStore';
 import { useProfileStore } from '@store/profileStore';
-import { EASING_EMPHASIZED, MASCOT_BOUNCE_SCALE } from '@lib/motion';
-import { alpha, colors, fonts, motion, radii, space, textStyles } from '@theme';
+import { EASING_EMPHASIZED } from '@lib/motion';
+import { useGameStore } from '@store/gameStore';
+import { alpha, colors, fonts, motion, radii, space } from '@theme';
 
 interface HomeLayerProps {
   /** True when viewMode === 'home' — drives tap gating. */
@@ -35,34 +30,33 @@ interface HomeLayerProps {
   bottomInset: number;
 }
 
-const PREVIEW_DECKS = [
-  { id: 'brand', label: 'Deckd Crimson', back: 'brand' as const },
-  { id: 'noir', label: 'Noir', back: 'back-noir' as const },
-  { id: 'crimson', label: 'Crimson', back: 'back-crimson' as const },
-];
-
 /** Progress threshold below which Home accepts taps/scroll. */
 const HOME_INTERACTIVE_THRESHOLD = 0.15;
 
+const RECIPE_LABELS: Record<string, string> = {
+  'deal-two-each': 'Deal 2 each',
+  'crazy-eights': 'Crazy Eights',
+  'go-fish': 'Go Fish',
+  'old-maid': 'Old Maid',
+  klondike: 'Klondike',
+};
+
+function formatRecipeName(recipeId: string): string {
+  return (
+    RECIPE_LABELS[recipeId] ??
+    recipeId
+      .split('-')
+      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(' ')
+  );
+}
+
 /**
- * Ambient home chrome. Sits *above* the persistent game surface and sheds
- * its elements one-by-one as the home -> hub morph runs. Every element
- * interpolates against the single `progress` shared value published by
- * `SurfaceMorphContext`, so the whole layer reads from a single timeline
- * without chained `useEffect`s.
- *
- * Element windows (progress 0 = fully home, 1 = fully hub):
- *   stats banner     [0.00, 0.40]  ty  0 -> -60,  opacity 1 -> 0
- *   hero CTA         [0.00, 1.00]  scale 1 -> 0.88, ty 0 -> +180, rot 0 -> 1.5deg
- *                    opacity window [0.00, 0.85]  1 -> 0
- *   secondary CTA    [0.00, 0.35]  tx  0 -> -40,  opacity 1 -> 0
- *   section divider  [0.05, 0.35]  ty  0 -> -20,  opacity 1 -> 0
- *   carousel         [0.05, 0.45]  tx  0 -> +80,  opacity 1 -> 0
- *   deckd+ tile      [0.10, 0.45]  tx  0 -> -80,  opacity 1 -> 0
- *   sale row         [0.12, 0.45]  ty  0 -> +50,  opacity 1 -> 0
- *
- * If `reduceMotion` is set on the UI thread SV, each element short-circuits
- * to a plain opacity cross-fade within [0, 1].
+ * Table-native home chrome. The deck is the primary object, while the small
+ * table marker, setup hint, resume slip, and shared-table action shed in
+ * sequence as Home morphs into Hub. Every element reads the same shared
+ * progress timeline so the surface never feels like a separate marketing
+ * page sitting above the game.
  */
 export function HomeLayer({
   active,
@@ -70,7 +64,6 @@ export function HomeLayer({
   topInset,
   bottomInset,
 }: HomeLayerProps) {
-  const router = useRouter();
   const setViewMode = useUiStore((s) => s.setViewMode);
   const firstRunHintDismissed = useUiStore((s) => s.firstRunHintDismissed);
   const dismissFirstRunHint = useUiStore((s) => s.dismissFirstRunHint);
@@ -78,9 +71,15 @@ export function HomeLayer({
   const avatarSeed = useProfileStore((s) => s.avatarSeed);
   const level = useProfileStore((s) => s.level);
   const streak = useProfileStore((s) => s.streak);
+  const gameState = useGameStore((s) => s.state);
+  const gameEvents = useGameStore((s) => s.events);
+  const hasResumableTable = gameEvents.length > 0 && gameState.phase !== 'ended';
+  const currentRecipeName = gameState.config.presetId
+    ? formatRecipeName(gameState.config.presetId)
+    : 'Freeplay';
 
   const { progress, reduceMotion } = useSurfaceMorph();
-  const { reduceMotion: reduceMotionSystem, motionReady } = useMotion();
+  const { reduceMotion: reduceMotionSystem } = useMotion();
 
   // Whole-layer fade. Only fires when we leave the home/hub morph zone for
   // table/lobby/pass — inside the zone the per-element windows own opacity.
@@ -95,59 +94,6 @@ export function HomeLayer({
 
   const rootStyle = useAnimatedStyle(() => ({ opacity: layerOpacity.value }));
 
-  // The mascot is a mount-only hello: one springy rise, then one small bounce.
-  // It never loops or replays when the home layer is merely hidden by a route.
-  const mascotOpacity = useSharedValue(0);
-  const mascotTranslateX = useSharedValue(24);
-  const mascotTranslateY = useSharedValue(-12);
-  const mascotScale = useSharedValue(1);
-  const mascotPlayed = useRef(false);
-  useEffect(() => {
-    // Wait for the OS preference before starting the one-shot intro. Without
-    // this gate, the async accessibility read could arrive after a full
-    // motion intro had already begun.
-    if (!motionReady || mascotPlayed.current) return;
-    mascotPlayed.current = true;
-    if (reduceMotionSystem) {
-      mascotOpacity.value = withTiming(1, { duration: motion.duration.fast });
-      mascotTranslateX.value = 0;
-      mascotTranslateY.value = 0;
-      mascotScale.value = 1;
-      return;
-    }
-    mascotOpacity.value = withTiming(1, { duration: motion.duration.base });
-    mascotTranslateX.value = withSpring(0, motion.spring.card);
-    mascotTranslateY.value = withSpring(0, motion.spring.card);
-    mascotScale.value = withDelay(
-      760,
-      withSequence(
-        withTiming(MASCOT_BOUNCE_SCALE, { duration: 160 }),
-        withTiming(1, { duration: 240 }),
-      ),
-    );
-  }, [
-    mascotOpacity,
-    mascotPlayed,
-    mascotScale,
-    mascotTranslateX,
-    mascotTranslateY,
-    motionReady,
-    reduceMotionSystem,
-  ]);
-
-  const mascotStyle = useAnimatedStyle(() => {
-    const p = progress.value;
-    const morphOpacity = interpolate(p, [0.2, 0.5], [1, 0], Extrapolation.CLAMP);
-    if (reduceMotionSystem) return { opacity: mascotOpacity.value * morphOpacity };
-    return {
-      opacity: mascotOpacity.value * morphOpacity,
-      transform: [
-        { translateX: mascotTranslateX.value },
-        { translateY: mascotTranslateY.value },
-        { scale: mascotScale.value },
-      ],
-    };
-  });
 
   // Mirror the progress threshold onto a JS-side state so the scrollview's
   // `pointerEvents` / `scrollEnabled` props can flip without re-rendering on
@@ -165,111 +111,51 @@ export function HomeLayer({
   );
   const interactive = active && gateOpen;
 
-  const statsBannerStyle = useAnimatedStyle(() => {
+  const tableMarkerStyle = useAnimatedStyle(() => {
     const p = progress.value;
     if (reduceMotion.value === 1) {
       return { opacity: interpolate(p, [0, 1], [1, 0], Extrapolation.CLAMP) };
     }
     return {
-      opacity: interpolate(p, [0, 0.4], [1, 0], Extrapolation.CLAMP),
+      opacity: interpolate(p, [0, 0.42], [1, 0], Extrapolation.CLAMP),
+      transform: [{ translateY: interpolate(p, [0, 0.42], [0, -34], Extrapolation.CLAMP) }],
+    };
+  });
+
+  const deckStyle = useAnimatedStyle(() => {
+    const p = progress.value;
+    if (reduceMotion.value === 1) {
+      return { opacity: interpolate(p, [0, 1], [1, 0], Extrapolation.CLAMP) };
+    }
+    return {
+      opacity: interpolate(p, [0, 0.86], [1, 0], Extrapolation.CLAMP),
       transform: [
-        { translateY: interpolate(p, [0, 0.4], [0, -60], Extrapolation.CLAMP) },
+        { translateY: interpolate(p, [0, 1], [0, 150], Extrapolation.CLAMP) },
+        { scale: interpolate(p, [0, 1], [1, 0.9], Extrapolation.CLAMP) },
+        { rotate: `${interpolate(p, [0, 1], [0, 2], Extrapolation.CLAMP)}deg` },
       ],
     };
   });
 
-  const heroCtaStyle = useAnimatedStyle(() => {
+  const supportStyle = useAnimatedStyle(() => {
     const p = progress.value;
     if (reduceMotion.value === 1) {
       return { opacity: interpolate(p, [0, 1], [1, 0], Extrapolation.CLAMP) };
     }
     return {
-      opacity: interpolate(p, [0, 0.85], [1, 0], Extrapolation.CLAMP),
-      transform: [
-        { translateY: interpolate(p, [0, 1], [0, 180], Extrapolation.CLAMP) },
-        { scale: interpolate(p, [0, 1], [1, 0.88], Extrapolation.CLAMP) },
-        {
-          rotate: `${interpolate(
-            p,
-            [0, 1],
-            [0, 1.5],
-            Extrapolation.CLAMP,
-          )}deg`,
-        },
-      ],
+      opacity: interpolate(p, [0.08, 0.5], [1, 0], Extrapolation.CLAMP),
+      transform: [{ translateY: interpolate(p, [0.08, 0.5], [0, -18], Extrapolation.CLAMP) }],
     };
   });
 
-  const secondaryCtaStyle = useAnimatedStyle(() => {
+  const resumeStyle = useAnimatedStyle(() => {
     const p = progress.value;
     if (reduceMotion.value === 1) {
       return { opacity: interpolate(p, [0, 1], [1, 0], Extrapolation.CLAMP) };
     }
     return {
-      opacity: interpolate(p, [0, 0.35], [1, 0], Extrapolation.CLAMP),
-      transform: [
-        { translateX: interpolate(p, [0, 0.35], [0, -40], Extrapolation.CLAMP) },
-      ],
-    };
-  });
-
-  const sectionDividerStyle = useAnimatedStyle(() => {
-    const p = progress.value;
-    if (reduceMotion.value === 1) {
-      return { opacity: interpolate(p, [0, 1], [1, 0], Extrapolation.CLAMP) };
-    }
-    return {
-      opacity: interpolate(p, [0.05, 0.35], [1, 0], Extrapolation.CLAMP),
-      transform: [
-        {
-          translateY: interpolate(
-            p,
-            [0.05, 0.35],
-            [0, -20],
-            Extrapolation.CLAMP,
-          ),
-        },
-      ],
-    };
-  });
-
-  const carouselStyle = useAnimatedStyle(() => {
-    const p = progress.value;
-    if (reduceMotion.value === 1) {
-      return { opacity: interpolate(p, [0, 1], [1, 0], Extrapolation.CLAMP) };
-    }
-    return {
-      opacity: interpolate(p, [0.05, 0.45], [1, 0], Extrapolation.CLAMP),
-      transform: [
-        {
-          translateX: interpolate(
-            p,
-            [0.05, 0.45],
-            [0, 80],
-            Extrapolation.CLAMP,
-          ),
-        },
-      ],
-    };
-  });
-
-  const plusTileStyle = useAnimatedStyle(() => {
-    const p = progress.value;
-    if (reduceMotion.value === 1) {
-      return { opacity: interpolate(p, [0, 1], [1, 0], Extrapolation.CLAMP) };
-    }
-    return {
-      opacity: interpolate(p, [0.1, 0.45], [1, 0], Extrapolation.CLAMP),
-      transform: [
-        {
-          translateX: interpolate(
-            p,
-            [0.1, 0.45],
-            [0, -80],
-            Extrapolation.CLAMP,
-          ),
-        },
-      ],
+      opacity: interpolate(p, [0.05, 0.44], [1, 0], Extrapolation.CLAMP),
+      transform: [{ translateX: interpolate(p, [0.05, 0.44], [0, 40], Extrapolation.CLAMP) }],
     };
   });
 
@@ -278,159 +164,125 @@ export function HomeLayer({
       pointerEvents={interactive ? 'auto' : 'none'}
       style={[styles.root, { bottom: bottomInset }, rootStyle]}
     >
+      <TableSurface mode="setup" />
       <ScrollView
         pointerEvents={interactive ? 'auto' : 'none'}
         scrollEnabled={interactive}
         contentContainerStyle={[
           styles.scrollContent,
-          { paddingTop: topInset + space.md, paddingBottom: 140 },
+          { paddingTop: topInset + space.xl, paddingBottom: bottomInset + space.xxl },
         ]}
         showsVerticalScrollIndicator={false}
       >
-        <Animated.View style={statsBannerStyle}>
-          <CardSection
-            variant="surface"
-            padded={false}
-            style={styles.statsBanner}
-          >
-            <View style={styles.statsInner}>
-              <AvatarPlaceholder
-                seed={avatarSeed}
-                label={nickname}
-                size={40}
-                ring="soft"
-              />
-              <View style={styles.statsChips}>
-                <View style={styles.statChip}>
-                  <Text style={styles.statValue}>{`Lv. ${level}`}</Text>
-                </View>
-                <View style={styles.statChip}>
-                  <Zap size={14} color={colors.warn} />
-                  <Text style={styles.statValue}>{streak}</Text>
-                </View>
-              </View>
+        <Animated.View style={tableMarkerStyle}>
+          <View style={styles.tableHeader}>
+            <AvatarPlaceholder
+              seed={avatarSeed}
+              label={nickname}
+              size={38}
+              ring="soft"
+            />
+            <View style={styles.tableHeaderCopy}>
+              <Text style={styles.tableEyebrow}>DECKD TABLE</Text>
+              <Text style={styles.tableHeaderTitle}>Your table, ready when you are</Text>
             </View>
-          </CardSection>
+            <View style={styles.tableStats}>
+              <Text style={styles.tableStat}>{`LV. ${level}`}</Text>
+              <Text style={styles.tableStat}>{`STREAK ${streak}`}</Text>
+            </View>
+          </View>
         </Animated.View>
 
-        <View style={styles.heroSection}>
-          <Animated.View style={styles.mascotWrap} pointerEvents="none">
-            <Animated.View style={mascotStyle}>
-              <PlayingCard
-                face="up"
-                rank="A"
-                suit="hearts"
-                size="sm"
-                elevated
-                style={styles.mascotCard}
-              />
-            </Animated.View>
-          </Animated.View>
-          <Animated.View style={[styles.heroCta, heroCtaStyle]}>
-            <CardButton
-              variant="primary"
-              size="xl"
-              elevated
-              haptic="medium"
-              onPress={() => setViewMode('hub')}
-              style={styles.heroCtaFill}
-              innerStyle={styles.heroInner}
-            >
-              <View style={styles.heroText}>
-                <Text style={styles.heroTitle}>Deal the deck</Text>
-                <Text style={styles.heroSub}>Tap to drop into the table</Text>
-              </View>
-              <View style={styles.heroPreview}>
-                <PlayingCard
-                  face="down"
-                  size="sm"
-                  overlapped
-                  style={styles.heroPreviewCard1}
-                />
-                <PlayingCard
-                  face="up"
-                  rank="A"
-                  suit="hearts"
-                  size="sm"
-                  overlapped
-                  style={styles.heroPreviewCard2}
-                />
-              </View>
-            </CardButton>
-          </Animated.View>
-
-          <Animated.View style={secondaryCtaStyle}>
-            <CardButton
-              variant="secondary"
-              size="md"
-              elevated={false}
-              haptic="light"
-              onPress={() => setViewMode('lobby')}
-              style={styles.secondaryCta}
-            >
-              <Text style={styles.secondaryText}>Deal to friends</Text>
-              <Lock
-                size={14}
-                color={colors.inkMuted}
-                style={{ marginLeft: 6 }}
-              />
-            </CardButton>
-          </Animated.View>
-
-          {interactive && !firstRunHintDismissed && (
-            <Pressable
-              onPress={() => {
-                dismissFirstRunHint();
-                setViewMode('hub');
-              }}
-              accessibilityRole="button"
-              accessibilityLabel="Tap the deck to deal. Dismiss hint."
-              style={styles.firstRunHint}
-            >
-              <Text style={styles.firstRunHintText}>
-                Tap the deck to deal →
-              </Text>
-            </Pressable>
-          )}
-        </View>
-
-        <Animated.View style={[styles.sectionDivider, sectionDividerStyle]}>
-          <View style={styles.cardEdge} />
-          <Text style={styles.sectionHeader}>STORE PREVIEW</Text>
-          <View style={styles.cardEdge} />
-        </Animated.View>
-
-        <Animated.View style={carouselStyle}>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.carousel}
-          >
-            {PREVIEW_DECKS.map((deck) => (
-              <View key={deck.id} style={styles.cardTile}>
-                <PlayingCard face="down" back={deck.back} size="md" />
-                <Text style={styles.cardTileText}>{deck.label}</Text>
-              </View>
-            ))}
-          </ScrollView>
-        </Animated.View>
-
-        <Animated.View style={plusTileStyle}>
+        <Animated.View style={[styles.tableEntry, deckStyle]}>
+          <View style={styles.entryCopy} pointerEvents="none">
+            <Text style={styles.entryEyebrow}>THE DECK IS THE DOOR</Text>
+            <Text style={styles.entryTitle}>One deck. Your table.</Text>
+            <Text style={styles.entryDetail}>
+              Deal into setup, choose a recipe, and keep the same table beneath you.
+            </Text>
+          </View>
           <Pressable
             accessibilityRole="button"
-            onPress={() => router.push('/store')}
+            accessibilityLabel="Deal the deck"
+            onPress={() => {
+              dismissFirstRunHint();
+              setViewMode('hub');
+            }}
             style={({ pressed }) => [
-              styles.plusCard,
-              pressed && { opacity: 0.95 },
+              styles.deckObjectButton,
+              pressed && styles.deckObjectPressed,
             ]}
           >
-            <View style={styles.plusHeader}>
-              <Shield size={20} color={colors.surface} />
-              <Text style={styles.plusTitle}>Deckd Master</Text>
+            <View style={styles.deckObject} pointerEvents="none">
+              <PlayingCard
+                face="down"
+                back="back-crimson"
+                size="md"
+                overlapped
+                style={styles.deckBackCard}
+              />
+              <PlayingCard
+                face="down"
+                back="back-brand"
+                size="md"
+                overlapped
+                style={styles.deckFrontCard}
+              />
             </View>
-            <Text style={styles.plusDesc}>
-              Host lobbies. Friends join free.
-            </Text>
+            <Text style={styles.deckObjectLabel}>DEAL</Text>
+          </Pressable>
+        </Animated.View>
+
+        <Animated.View style={[styles.supportLine, supportStyle]}>
+          <View style={styles.supportRule} />
+          <Text style={styles.supportText}>PICK A RECIPE AFTER THE DEAL</Text>
+          <View style={styles.supportRule} />
+        </Animated.View>
+
+        {interactive && !firstRunHintDismissed && (
+          <Pressable
+            onPress={() => {
+              dismissFirstRunHint();
+              setViewMode('hub');
+            }}
+            accessibilityRole="button"
+            accessibilityLabel="Tap the deck to deal. Dismiss hint."
+            style={styles.firstRunHint}
+          >
+            <Text style={styles.firstRunHintText}>Tap the deck to deal</Text>
+            <Text style={styles.firstRunHintDetail}>Setup stays on this table</Text>
+          </Pressable>
+        )}
+
+        {hasResumableTable && (
+          <Animated.View style={[styles.resumeSlip, resumeStyle]}>
+            <View style={styles.resumeCopy}>
+              <Text style={styles.resumeEyebrow}>TABLE IN PROGRESS</Text>
+              <Text style={styles.resumeTitle}>{currentRecipeName}</Text>
+              <Text style={styles.resumeDetail}>
+                {gameState.players.length} {gameState.players.length === 1 ? 'seat' : 'seats'} · {gameState.turn} turns played
+              </Text>
+            </View>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Resume table"
+              onPress={() => setViewMode('table')}
+              style={({ pressed }) => [styles.resumeButton, pressed && styles.resumeButtonPressed]}
+            >
+              <Text style={styles.resumeButtonText}>RESUME</Text>
+            </Pressable>
+          </Animated.View>
+        )}
+
+        <Animated.View style={[styles.supportAction, supportStyle]}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Host a lobby"
+            onPress={() => setViewMode('lobby')}
+            style={({ pressed }) => [styles.friendAction, pressed && styles.friendActionPressed]}
+          >
+            <Text style={styles.friendActionEyebrow}>WITH FRIENDS</Text>
+            <Text style={styles.friendActionText}>Host a shared table</Text>
           </Pressable>
         </Animated.View>
       </ScrollView>
@@ -449,112 +301,140 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: space.xl,
+    alignItems: 'stretch',
   },
-  statsBanner: {
-    marginBottom: space.x4l,
-  },
-  statsInner: {
+  tableHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: space.sm,
-    paddingHorizontal: space.md,
-  },
-  statsChips: {
-    flexDirection: 'row',
     gap: space.sm,
+    paddingBottom: space.md,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: alpha.inkOverlay12,
   },
-  statChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.bg,
-    paddingHorizontal: space.md,
-    paddingVertical: space.xs + 2,
-    borderRadius: radii.md,
-    gap: space.xs,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  statValue: {
-    fontSize: 12,
-    fontFamily: fonts.bold,
-    color: colors.inkSoft,
-  },
-  heroSection: {
-    marginBottom: space.x4l,
-    alignItems: 'center',
-    position: 'relative',
-  },
-  mascotWrap: {
-    position: 'absolute',
-    right: space.xxl,
-    top: -18,
-    zIndex: 3,
-  },
-  mascotCard: {
-    transform: [{ rotate: '9deg' }],
-  },
-  heroCta: {
-    width: '100%',
-    marginBottom: space.lg,
-  },
-  heroCtaFill: {
-    width: '100%',
-  },
-  heroInner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: space.xxl,
-  },
-  heroText: {
+  tableHeaderCopy: {
     flex: 1,
+    minWidth: 0,
   },
-  heroTitle: {
-    color: colors.surface,
-    fontSize: 28,
-    fontFamily: fonts.extra,
-    marginBottom: space.xs,
-    letterSpacing: -0.5,
+  tableEyebrow: {
+    fontSize: 10,
+    fontFamily: fonts.bold,
+    color: colors.brand,
+    letterSpacing: 1.8,
   },
-  heroSub: {
-    color: alpha.whiteOverlay80,
+  tableHeaderTitle: {
+    marginTop: 3,
     fontSize: 14,
-    fontFamily: fonts.medium,
+    lineHeight: 18,
+    fontFamily: fonts.semibold,
+    color: colors.ink,
   },
-  heroPreview: {
-    width: 72,
-    height: 90,
+  tableStats: {
+    alignItems: 'flex-end',
+    gap: 3,
+  },
+  tableStat: {
+    fontSize: 9,
+    fontFamily: fonts.bold,
+    color: colors.inkSubtle,
+    letterSpacing: 1.1,
+  },
+  tableEntry: {
+    minHeight: 360,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: space.x4l,
+  },
+  entryCopy: {
+    alignItems: 'center',
+    maxWidth: 292,
+    marginBottom: space.xxl,
+  },
+  entryEyebrow: {
+    fontSize: 10,
+    fontFamily: fonts.bold,
+    color: colors.brand,
+    letterSpacing: 1.8,
+  },
+  entryTitle: {
+    marginTop: space.sm,
+    fontSize: 29,
+    lineHeight: 34,
+    fontFamily: fonts.extra,
+    color: colors.ink,
+    letterSpacing: -0.8,
+    textAlign: 'center',
+  },
+  entryDetail: {
+    marginTop: space.sm,
+    fontSize: 13,
+    lineHeight: 19,
+    fontFamily: fonts.regular,
+    color: colors.inkMuted,
+    textAlign: 'center',
+  },
+  deckObjectButton: {
+    minWidth: 124,
+    minHeight: 188,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: space.md,
+    paddingVertical: space.sm,
+  },
+  deckObjectPressed: {
+    transform: [{ translateY: 3 }, { scale: 0.96 }],
+  },
+  deckObject: {
+    width: 112,
+    height: 148,
     position: 'relative',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  heroPreviewCard1: {
+  deckBackCard: {
     position: 'absolute',
-    right: 10,
-    top: 6,
-    transform: [{ rotate: '-10deg' }],
-  },
-  heroPreviewCard2: {
-    position: 'absolute',
-    right: -4,
-    top: -2,
+    top: 8,
+    left: 17,
     transform: [{ rotate: '8deg' }],
   },
-  secondaryCta: {
-    paddingHorizontal: space.xxl,
+  deckFrontCard: {
+    position: 'absolute',
+    top: 0,
+    left: 7,
+    transform: [{ rotate: '-6deg' }],
   },
-  secondaryText: {
-    ...textStyles.title,
-    color: colors.inkMuted,
-    fontSize: 15,
-    fontFamily: fonts.semibold,
+  deckObjectLabel: {
+    marginTop: space.xs,
+    fontSize: 10,
+    fontFamily: fonts.bold,
+    color: colors.brand,
+    letterSpacing: 1.8,
+  },
+  supportLine: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.md,
+    marginBottom: space.lg,
+  },
+  supportRule: {
+    flex: 1,
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: alpha.inkOverlay12,
+  },
+  supportText: {
+    fontSize: 9,
+    fontFamily: fonts.bold,
+    color: colors.inkSubtle,
+    letterSpacing: 1.4,
   },
   firstRunHint: {
-    marginTop: space.lg,
-    paddingHorizontal: space.lg,
+    alignItems: 'center',
+    alignSelf: 'center',
+    minHeight: 58,
+    marginBottom: space.lg,
+    paddingHorizontal: space.xl,
     paddingVertical: space.sm,
-    borderRadius: radii.pill,
-    backgroundColor: alpha.brand10,
-    borderWidth: 1,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderBottomWidth: StyleSheet.hairlineWidth,
     borderColor: alpha.brand20,
   },
   firstRunHintText: {
@@ -563,68 +443,96 @@ const styles = StyleSheet.create({
     color: colors.brand,
     letterSpacing: 0.3,
   },
-  sectionDivider: {
+  firstRunHintDetail: {
+    marginTop: 3,
+    fontSize: 11,
+    fontFamily: fonts.regular,
+    color: colors.inkMuted,
+  },
+  resumeSlip: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: space.xl,
     gap: space.md,
+    marginBottom: space.lg,
+    paddingHorizontal: space.md,
+    paddingVertical: space.md,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderColor: alpha.inkOverlay12,
+    backgroundColor: alpha.whiteOverlay45,
   },
-  cardEdge: {
+  resumeCopy: {
     flex: 1,
-    height: 1,
-    backgroundColor: colors.borderStrong,
+    minWidth: 0,
   },
-  sectionHeader: {
+  resumeEyebrow: {
+    fontSize: 9,
+    fontFamily: fonts.bold,
+    color: colors.brand,
+    letterSpacing: 1.4,
+  },
+  resumeTitle: {
+    marginTop: 3,
+    fontSize: 16,
+    fontFamily: fonts.extra,
+    color: colors.ink,
+  },
+  resumeDetail: {
+    marginTop: 2,
     fontSize: 11,
+    fontFamily: fonts.regular,
+    color: colors.inkMuted,
+  },
+  resumeButton: {
+    minWidth: 78,
+    minHeight: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: space.sm,
+    borderRadius: radii.sm,
+    backgroundColor: colors.brand,
+  },
+  resumeButtonPressed: {
+    backgroundColor: colors.brandDark,
+    transform: [{ scale: 0.97 }],
+  },
+  resumeButtonText: {
+    fontSize: 10,
+    fontFamily: fonts.bold,
+    color: colors.surface,
+    letterSpacing: 1.2,
+  },
+  supportAction: {
+    alignItems: 'center',
+    marginTop: space.xs,
+    paddingBottom: space.md,
+  },
+  friendAction: {
+    minHeight: 52,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: space.xxl,
+    paddingVertical: space.sm,
+    borderRadius: radii.pill,
+    borderWidth: 1,
+    borderColor: alpha.inkOverlay12,
+    backgroundColor: alpha.whiteOverlay45,
+  },
+  friendActionPressed: {
+    backgroundColor: alpha.inkOverlay06,
+    transform: [{ scale: 0.97 }],
+  },
+  friendActionEyebrow: {
+    fontSize: 9,
     fontFamily: fonts.bold,
     color: colors.inkSubtle,
-    letterSpacing: 1.5,
+    letterSpacing: 1.4,
   },
-  carousel: {
-    paddingBottom: space.xxl,
-    gap: space.lg,
-  },
-  cardTile: {
-    alignItems: 'center',
-    marginRight: space.lg,
-    gap: space.sm,
-  },
-  cardTileText: {
+  friendActionText: {
+    marginTop: 3,
     fontSize: 13,
     fontFamily: fonts.semibold,
-    color: colors.inkSoft,
-  },
-  plusCard: {
-    backgroundColor: colors.ink,
-    borderRadius: radii.lg,
-    padding: space.xl,
-    marginBottom: space.lg,
-    ...Platform.select({
-      ios: {
-        shadowColor: colors.ink,
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.15,
-        shadowRadius: 10,
-      },
-      android: { elevation: 4 },
-    }),
-  },
-  plusHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: space.sm,
-    marginBottom: space.sm,
-  },
-  plusTitle: {
-    color: colors.surface,
-    fontSize: 18,
-    fontFamily: fonts.bold,
-  },
-  plusDesc: {
-    color: colors.inkSubtle,
-    fontSize: 14,
-    lineHeight: 20,
-    fontFamily: fonts.regular,
+    color: colors.inkMuted,
   },
 });
 

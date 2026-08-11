@@ -4,34 +4,36 @@ Updated: 2026-08-11
 
 ## Current read
 
-- The integration branch is clean at `60ff5a4`, with Hold'em betting, staged streets, guest-safe mirrors, replay/end motion, and live poker/lobby proof already shipped.
-- The next authoritative audit item is the animation pass. The table already has opening-hand stagger, community-card entrance, discard pulse, press feedback, and reduced-motion handling, but a normal fan hand still inserts a drawn card without a physical arrival and a new discard replaces the card in place.
-- The visual language stays one warm ivory/crimson/ink table: printed paper cards, hairline rules, restrained shadows, and no page-like transition for setup → play.
+- The integration branch is clean at `53fdf83`, with Hold'em betting, staged streets, guest-safe mirrors, Klondike draw-one, rules/replay, and the physical draw/discard motion slice deployed.
+- The live audit still calls out Home as the weakest continuity surface: it reads as a marketing page with a hero banner, store carousel, and Master promo instead of the table's first deal. The next non-parallel, highest-impact slice is to make Home the quiet top-down table entry point.
+- `LOOP_DIRECTIVES.md` §18 says not to duplicate the solo, UX-pass, or multiplayer-E2E lanes. The home continuity slice stays in `HomeLayer.tsx` plus its focused QA/docs updates; no engine-rule, monetisation, Rive, or native-device work is in scope.
 
-## Completed slice — physical draw/discard motion
+## Completed before this run
 
-- `HandFan` now gives every mounted card one deck-line arrival and settles it into the measured fan. Opening cards keep their stagger; later draws use a zero delay and do not replay the opening batch.
-- A newly revealed discard now lands with a bounded translate/rotate/settle motion while retaining the existing pulse; reduced motion stays a plain fade/settle.
-- Local Metro proof passed the real setup → deal → draw → pass flow at 375×812, and desktop proof passed at 1440×900. Typecheck, lint, 117 Jest tests, and Expo Doctor 20/20 are green.
+- `HandFan` gives every mounted card one deck-line arrival and settles it into the measured fan; opening cards keep their stagger and later draws do not replay it.
+- A new discard lands with bounded translate/rotate/settle motion while retaining pulse feedback; reduced motion uses a plain fade/settle.
+- Hold'em has blinds, betting chips, pot accounting, street progression, showdown winner copy, and live public QA. Klondike is routed through the recipe executor and has a table-native layout.
+- Quality gates and live preview were green on the prior verified motion deploy. This run must re-run them against the Home change and publish a fresh bundle.
 
-## Next slice — preview ship, then continuity re-plan
+## Current slice — Home as the table
 
-1. Commit this narrow motion slice with `[verified]`, export/deploy the preview, and verify the live bundle and QA URL.
-2. Re-run fresh public 375×812 and 1440×900 proof after deployment; do not trust the old bundle hash.
-3. Re-plan against the audit's remaining continuity gap, choosing home-as-table/deck continuity or pass/win motion without duplicating the parallel solo, UX-pass, or multiplayer-E2E lanes.
+1. Replace the marketing stack in `HomeLayer` with a compact table-native landing composition: a table marker, a physical deck object as the only primary action, a minimal first-run hint, and a quiet resume/recipe note when useful.
+2. Remove the fake-feeling Home-only store preview and Master promo from the deal surface; those destinations remain available through the persistent table-edge chips and their own routes.
+3. Keep the shared home↔hub morph timeline, safe-area reserve, canonical card backs, reduced-motion behavior, and exact accessible names (`Deal the deck`, `Tap the deck to deal...`).
+4. Verify the actual tap path Home → setup → Deal now → table, including 375×812 bounds, 1440×900 geometry, no horizontal document overflow, and no browser/page errors.
+5. Commit with `[verified]`, export/deploy the preview, confirm the new hashed entry bundle is served, then update `STATUS.md` with the narrow result.
 
-## Re-plan after the slice
+## Re-plan rule
 
-- If this slice is clean, inspect the audit's remaining continuity gap and choose the highest-impact non-parallel work: home-as-table/deck continuity or pass/win motion polish.
-- Do not duplicate the parallel solo, UX-pass, or multiplayer-E2E lanes described in `LOOP_DIRECTIVES.md` §18.
-- Monetisation, RevenueCat products/keys, Rive, and native-device-only claims remain parked.
+- After this slice, inspect the remaining ready-bar gap. Do not start hold-to-peek while the parallel lanes described in §18 still have unmerged work, and do not duplicate their files.
+- If Home is clean, choose the next highest-impact continuity or physical-table gap from the audit rather than polishing parked monetisation surfaces.
 
 ## Acceptance bar for this run
 
 - No new dependencies, no raw colours outside `src/lib/theme.ts`, and no engine-rule changes.
-- New cards do not replay the opening deal on later draws; removed/re-added cards can enter again.
-- Discard motion is bounded at 375px and becomes a plain fade/instant settle under reduced motion.
-- `npm run typecheck`, `npm run lint`, `npx jest --runInBand`, and `npx expo-doctor` pass.
-- Fresh visual proof has no browser/console errors and no document/body horizontal overflow at 375×812 or 1440×900.
+- Home reads as one warm ivory/crimson/ink table, with the deck object carrying the deal action rather than a marketing hero.
+- Home → setup remains a shared surface morph; no route-wide page flip or page-pop is introduced.
+- Primary and navigation controls are reachable at 375×812 and 1440×900, with no document/body horizontal overflow.
+- `npm run typecheck`, `npm run lint`, `npx jest --runInBand`, and `npx expo-doctor` pass, followed by fresh public visual proof.
 
-Material language: warm ivory card stock with deterministic paper grain, crimson ink, warm black linework, one-pixel rules, and physical card movement rather than UI chrome.
+Material language: warm ivory paper stock, deterministic grain, crimson ink, warm black linework, one-pixel rules, restrained depth, and physical card objects instead of UI chrome.
