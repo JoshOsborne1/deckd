@@ -62,7 +62,8 @@ function FanCard({
   onReorderDx,
   reduceMotion,
   dealTrigger,
-  dealInitial,
+  animateEntry,
+  dealDelay,
 }: {
   card: CardInstance;
   index: number;
@@ -77,21 +78,22 @@ function FanCard({
   onReorderDx: ((dx: number) => void) | undefined;
   reduceMotion: boolean;
   dealTrigger: string | null | undefined;
-  /** Only cards present when the session starts receive the opening stagger. */
-  dealInitial: boolean;
+  /** Cards entering the hand travel from the shared deck line before settling. */
+  animateEntry: boolean;
+  /** Opening cards stagger; later cards enter immediately with a zero delay. */
+  dealDelay: number;
 }) {
   const { haptic } = useMotion();
   const cardWidth = SIZE_MAP[size].width;
   const fan = handFanTransform(index, total, spread, cardWidth, slotStep);
-  const entry = useSharedValue(reduceMotion || !dealInitial ? 1 : 0);
+  const entry = useSharedValue(reduceMotion || !animateEntry ? 1 : 0);
   const animatedDealTrigger = useRef<string | null>(null);
-  const delay = dealStagger(index, total, motion.stagger.deal);
 
   useEffect(() => {
     // `dealTrigger` identifies the session, not every card insertion. A card
-    // drawn after the opening hand must land in the measured fan immediately;
-    // otherwise it replays the opening flight from the deck on every draw.
-    if (!dealTrigger || !dealInitial) {
+    // drawn after the opening hand gets one short flight from the shared deck
+    // line, while existing cards never replay their opening motion on redraw.
+    if (!dealTrigger) {
       cancelAnimation(entry);
       entry.value = 1;
       return;
@@ -100,15 +102,19 @@ function FanCard({
 
     animatedDealTrigger.current = dealTrigger;
     cancelAnimation(entry);
+    if (!animateEntry) {
+      entry.value = 1;
+      return;
+    }
     if (reduceMotion) {
       entry.value = 1;
       return;
     }
 
     entry.value = 0;
-    entry.value = withDelay(delay, withSpring(1, motion.spring.card));
+    entry.value = withDelay(dealDelay, withSpring(1, motion.spring.card));
     return () => cancelAnimation(entry);
-  }, [dealInitial, dealTrigger, delay, entry, reduceMotion]);
+  }, [animateEntry, dealDelay, dealTrigger, entry, reduceMotion]);
 
   const animStyle = useAnimatedStyle(() => {
     'worklet';
@@ -298,7 +304,10 @@ function HandFanContent({
           }
           reduceMotion={reduceMotion}
           dealTrigger={dealTrigger}
-          dealInitial={openingDealIds.has(card.id)}
+          // Every mounted card gets one arrival. Opening cards stagger; a
+          // later draw uses a zero delay and cannot replay the opening batch.
+          animateEntry
+          dealDelay={openingDealIds.has(card.id) ? dealStagger(index, total, motion.stagger.deal) : 0}
         />
       ))}
     </View>

@@ -349,6 +349,7 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
   const drawOpacity = useSharedValue(1);
   const discardScale = useSharedValue(1);
   const discardOpacity = useSharedValue(1);
+  const discardEntry = useSharedValue(1);
   const endedOpacity = useSharedValue(0);
   const endedTranslateY = useSharedValue(10);
   const previousDiscardId = useRef(discardTop?.id ?? null);
@@ -368,7 +369,13 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
   }));
   const discardMotionStyle = useAnimatedStyle(() => ({
     opacity: discardOpacity.value,
-    transform: reduceMotion ? [] : [{ scale: discardScale.value }],
+    transform: reduceMotion
+      ? []
+      : [
+          { translateY: (1 - discardEntry.value) * -48 },
+          { rotate: `${(1 - discardEntry.value) * -7}deg` },
+          { scale: discardEntry.value * discardScale.value },
+        ],
   }));
   const endedMotionStyle = useAnimatedStyle(() => ({
     opacity: endedOpacity.value,
@@ -402,6 +409,8 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
 
     if (reduceMotion) {
       // eslint-disable-next-line react-hooks/immutability
+      discardEntry.value = 1;
+      // eslint-disable-next-line react-hooks/immutability
       discardOpacity.value = withTiming(0.72, { duration: motion.duration.fast }, () => {
         discardOpacity.value = withTiming(1, { duration: motion.duration.fast });
       });
@@ -409,13 +418,17 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
     }
 
     cancelAnimation(discardScale);
+    cancelAnimation(discardEntry);
+    // Reanimated shared values are intentionally mutable inside effects.
     // eslint-disable-next-line react-hooks/immutability
     discardScale.value = 1;
+    discardEntry.value = 0;
+    discardEntry.value = withSpring(1, motion.spring.card);
     discardScale.value = withSequence(
       withTiming(DISCARD_PULSE_SCALE, { duration: motion.duration.fast }),
       withTiming(1, { duration: motion.duration.fast }),
     );
-  }, [discardOpacity, discardScale, discardTop?.id, previousDiscardId, reduceMotion]);
+  }, [discardEntry, discardOpacity, discardScale, discardTop?.id, previousDiscardId, reduceMotion]);
 
   const handleDrawPressIn = useCallback(() => {
     if (reduceMotion) {
@@ -912,7 +925,7 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
 
             {/* Discard slot */}
             {discardTop && discardParsed ? (
-              <Animated.View style={[styles.activeSlot, discardMotionStyle]}>
+              <Animated.View key={`discard-${discardTop.id}`} style={[styles.activeSlot, discardMotionStyle]}>
                 <PlayingCard
                   rank={discardParsed.rank}
                   suit={discardParsed.suit}
@@ -922,7 +935,7 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
                 />
               </Animated.View>
             ) : discardTop && discardJoker ? (
-              <Animated.View style={[styles.activeSlot, discardMotionStyle]}>
+              <Animated.View key={`discard-${discardTop.id}`} style={[styles.activeSlot, discardMotionStyle]}>
                 <PlayingCard
                   jokerColor={discardJoker}
                   face={discardTop.face}

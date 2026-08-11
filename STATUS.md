@@ -1,6 +1,6 @@
 # Deckd status
 
-Last update: 2026-08-11 (Hold'em completion + lobby hardening — staged burn/community streets, guest-safe mirrors, replay/end motion, cold-client QA; preview `entry-b22501971faac29052ff07470e658aa1.js` live; `t_fce2bb4b`).
+Last update: 2026-08-11 (physical card-motion pass — draw arrivals + discard land motion; local 375×812 / 1440×900 QA green; preview deployment in progress).
 
 ## Deployment
 
@@ -104,6 +104,12 @@ Expo SDK 57, React Native 0.86, React 19, TypeScript strict. Expo Router app wit
 - Local/public free-library proof passed with `qa/deckd-library-qa.cjs`: 375×812 War → Go Fish → Old Maid → Crazy Eights → Sevens flows each exposed and executed a real action, retained turn/readout copy, stayed at document/body/root width 375, and reported no browser errors. `qa/deckd-desktop-qa.cjs` passed War at 1440×900 with stable root geometry and in-bounds Home/Profile/FLIP controls.
 - Public Hold'em completion proof passed with `qa/deckd-poker-qa.cjs` against `entry-b22501971faac29052ff07470e658aa1.js`: 375×812 and 1440×900 heads-up CALL → CHECK → BURN → FLOP → CHECK×2 → BURN → TURN → CHECK×2 → BURN → RIVER → CHECK×2 → SHOWDOWN → winner banner, 15 actions, pot update, zero browser errors.
 - Latest public two-client relay proof passed with `qa/deckd-lobby-two-client.cjs`: independent 375×812 host + guest clients created/joined a room, both reached the synced table, a host draw propagated to the guest, privacy mirror counts remained correct, and errors were empty. This is the live relay claim for this run; no native-device claim is made.
+
+## Physical card-motion slice (2026-08-11)
+
+- `HandFan` now gives every mounted card one deck-line arrival: opening cards keep the measured stagger, while later draws enter immediately and settle into the measured fan without replaying the opening batch.
+- A new discard card now lands with a bounded translate/rotate/settle motion while retaining the existing pulse; reduced motion stays a plain fade/settle.
+- Local Metro proof passed `qa/deckd-visual-qa.cjs` at 375×812 and `qa/deckd-desktop-qa.cjs` at 1440×900 with zero page/console errors, stable root geometry, no document overflow, and all setup/table/pass milestones true. Typecheck, lint, 117 Jest tests, and Expo Doctor 20/20 are green.
 
 ## Decisions
 
