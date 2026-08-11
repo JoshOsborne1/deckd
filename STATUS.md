@@ -1,6 +1,6 @@
 # Deckd status
 
-Last update: 2026-08-11 (free library rules + mobile overflow hardening — local gates green and preview redeployed; `t_9f20d120`).
+Last update: 2026-08-11 (free library rules + shared rules/replay surface — local gates green and preview redeployed; `t_9f20d120`).
 
 ## Deployment
 
@@ -15,14 +15,20 @@ Expo SDK 57, React Native 0.86, React 19, TypeScript strict. Expo Router app wit
 ## Recipe schema slice (2026-08-11)
 
 - `src/engine/recipes.ts` now owns the serialisable `Recipe` model and pure `executeRecipe` executor. Freeplay, Deal 2, Blackjack, and Poker are data definitions; `gameStore` executes recipes for new sessions and solo next hands while `Preset` remains a compatibility adapter.
-- Added five recipe regression tests; Jest is now **102 tests / 11 suites**. Typecheck, lint (0 errors / 0 warnings), and expo-doctor **20/20** pass. Local web proof remains green at 375×812 and 1440×900; the visual QA probe's RN-Web scroll ancestor selector was made resilient to the current `150rngu` class form.
+- Added five recipe regression tests; Jest is now **104 tests / 12 suites**. Typecheck, lint (0 errors / 0 warnings), and expo-doctor **20/20** pass. Local web proof remains green at 375×812 and 1440×900; the visual QA probe's RN-Web scroll ancestor selector was made resilient to the current `150rngu` class form.
 
 ## Free library rules slice (2026-08-11, `t_9f20d120`)
 
 - Added playable War, Go Fish, Old Maid, Crazy Eights, and Sevens presets on the serialisable recipe path. The rule layer emits auditable primitive events, preserves private/hidden zones, exposes contextual action rails, and includes deterministic engine coverage for setup, turns, books/pairs, discard matching, and suit runs.
 - TableLayer now renders game-specific piles/readouts/guidance without leaking generic draw/discard gestures into rule games. The rule action rail keeps Blackjack/Poker visible and compacts rank-heavy actions at phone width.
 - Mobile web overflow hardening: the ambient and privacy rails stay inside the canvas. This preserves the warm ivory/crimson table language while preventing a focused recipe card from horizontally shifting the entire app root on RN Web.
-- Commit `e8de47f` is exported and live as `entry-a0eda8d54b3eddd5411bd7d465e2e6e7.js`; public core-flow, library, and desktop probes pass with zero page/console errors.
+- Commit `e8de47f` is exported and live as `entry-fcc97988da5b703e58d6cbfb5940e178.js`; public core-flow, library, and desktop probes pass with zero page/console errors.
+
+## Rules/help + replay slice (2026-08-11, `b5205e4`)
+
+- Added a shared `RulesSheet` with plain-English steps, end conditions, and table notes for every built-in recipe. Setup and live table both expose the same rules surface with a 48px Back to the table target and the existing warm paper/scrim language.
+- Offline pass-and-play end states now show a round/turn readout and offer Replay table or Back to setup; replay re-deals the same seats through the event-sourced store. Table icon controls also have explicit accessible names for QA and assistive tech.
+- `qa/deckd-rules-replay-qa.cjs` proves setup rules, live rules, end state, replay, 375×812 bounds, zero document overflow, and zero browser errors against the public preview.
 
 ## Product direction
 
@@ -71,18 +77,18 @@ Expo SDK 57, React Native 0.86, React 19, TypeScript strict. Expo Router app wit
 
 - `npm run typecheck` passed.
 - `npm run lint` passed (0 errors, 0 warnings).
-- `npx jest --runInBand` passed **11 suites / 102 tests**, including War, Go Fish, Old Maid, Crazy Eights, Sevens, poker communal-zone, evaluator tiebreak, flop-deal, and blackjack dealer-play regressions.
+- `npx jest --runInBand` passed **12 suites / 104 tests**, including the shared rules-guide contract, War, Go Fish, Old Maid, Crazy Eights, Sevens, poker communal-zone, evaluator tiebreak, flop-deal, and blackjack dealer-play regressions.
 - `npx expo-doctor` passed 20/20 checks.
-- Public smoke: `DECKD_QA_URL=https://deckd-app.roxai.click node qa/deckd-visual-qa.cjs` passed Home → setup → Deal 2 each → table → ten-card draw → `PASS TURN` → pass veil. The script reported all required surface flags true and `errors: []`.
+- Public smoke: `DECKD_QA_URL=https://deckd-app.roxai.click node qa/deckd-visual-qa.cjs` passed Home → setup → Deal 2 each → table → ten-card draw → `PASS TURN` → pass veil. `qa/deckd-rules-replay-qa.cjs` also passed setup/live rules, end state, replay, and 48px sheet action bounds. Both scripts reported required flags true and `errors: []`.
 - Public setup scroll probe reported `tokenCount: 5` and `tokensAboveDock: true`; asset cache-busting is available through `DECKD_QA_CACHEBUST` for CDN previews.
-- Public geometry probe passed at 375×812 and 1440×900: document/body scroll widths matched each viewport, visible nav/deal controls stayed in bounds, and console/page errors were empty. The fresh public run served the deployed current bundle.
+- Public geometry probe passed at 375×812 and 1440×900: document/body scroll widths matched each viewport, visible nav/deal controls stayed in bounds, and console/page errors were empty. The fresh public run served deployed bundle `entry-fcc97988da5b703e58d6cbfb5940e178.js`.
 - `qa/deckd-visual-qa.cjs` now asserts the pass veil as well as setup, card, table, guidance, and browser-error checks.
 - Public two-client relay proof passed with `qa/deckd-lobby-two-client.cjs`: independent 375×812 host + guest clients created/joined room `NN6H24`, both reported `Relay: connected` and `Players: 2`, both reached the synced table, and a host draw propagated to the guest (`47 LEFT`; guest saw the host's three-card opponent hand); errors were empty.
 - Public online-blackjack proof passed with `qa/deckd-lobby-blackjack-qa.cjs` (Aug 10): host created a blackjack lobby, stuck, guest resumed and got TWIST/STICK/STAND, twisted via `game_action` (HAND 5 → 15), host saw the guest's third card, zero console errors. This is the first real E2E proof that guests can play blackjack online.
 - Reduced-motion web proxy proof passed with `qa/deckd-responsive-reduced-motion-qa.cjs`: Playwright `prefers-reduced-motion: reduce` was true, Home → setup → table stayed at 375×812 with 44px+ controls and document/body scroll widths of 375; errors were empty. This is not native-device proof.
 - Local browser proof for `TableSurface` passed at 375×812 and 1440×900: setup → Deal now → table → draw completed, document/body scroll widths matched the viewport, key controls stayed in bounds, and console/page errors were empty.
 - Local post-fix visual proof passed at 375×812 and 1440×900: Home contrast remained healthy, setup/table stayed continuous, menu/deck controls remained in bounds, and page/body widths matched the viewport with no browser errors. Reduced-motion local proxy also passed at 375×812.
-- Local free-library proof passed with `qa/deckd-library-qa.cjs`: 375×812 War → Go Fish → Old Maid → Crazy Eights → Sevens flows each exposed and executed a real action, retained turn/readout copy, stayed at document/body/root width 375, and reported no browser errors. `qa/deckd-desktop-qa.cjs` passed War at 1440×900 with stable root geometry and in-bounds Home/Profile/FLIP controls.
+- Local/public free-library proof passed with `qa/deckd-library-qa.cjs`: 375×812 War → Go Fish → Old Maid → Crazy Eights → Sevens flows each exposed and executed a real action, retained turn/readout copy, stayed at document/body/root width 375, and reported no browser errors. `qa/deckd-desktop-qa.cjs` passed War at 1440×900 with stable root geometry and in-bounds Home/Profile/FLIP controls.
 
 ## Decisions
 

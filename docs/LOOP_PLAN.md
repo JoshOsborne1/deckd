@@ -351,13 +351,25 @@ highest-impact gameplay unlock rather than churn stable card chrome.
   `gameStore` now executes the recipe for new sessions and solo next hands.
 - Preserved round-robin ordering, poker setup behavior, community zone
   creation, and the virtual-house blackjack face policy. Added five focused
-  recipe tests; the full suite is now 11 suites / 102 tests.
+  recipe tests; the full suite is now 12 suites / 104 tests.
 - Free-library rules landed in commit `e8de47f` after the schema commit: War,
   Go Fish, Old Maid, Crazy Eights, and Sevens now run through auditable
   primitive-event loops with contextual action rails.
-- Exported bundle `entry-a0eda8d54b3eddd5411bd7d465e2e6e7.js` is live on
+- Exported bundle `entry-fcc97988da5b703e58d6cbfb5940e178.js` is live on
   `https://deckd-app.roxai.click`; public core-flow, 375px library loops, and
   1440px War geometry all pass with no console/page errors.
+
+### Slice D — Rules/help and replay/end states (complete; preview deployed)
+
+- Added `src/engine/rulesGuide.ts` and a shared `components/RulesSheet.tsx` so
+  setup and live play expose the same plain-English rules, end conditions, and
+  table notes for every built-in recipe.
+- Offline pass-and-play ended tables now show a round/turn readout plus Replay
+  table and Back to setup; replay re-deals the same seats through the existing
+  event-sourced store. Icon controls received explicit accessible names.
+- Commit `b5205e4` is deployed as `entry-fcc97988da5b703e58d6cbfb5940e178.js`.
+  `qa/deckd-rules-replay-qa.cjs` passes setup/live rules, end, replay, 375×812
+  geometry, 48px sheet action bounds, and zero browser errors.
 
 ### Next decisions already made
 
