@@ -1,6 +1,6 @@
 # Deckd status
 
-Last update: 2026-08-11 (solo pillar: Klondike/FreeCell/Pyramid engine + UI + pyramid index-stability fix — local gates green; `t_ed4f1f95`).
+Last update: 2026-08-11 (home continuity pass — home is now the warm table surface with a physical deal deck, resume affordance, and shared-table entry; preview `entry-972c442e96ac34b4d78fa5a2f8786089.js` live; public mobile/desktop/reduced-motion QA green).
 
 ## Deployment
 
@@ -11,13 +11,6 @@ Last update: 2026-08-11 (solo pillar: Klondike/FreeCell/Pyramid engine + UI + py
 ## Current baseline
 
 Expo SDK 57, React Native 0.86, React 19, TypeScript strict. Expo Router app with layered surfaces: `home | hub | table | lobby | pass`. Zustand + MMKV local state. Event-sourced game engine. Pass-and-play flow with privacy veil, hand fan/stack, draw/discard/flip/pass-turn. Multiplayer game-state sync over relay remains a separate paid-hosting path; pass-and-play stays inert without relay.
-
-## Solo pillar slice (2026-08-11, `t_ed4f1f95`)
-
-- Klondike, FreeCell, and Pyramid solitaire as real playable solo games. Shared framework-free engine module (`src/engine/solitaire.ts`): layouts, move legality, win detection. Rules layer (`src/engine/rules.ts`) translates taps into primitive events. Presets, rules guides, and hub solo entry all wired.
-- `components/SolitaireBoard.tsx`: shared board with tap-to-move (Klondike/FreeCell) and tap-pair-to-13 (Pyramid), stock cycle, readout bar, win banner, rules sheet, new-deal CTA. TableLayer early-returns to render it for solitaire presets.
-- Pyramid index-stability fix: the state reducer leaves empty-string slots for pyramid cross-zone removals (preserves positional geometry); muck zone added to pyramid layout so `canApplyEvent` accepts the move. Regression test folds removal through the real reducer.
-- Jest: **142 tests / 14 suites** (24 engine + 14 rules + 1 pyramid regression). Typecheck, lint (0 errors / 0 warnings), expo-doctor pass.
 
 ## Recipe schema slice (2026-08-11)
 
@@ -36,6 +29,19 @@ Expo SDK 57, React Native 0.86, React 19, TypeScript strict. Expo Router app wit
 - Added a shared `RulesSheet` with plain-English steps, end conditions, and table notes for every built-in recipe. Setup and live table both expose the same rules surface with a 48px Back to the table target and the existing warm paper/scrim language.
 - Offline pass-and-play end states now show a round/turn readout and offer Replay table or Back to setup; replay re-deals the same seats through the event-sourced store. Table icon controls also have explicit accessible names for QA and assistive tech.
 - `qa/deckd-rules-replay-qa.cjs` proves setup rules, live rules, end state, replay, 375×812 bounds, zero document overflow, and zero browser errors against the public preview.
+
+## Solo Klondike slice (2026-08-11, current LOOP continuation)
+
+- Added a serialisable one-player Klondike recipe with deterministic 28-card tableau / 24-card stock setup, public tableau/foundation zones, draw-one stock, waste recycle, exposed-card flips, alternating-colour run moves, foundation validation, and a 52-card win event.
+- Added the table-native `KlondikeLayout`, setup player-range guard, shared rules copy, fresh-deal replay path, focused engine coverage (109 tests total), and `qa/deckd-klondike-qa.cjs` for the real 375×812 + 1440×900 setup → rules → draw/recycle → end → new-deal flow.
+
+## Hold'em betting slice (2026-08-11, `t_6bb2127e`)
+
+- Texas Hold'em now plays a real betting loop: 100-chip starting stacks, 5/10 blinds, fold/check/call/raise with pot and per-player contribution accounting, round completion, and street advance gated on a closed betting round. Fold-to-last-live-player ends the hand immediately; showdown reveals live hands and names the winner.
+- New `PokerBettingState` on `GameState.game.betting` drives legal action derivation (`pokerActions`/`pokerApply`). A new `game/bet` primitive event records each action, preserving the event-sourced multiplayer bridge. `turn/set` events move the action between live players; `game/street` resets round contributions.
+- TableLayer renders a pot/bet/stack ledger and per-opponent chip pills in the warm ivory/crimson table language. Poker guidance copy explains betting turns vs street advance; community cards and the end-state banner use transform/opacity motion with reduced-motion safety. Rules guide copy explains the blind/bet/showdown loop in plain English.
+- Online poker actions remain host-authoritative primitive events; guests route `game_action` intents and stay read-only when disconnected. Lobby exit clears online game state, and both live QA harnesses clear persisted event logs before each client run.
+- `qa/deckd-poker-qa.cjs` exercises the full heads-up loop (CALL → CHECK → BURN → FLOP → CHECK×2 → BURN → TURN → CHECK×2 → BURN → RIVER → CHECK×2 → SHOWDOWN → winner) at 375×812 and 1440×900 against the public preview with zero browser errors and a verified pot update. Jest is now **117 tests / 13 suites** (4 new poker betting tests). Typecheck, lint (0/0), expo-doctor 20/20 pass. Bundle `entry-b22501971faac29052ff07470e658aa1.js` is live.
 
 ## Product direction
 
@@ -84,7 +90,7 @@ Expo SDK 57, React Native 0.86, React 19, TypeScript strict. Expo Router app wit
 
 - `npm run typecheck` passed.
 - `npm run lint` passed (0 errors, 0 warnings).
-- `npx jest --runInBand` passed **12 suites / 104 tests**, including the shared rules-guide contract, War, Go Fish, Old Maid, Crazy Eights, Sevens, poker communal-zone, evaluator tiebreak, flop-deal, and blackjack dealer-play regressions.
+- `npx jest --runInBand` passed **13 suites / 113 tests**, including the shared rules-guide contract, War, Go Fish, Old Maid, Crazy Eights, Sevens, Klondike, poker blinds/betting-round/raise/fold-to-win, evaluator tiebreak, flop-deal, and blackjack dealer-play regressions.
 - `npx expo-doctor` passed 20/20 checks.
 - Public smoke: `DECKD_QA_URL=https://deckd-app.roxai.click node qa/deckd-visual-qa.cjs` passed Home → setup → Deal 2 each → table → ten-card draw → `PASS TURN` → pass veil. `qa/deckd-rules-replay-qa.cjs` also passed setup/live rules, end state, replay, and 48px sheet action bounds. Both scripts reported required flags true and `errors: []`.
 - Public setup scroll probe reported `tokenCount: 5` and `tokensAboveDock: true`; asset cache-busting is available through `DECKD_QA_CACHEBUST` for CDN previews.
@@ -96,6 +102,21 @@ Expo SDK 57, React Native 0.86, React 19, TypeScript strict. Expo Router app wit
 - Local browser proof for `TableSurface` passed at 375×812 and 1440×900: setup → Deal now → table → draw completed, document/body scroll widths matched the viewport, key controls stayed in bounds, and console/page errors were empty.
 - Local post-fix visual proof passed at 375×812 and 1440×900: Home contrast remained healthy, setup/table stayed continuous, menu/deck controls remained in bounds, and page/body widths matched the viewport with no browser errors. Reduced-motion local proxy also passed at 375×812.
 - Local/public free-library proof passed with `qa/deckd-library-qa.cjs`: 375×812 War → Go Fish → Old Maid → Crazy Eights → Sevens flows each exposed and executed a real action, retained turn/readout copy, stayed at document/body/root width 375, and reported no browser errors. `qa/deckd-desktop-qa.cjs` passed War at 1440×900 with stable root geometry and in-bounds Home/Profile/FLIP controls.
+- Public Hold'em completion proof passed with `qa/deckd-poker-qa.cjs` against `entry-b22501971faac29052ff07470e658aa1.js`: 375×812 and 1440×900 heads-up CALL → CHECK → BURN → FLOP → CHECK×2 → BURN → TURN → CHECK×2 → BURN → RIVER → CHECK×2 → SHOWDOWN → winner banner, 15 actions, pot update, zero browser errors.
+- Latest public two-client relay proof passed with `qa/deckd-lobby-two-client.cjs`: independent 375×812 host + guest clients created/joined a room, both reached the synced table, a host draw propagated to the guest, privacy mirror counts remained correct, and errors were empty. This is the live relay claim for this run; no native-device claim is made.
+
+## Physical card-motion slice (2026-08-11)
+
+- `HandFan` now gives every mounted card one deck-line arrival: opening cards keep the measured stagger, while later draws enter immediately and settle into the measured fan without replaying the opening batch.
+- A new discard card now lands with a bounded translate/rotate/settle motion while retaining the existing pulse; reduced motion stays a plain fade/settle.
+- Local Metro proof passed `qa/deckd-visual-qa.cjs` at 375×812 and `qa/deckd-desktop-qa.cjs` at 1440×900 with zero page/console errors, stable root geometry, no document overflow, and all setup/table/pass milestones true. Typecheck, lint, 117 Jest tests, and Expo Doctor 20/20 are green.
+- Public preview now serves the new bundle with HTTP 200; visual QA passed at 375×812 and 1440×900, and the reduced-motion proxy stayed in bounds with `prefers-reduced-motion: true`, zero errors, and no horizontal overflow.
+
+## Home continuity slice (2026-08-11, `2812e7d`)
+
+- Replaced the home marketing stack (stats card, hero banner, store carousel, and Master promo) with a table-native deal surface: warm `TableSurface` stock, hairline table marker, canonical Deckd card-back deck object, sparse setup guidance, and a small shared-table host action.
+- Home now recognizes an unfinished local table and offers a compact Resume slip with the recipe name, seat count, and turn count. The existing single progress timeline still gates Home controls during the Home → Hub morph, and the first-run hint dismisses on the deck action.
+- Local exact viewport proof passed at 375×812 and 1440×900; public preview serves `entry-972c442e96ac34b4d78fa5a2f8786089.js` with HTTP 200. Public responsive/reduced-motion, desktop, and full visual QA all passed with zero page/console errors, no overflow, and in-bounds controls.
 
 ## Decisions
 
