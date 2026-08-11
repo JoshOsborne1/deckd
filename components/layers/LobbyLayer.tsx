@@ -297,7 +297,11 @@ export function LobbyLayer({ active, topInset, bottomInset }: LobbyLayerProps) {
                     </View>
                   ))}
                 </View>
-              ) : null}
+              ) : (
+                <Text style={styles.emptyPlayersText}>
+                  Waiting for friends to join with the code.
+                </Text>
+              )}
               <Text style={styles.statusRow}>Relay: {relayStatusText(lobbyStatus, lastError)}</Text>
             </CardSection>
 
@@ -487,6 +491,14 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontFamily: fonts.regular,
     color: colors.ink,
+  },
+  emptyPlayersText: {
+    fontSize: 13,
+    fontFamily: fonts.regular,
+    color: colors.inkMuted,
+    marginTop: space.xs,
+    marginBottom: space.sm,
+    lineHeight: 19,
   },
 });
 
