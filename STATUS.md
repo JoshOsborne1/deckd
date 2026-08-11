@@ -1,6 +1,6 @@
 # Deckd status
 
-Last update: 2026-08-11 (recipe schema slice — deployed; `t_9f20d120`).
+Last update: 2026-08-11 (free library rules + mobile overflow hardening — local gates green; `t_9f20d120`).
 
 ## Deployment
 
@@ -15,7 +15,13 @@ Expo SDK 57, React Native 0.86, React 19, TypeScript strict. Expo Router app wit
 ## Recipe schema slice (2026-08-11)
 
 - `src/engine/recipes.ts` now owns the serialisable `Recipe` model and pure `executeRecipe` executor. Freeplay, Deal 2, Blackjack, and Poker are data definitions; `gameStore` executes recipes for new sessions and solo next hands while `Preset` remains a compatibility adapter.
-- Added five recipe regression tests; Jest is now **92 tests / 9 suites**. Typecheck, lint (0 errors / 0 warnings), and expo-doctor **20/20** pass. Local web proof remains green at 375×812 and 1440×900; the visual QA probe's RN-Web scroll ancestor selector was made resilient to the current `150rngu` class form.
+- Added five recipe regression tests; Jest is now **102 tests / 11 suites**. Typecheck, lint (0 errors / 0 warnings), and expo-doctor **20/20** pass. Local web proof remains green at 375×812 and 1440×900; the visual QA probe's RN-Web scroll ancestor selector was made resilient to the current `150rngu` class form.
+
+## Free library rules slice (2026-08-11, `t_9f20d120`)
+
+- Added playable War, Go Fish, Old Maid, Crazy Eights, and Sevens presets on the serialisable recipe path. The rule layer emits auditable primitive events, preserves private/hidden zones, exposes contextual action rails, and includes deterministic engine coverage for setup, turns, books/pairs, discard matching, and suit runs.
+- TableLayer now renders game-specific piles/readouts/guidance without leaking generic draw/discard gestures into rule games. The rule action rail keeps Blackjack/Poker visible and compacts rank-heavy actions at phone width.
+- Mobile web overflow hardening: the ambient and privacy rails stay inside the canvas. This preserves the warm ivory/crimson table language while preventing a focused recipe card from horizontally shifting the entire app root on RN Web.
 
 ## Product direction
 
@@ -64,7 +70,7 @@ Expo SDK 57, React Native 0.86, React 19, TypeScript strict. Expo Router app wit
 
 - `npm run typecheck` passed.
 - `npm run lint` passed (0 errors, 0 warnings).
-- `npx jest --runInBand` passed 8 suites / **82 tests**, including poker communal-zone, evaluator tiebreak, flop-deal, and blackjack dealer-play regressions.
+- `npx jest --runInBand` passed **11 suites / 102 tests**, including War, Go Fish, Old Maid, Crazy Eights, Sevens, poker communal-zone, evaluator tiebreak, flop-deal, and blackjack dealer-play regressions.
 - `npx expo-doctor` passed 20/20 checks.
 - Public smoke: `DECKD_QA_URL=https://deckd-app.roxai.click node qa/deckd-visual-qa.cjs` passed Home → setup → Deal 2 each → table → ten-card draw → `PASS TURN` → pass veil. The script reported all required surface flags true and `errors: []`.
 - Public setup scroll probe reported `tokenCount: 5` and `tokensAboveDock: true`; asset cache-busting is available through `DECKD_QA_CACHEBUST` for CDN previews.
@@ -75,6 +81,7 @@ Expo SDK 57, React Native 0.86, React 19, TypeScript strict. Expo Router app wit
 - Reduced-motion web proxy proof passed with `qa/deckd-responsive-reduced-motion-qa.cjs`: Playwright `prefers-reduced-motion: reduce` was true, Home → setup → table stayed at 375×812 with 44px+ controls and document/body scroll widths of 375; errors were empty. This is not native-device proof.
 - Local browser proof for `TableSurface` passed at 375×812 and 1440×900: setup → Deal now → table → draw completed, document/body scroll widths matched the viewport, key controls stayed in bounds, and console/page errors were empty.
 - Local post-fix visual proof passed at 375×812 and 1440×900: Home contrast remained healthy, setup/table stayed continuous, menu/deck controls remained in bounds, and page/body widths matched the viewport with no browser errors. Reduced-motion local proxy also passed at 375×812.
+- Local free-library proof passed with `qa/deckd-library-qa.cjs`: 375×812 War → Go Fish → Old Maid → Crazy Eights → Sevens flows each exposed and executed a real action, retained turn/readout copy, stayed at document/body/root width 375, and reported no browser errors. `qa/deckd-desktop-qa.cjs` passed War at 1440×900 with stable root geometry and in-bounds Home/Profile/FLIP controls.
 
 ## Decisions
 
@@ -85,9 +92,9 @@ Expo SDK 57, React Native 0.86, React 19, TypeScript strict. Expo Router app wit
 
 ## Immediate next actions
 
-1. Run a native device touch/safe-area/reduced-motion pass (physical iPhone + Android).
-2. Keep RevenueCat product/key work, Rive, and broader game-library expansion behind the gameplay-first priority.
-3. Josh's UI pass on the shipped surfaces whenever he wants to drop it; correctness/infra layer stays ahead of design drops.
+1. Export/deploy this verified slice to the app preview and run the public smoke probes.
+2. Run a native device touch/safe-area/reduced-motion pass (physical iPhone + Android).
+3. Keep RevenueCat product/key work, Rive, and solitaire/premium-library expansion behind the gameplay-first priority.
 
 ## Parked tracks
 

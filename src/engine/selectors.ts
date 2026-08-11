@@ -9,7 +9,7 @@ import type {
   Player,
   PlayerId,
 } from './types';
-import { ZONE_DISCARD, ZONE_DRAW, handZoneId } from './types';
+import { ZONE_DISCARD, ZONE_DRAW, handZoneId, tableZoneId } from './types';
 import { canApplyEvent, visibleCardsForPlayer } from './state';
 
 const GLYPH_TO_SUIT: Record<string, Suit> = {
@@ -116,7 +116,9 @@ export function selectOpponents(state: GameState, localPlayerId: PlayerId): Play
  * Number of cards in a given player's hand zone.
  */
 export function selectOpponentHandSize(state: GameState, playerId: PlayerId): number {
-  const zone = state.zones[handZoneId(playerId)];
+  const zone = state.config.presetId === 'war'
+    ? state.zones[tableZoneId(playerId)]
+    : state.zones[handZoneId(playerId)];
   return zone ? zone.cardIds.length : 0;
 }
 
@@ -196,7 +198,20 @@ export function selectAvailableActions(
   const isCurrentPlayer = selectIsMyTurn(state, viewerId);
   const hand = selectLocalHand(state, viewerId);
 
+  // Rule-driven library games expose their own contextual action specs from
+  // rules.ts. Do not advertise generic draw/discard/pass gestures alongside
+  // those buttons; that would let a table bypass the recipe's turn flow.
+  if (['go-fish', 'old-maid', 'crazy-eights', 'sevens'].includes(state.config.presetId ?? '')) {
+    if (state.meta.hostId === viewerId && canApplyEvent(state, { ...base, type: 'session/end' })) {
+      actions.add('end');
+    }
+    return actions;
+  }
+
   if (isCurrentPlayer) {
+    if (state.config.presetId === 'war') {
+      if ((state.zones[tableZoneId(viewerId)]?.cardIds.length ?? 0) > 0) actions.add('flip');
+    } else {
     const drawTopId = selectDrawTopCardId(state);
     if (
       drawTopId &&
@@ -247,6 +262,7 @@ export function selectAvailableActions(
     ) {
       actions.add('pass');
     }
+    }
   }
 
   // Host-level controls remain available outside the current player's turn.
@@ -290,6 +306,8 @@ export function selectSuggestedAction(
   const available = selectAvailableActions(state, viewerId);
   const hand = selectLocalHand(state, viewerId);
 
+  if (['go-fish', 'old-maid', 'crazy-eights', 'sevens'].includes(state.config.presetId ?? '')) return null;
+  if (state.config.presetId === 'war' && available.has('flip')) return 'flip';
   if (hand.length === 0 && available.has('draw')) return 'draw';
   if (hand.some((card) => card.face === 'down') && available.has('flip')) return 'flip';
   if (hand.length > 0 && available.has('discard')) return 'discard';

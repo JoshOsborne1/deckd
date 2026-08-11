@@ -210,8 +210,8 @@ const styles = StyleSheet.create({
   },
   outerRail: {
     position: 'absolute',
-    left: -70,
-    right: -70,
+    left: 0,
+    right: 0,
     top: '21%',
     height: '64%',
     borderRadius: 280,
@@ -221,8 +221,8 @@ const styles = StyleSheet.create({
   },
   innerRail: {
     position: 'absolute',
-    left: -28,
-    right: -28,
+    left: 0,
+    right: 0,
     top: '29%',
     height: '50%',
     borderRadius: 240,

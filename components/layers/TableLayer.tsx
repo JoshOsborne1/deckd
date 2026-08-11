@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import Animated, {
   cancelAnimation,
   useAnimatedStyle,
@@ -46,6 +46,7 @@ import {
   ZONE_DISCARD,
   communalZoneId,
   handZoneId,
+  tableZoneId,
   type CardFace,
   type CardId,
   type CardInstance,
@@ -164,9 +165,10 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
     () => (viewerId ? selectAvailableActions(state, viewerId) : new Set<TableAction>()),
     [state, viewerId],
   );
-  const canFlipHand = availableActions.has('flip');
-  const canDiscardHand = availableActions.has('discard');
-  const canReorderHand = availableActions.has('reorder');
+  const canUseGenericHandActions = !['war', 'go-fish', 'old-maid', 'crazy-eights', 'sevens'].includes(state.config.presetId ?? '');
+  const canFlipHand = canUseGenericHandActions && availableActions.has('flip');
+  const canDiscardHand = canUseGenericHandActions && availableActions.has('discard');
+  const canReorderHand = canUseGenericHandActions && availableActions.has('reorder');
   const suggestedAction = useMemo(
     () => (viewerId ? selectSuggestedAction(state, viewerId) : null),
     [state, viewerId],
@@ -174,10 +176,23 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
 
   // --- Per-game rule actions (blackjack twist/stick, poker burn/flop/...) ---
   const rules = useMemo(() => getGameRules(state.config.presetId), [state.config.presetId]);
+  const isWar = rules.id === 'war';
+  const isContextualGame = ['go-fish', 'old-maid', 'crazy-eights', 'sevens'].includes(rules.id);
+  const usesRuleActionBar = [
+    'blackjack',
+    'poker',
+    'war',
+    'go-fish',
+    'old-maid',
+    'crazy-eights',
+    'sevens',
+  ].includes(rules.id);
   const ruleActions = useMemo<GameActionSpec[]>(
     () => (viewerId ? rules.actions(state, viewerId) : []),
     [rules, state, viewerId],
   );
+  const { width: viewportWidth } = useWindowDimensions();
+  const compactRuleActions = viewportWidth < 420 && ruleActions.length > 3;
   const gameAction = useGameStore((s) => s.gameAction);
   const handleGameAction = useCallback(
     (action: GameAction) => {
@@ -202,9 +217,24 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
     () => state.zones[communalZoneId(0)]?.cardIds ?? [],
     [state],
   );
-  const streetLabel = state.game?.street
-    ? ['FLOP', 'TURN', 'RIVER'][state.game.street - 1] ?? null
-    : null;
+  const warPiles = useMemo(
+    () => (isWar
+      ? state.players.map((player) => {
+          const pile = state.zones[tableZoneId(player.id)];
+          return {
+            player,
+            topCardId: pile?.cardIds[0] ?? null,
+            count: pile?.cardIds.length ?? 0,
+          };
+        })
+      : []),
+    [isWar, state],
+  );
+  const streetLabel = isWar
+    ? (communityCards.length > 0 ? (state.game?.street && state.game.street >= 2 ? 'WAR' : 'BATTLE') : null)
+    : state.game?.street
+      ? ['FLOP', 'TURN', 'RIVER'][state.game.street - 1] ?? null
+      : null;
   const guidanceState = useMemo<GuidancePhase>(
     () => (viewerId ? selectGuidanceState(state, viewerId) : 'waiting'),
     [state, viewerId],
@@ -293,6 +323,29 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
     const withAlternatives = (detail: string) =>
       alternativeCopy ? `${detail} ${alternativeCopy}` : detail;
 
+    if (isContextualGame && guidanceState !== 'ended') {
+      if (!isMyTurn) {
+        const waitingFor = currentPlayerName || 'The next player';
+        return {
+          eyebrow: 'PASS THE TABLE',
+          title: waitingFor === 'You' ? "You're choosing" : `${waitingFor} is choosing`,
+          detail: 'Watch the table; your hand will be ready when the turn comes around.',
+        };
+      }
+      const firstAction = ruleActions[0];
+      return {
+        eyebrow: 'YOUR TURN',
+        title: rules.id === 'go-fish'
+          ? 'Ask for a rank'
+          : rules.id === 'old-maid'
+            ? 'Pair before you draw'
+            : rules.id === 'crazy-eights'
+              ? 'Play to the discard'
+              : 'Build the runs',
+        detail: firstAction?.hint ?? 'Choose the next move from the action rail.',
+      };
+    }
+
     switch (guidanceState) {
       case 'draw':
         return {
@@ -347,7 +400,7 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
           detail: 'Deal a session to see the next useful move.',
         };
     }
-  }, [availableActions, currentPlayerName, guidanceState, suggestedAction]);
+  }, [availableActions, currentPlayerName, guidanceState, isContextualGame, isMyTurn, ruleActions, rules.id, suggestedAction]);
 
   const surfaceStyle = useLayerSurfaceEntrance(active);
 
@@ -359,7 +412,7 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
 
   // --- Handlers ---
   const handleDrawCard = useCallback(() => {
-    if (!isMyTurn || !viewerId) return;
+    if (!isMyTurn || !viewerId || !canUseGenericHandActions) return;
     if (isGuest && lobbySession) {
       void lobbySession.sendIntent('draw_card', {});
       return;
@@ -368,7 +421,7 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
     if (!topCardId) return;
     haptic('medium');
     dealCard(topCardId, handZoneId(viewerId), 'up');
-  }, [isMyTurn, viewerId, isGuest, lobbySession, state, haptic, dealCard]);
+  }, [isMyTurn, viewerId, canUseGenericHandActions, isGuest, lobbySession, state, haptic, dealCard]);
 
   const handleCardPress = useCallback(
     (cardId: string) => {
@@ -460,12 +513,32 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
     [viewerId, canReorderHand, reorderHand],
   );
 
-  const handHint = !isMyTurn
-    ? `Waiting for ${currentPlayerName || 'the next player'} · your hand stays ready`
-    : 'Tap flip · swipe up discard · drag sideways to reorder';
-
+  const handHint = isWar
+    ? !isMyTurn
+      ? `Waiting for ${currentPlayerName || 'the next player'} · watch the battle`
+      : 'Tap FLIP to play the top card · highest rank takes the battle'
+    : rules.id === 'go-fish'
+      ? !isMyTurn
+        ? `Waiting for ${currentPlayerName || 'the next player'} · listen for the ask`
+        : 'Ask for a rank · collect four to make a book'
+    : rules.id === 'old-maid'
+      ? !isMyTurn
+        ? `Waiting for ${currentPlayerName || 'the next player'} · keep your maid hidden`
+        : 'Pair up first · then draw one card from the next hand'
+    : rules.id === 'crazy-eights'
+      ? !isMyTurn
+        ? `Waiting for ${currentPlayerName || 'the next player'} · watch the discard`
+        : 'Match suit or rank · eights are wild'
+    : rules.id === 'sevens'
+      ? !isMyTurn
+        ? `Waiting for ${currentPlayerName || 'the next player'} · watch the runs grow`
+        : 'Play a seven to open · then build each suit outward'
+    : !isMyTurn
+      ? `Waiting for ${currentPlayerName || 'the next player'} · your hand stays ready`
+      : 'Tap flip · swipe up discard · drag sideways to reorder';
   /** While a recipient must long-press to reveal, hide the hand under the veil. */
   const handLocked = state.privacySeat !== null;
+  const shouldShowHandHint = !handLocked && (localHand.length > 0 || isWar || isContextualGame);
 
   // --- Empty / loading fallback ---
   if (!hasSession) {
@@ -560,63 +633,83 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
 
       {/* Table middle */}
       <View style={styles.table}>
-        <View style={styles.tablePiles}>
-          {/* Draw pile */}
-          <Animated.View
-            style={[
-              styles.deckStack,
-              drawMotionStyle,
-              suggestedAction === 'draw' && styles.suggestedDeck,
-            ]}
-          >
-            <Pressable
-              onPress={handleDrawCard}
-              onPressIn={handleDrawPressIn}
-              onPressOut={handleDrawPressOut}
-              disabled={!isMyTurn || drawCount === 0}
-              accessibilityRole="button"
-              accessibilityLabel={`Draw pile, ${drawCount} cards left`}
-              accessibilityHint={
-                suggestedAction === 'draw'
-                  ? 'Suggested next move. Tap to draw a card.'
-                  : 'Tap to draw a card when it is your turn.'
-              }
+        {isWar ? (
+          <View style={styles.warPiles}>
+            {warPiles.map(({ player, count }) => (
+              <View
+                key={player.id}
+                style={styles.warPile}
+                accessible
+                accessibilityRole="text"
+                accessibilityLabel={`${player.name}, ${count} cards left`}
+              >
+                <View style={[styles.warPileCard, count === 0 && styles.warPileCardEmpty]}>
+                  <PlayingCard face="down" size="md" back={equippedBackId} />
+                </View>
+                <Text style={styles.warPileName}>{player.name.toUpperCase()}</Text>
+                <Text style={styles.warPileCount}>{count} {count === 1 ? 'CARD' : 'CARDS'}</Text>
+              </View>
+            ))}
+          </View>
+        ) : (
+          <View style={styles.tablePiles}>
+            {/* Draw pile */}
+            <Animated.View
               style={[
-                styles.deckTrigger,
-                (!isMyTurn || drawCount === 0) && { opacity: 0.5 },
+                styles.deckStack,
+                drawMotionStyle,
+                suggestedAction === 'draw' && styles.suggestedDeck,
               ]}
             >
-              <PlayingCard face="down" size="md" back={equippedBackId} />
-              <Text style={styles.deckLeftText}>{drawCount} LEFT</Text>
-            </Pressable>
-          </Animated.View>
+              <Pressable
+                onPress={handleDrawCard}
+                onPressIn={handleDrawPressIn}
+                onPressOut={handleDrawPressOut}
+                disabled={!isMyTurn || drawCount === 0 || !canUseGenericHandActions}
+                accessibilityRole="button"
+                accessibilityLabel={`Draw pile, ${drawCount} cards left`}
+                accessibilityHint={
+                  suggestedAction === 'draw'
+                    ? 'Suggested next move. Tap to draw a card.'
+                    : 'Tap to draw a card when it is your turn.'
+                }
+                style={[
+                  styles.deckTrigger,
+                  (!isMyTurn || drawCount === 0 || !canUseGenericHandActions) && { opacity: 0.5 },
+                ]}
+              >
+                <PlayingCard face="down" size="md" back={equippedBackId} />
+                <Text style={styles.deckLeftText}>{drawCount} LEFT</Text>
+              </Pressable>
+            </Animated.View>
 
-          {/* Discard slot */}
-          {discardTop && discardParsed ? (
-            <Animated.View style={[styles.activeSlot, discardMotionStyle]}>
-              <PlayingCard
-                rank={discardParsed.rank}
-                suit={discardParsed.suit}
-                face={discardTop.face}
-                size="lg"
-                elevated
-              />
-            </Animated.View>
-          ) : discardTop && discardJoker ? (
-            <Animated.View style={[styles.activeSlot, discardMotionStyle]}>
-              <PlayingCard
-                jokerColor={discardJoker}
-                face={discardTop.face}
-                size="lg"
-                elevated
-              />
-            </Animated.View>
-          ) : (
-            <Animated.View style={[styles.discardSlot, discardMotionStyle]}>
-              <Text style={styles.discardLabel}>DISCARD</Text>
-            </Animated.View>
-          )}
-        </View>
+            {/* Discard slot */}
+            {discardTop && discardParsed ? (
+              <Animated.View style={[styles.activeSlot, discardMotionStyle]}>
+                <PlayingCard
+                  rank={discardParsed.rank}
+                  suit={discardParsed.suit}
+                  face={discardTop.face}
+                  size="lg"
+                  elevated
+                />
+              </Animated.View>
+            ) : discardTop && discardJoker ? (
+              <Animated.View style={[styles.activeSlot, discardMotionStyle]}>
+                <PlayingCard
+                  jokerColor={discardJoker}
+                  face={discardTop.face}
+                  size="lg"
+                  elevated
+                />
+              </Animated.View>
+            ) : (
+              <Animated.View style={[styles.discardSlot, discardMotionStyle]}>
+                <Text style={styles.discardLabel}>DISCARD</Text>
+              </Animated.View>
+            )}
+          </View>
+        )}
 
         {/* Community cards (poker flop/turn/river) */}
         {communityCards.length > 0 && (
@@ -695,29 +788,57 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
           <Shuffle size={20} color={colors.inkMuted} />
         </Pressable>
 
-        {ruleActions.length > 0 ? (
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            style={styles.ruleActionsScroll}
-            contentContainerStyle={styles.ruleActions}
-          >
-            {ruleActions.map((spec) => (
-              <CardButton
-                key={spec.id}
-                variant={spec.kind === 'host' ? 'secondary' : 'primary'}
-                size="sm"
-                haptic="medium"
-                onPress={() => handleGameAction(spec.id)}
-                style={styles.ruleActionBtn}
-                innerStyle={styles.ruleActionInner}
+        {usesRuleActionBar && state.phase !== 'ended' ? (
+          ruleActions.length > 0 ? (
+            compactRuleActions ? (
+              <View style={[styles.ruleActions, styles.ruleActionsCompact]}>
+                {ruleActions.map((spec) => (
+                  <CardButton
+                    key={spec.id}
+                    variant={spec.kind === 'host' ? 'secondary' : 'primary'}
+                    size="sm"
+                    haptic="medium"
+                    onPress={() => handleGameAction(spec.id)}
+                    style={styles.ruleActionBtn}
+                    innerStyle={styles.ruleActionInner}
+                  >
+                    <Text style={styles.ruleActionText} numberOfLines={1}>
+                      {spec.label}
+                    </Text>
+                  </CardButton>
+                ))}
+              </View>
+            ) : (
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                style={styles.ruleActionsScroll}
+                contentContainerStyle={styles.ruleActions}
               >
-                <Text style={styles.ruleActionText} numberOfLines={1}>
-                  {spec.label}
-                </Text>
-              </CardButton>
-            ))}
-          </ScrollView>
+                {ruleActions.map((spec) => (
+                  <CardButton
+                    key={spec.id}
+                    variant={spec.kind === 'host' ? 'secondary' : 'primary'}
+                    size="sm"
+                    haptic="medium"
+                    onPress={() => handleGameAction(spec.id)}
+                    style={styles.ruleActionBtn}
+                    innerStyle={styles.ruleActionInner}
+                  >
+                    <Text style={styles.ruleActionText} numberOfLines={1}>
+                      {spec.label}
+                    </Text>
+                  </CardButton>
+                ))}
+              </ScrollView>
+            )
+          ) : (
+            <View style={styles.ruleWaiting}>
+              <Text style={styles.ruleWaitingText}>
+                {isMyTurn ? 'WAITING FOR THE NEXT MOVE' : `${currentPlayerName.toUpperCase()} · TO PLAY`}
+              </Text>
+            </View>
+          )
         ) : (isPassMode || isOnline) && state.phase !== 'ended' ? (
           <CardButton
             variant="primary"
@@ -791,12 +912,12 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
             dealTrigger={dealTrigger}
           />
         )}
-        {!handLocked && localHand.length > 0 ? (
+        {shouldShowHandHint ? (
           <Text style={styles.handHint} accessibilityRole="text">
             {handHint}
           </Text>
         ) : null}
-        {rules.readout && localHand.length > 0 && myHandValue !== null && (
+        {rules.readout && (localHand.length > 0 || isWar || isContextualGame) && myHandValue !== null && (
           <View style={[styles.valuePill, myBust && styles.valuePillBust]}>
             <Text style={styles.valuePillText}>{myHandValue}</Text>
           </View>
@@ -931,6 +1052,37 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: space.xxl,
   },
+  warPiles: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'center',
+    gap: space.xxl,
+  },
+  warPile: {
+    alignItems: 'center',
+    minWidth: 110,
+  },
+  warPileCard: {
+    borderRadius: radii.card,
+    ...shadow.card,
+  },
+  warPileCardEmpty: {
+    opacity: 0.4,
+  },
+  warPileName: {
+    marginTop: space.sm,
+    fontSize: 10,
+    fontFamily: fonts.bold,
+    color: colors.inkMuted,
+    letterSpacing: letterSpacing.caps,
+  },
+  warPileCount: {
+    marginTop: 2,
+    fontSize: 10,
+    fontFamily: fonts.semibold,
+    color: colors.brand,
+    letterSpacing: letterSpacing.cap,
+  },
   deckStack: {
     alignItems: 'center',
   },
@@ -1059,13 +1211,18 @@ const styles = StyleSheet.create({
     gap: space.xs,
     paddingHorizontal: space.xs,
   },
+  ruleActionsCompact: {
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    maxWidth: 160,
+  },
   ruleActionsScroll: {
     flexShrink: 1,
     flexGrow: 0,
     maxWidth: '100%',
   },
   ruleActionBtn: {
-    flexShrink: 1,
+    flexShrink: 0,
     minWidth: 0,
   },
   ruleActionInner: {
@@ -1076,6 +1233,21 @@ const styles = StyleSheet.create({
     fontSize: fontSizes.caption,
     letterSpacing: letterSpacing.cap,
     color: colors.surface,
+  },
+  ruleWaiting: {
+    flex: 1,
+    minHeight: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: space.sm,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  ruleWaitingText: {
+    fontFamily: fonts.bold,
+    fontSize: fontSizes.micro,
+    color: colors.inkSubtle,
+    letterSpacing: letterSpacing.cap,
   },
   endedBanner: {
     position: 'absolute',

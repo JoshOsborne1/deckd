@@ -16,6 +16,8 @@ export function formatGameEventLine(e: GameEvent): string {
       return `${head} card/flip · ${e.cardId}`;
     case 'card/peek':
       return `${head} card/peek · ${e.cardId}`;
+    case 'card/ask':
+      return `${head} card/ask · ${e.rank} from ${e.targetPlayerId} (${e.transferredCount})`;
     case 'card/reveal':
       return `${head} card/reveal · ${e.cardId}`;
     case 'hand/reorder':

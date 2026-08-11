@@ -87,8 +87,10 @@ function makeEvent(payload: EventPayload, seq: number): GameEvent {
   };
 }
 
-function orderedDeckForPreset(seed: string, includeJokers: boolean): CardId[] {
-  const deck = buildDeck({ includeJokers });
+function orderedDeckForPreset(seed: string, includeJokers: boolean, presetId?: string): CardId[] {
+  const needsOldMaidJoker = presetId === 'old-maid';
+  const deck = buildDeck({ includeJokers: includeJokers || needsOldMaidJoker })
+    .filter((card) => !needsOldMaidJoker || card.id !== 'JK-BLACK');
   const rng = mulberry32(seed);
   const order = deck.map((card) => card.id);
   return shuffleInPlace(order, rng);
@@ -131,7 +133,7 @@ export const useGameStore = create<GameStoreState>()(
         }
         const hostId = input.hostId ?? players[0]?.id ?? 'host';
 
-        const deckOrder = orderedDeckForPreset(seed, config.includeJokers);
+        const deckOrder = orderedDeckForPreset(seed, config.includeJokers, preset.id);
         const setup = executeRecipe(preset.recipe, { players, config, deckOrder });
 
         const events: GameEvent[] = [];
@@ -190,7 +192,7 @@ export const useGameStore = create<GameStoreState>()(
           avatarSeed: p.avatarSeed,
           seat: p.seat,
         }));
-        const deckOrder = orderedDeckForPreset(seed, state.config.includeJokers);
+        const deckOrder = orderedDeckForPreset(seed, state.config.includeJokers, preset.id);
         const setup = executeRecipe(preset.recipe, {
           players,
           config: state.config,
@@ -348,6 +350,23 @@ export const useGameStore = create<GameStoreState>()(
               break;
             case 'card/reveal':
               get().revealCard(ev.cardId!);
+              break;
+            case 'card/ask':
+              get().dispatch({
+                type: 'card/ask',
+                actorId: playerId,
+                targetPlayerId: ev.targetPlayerId!,
+                rank: ev.rank ?? 'any',
+                found: ev.found ?? false,
+                transferredCount: ev.transferredCount ?? 0,
+              });
+              break;
+            case 'turn/set':
+              get().dispatch({
+                type: 'turn/set',
+                actorId: playerId,
+                playerId: ev.playerId!,
+              });
               break;
             case 'turn/end':
               get().endTurn(ev.playerId!);

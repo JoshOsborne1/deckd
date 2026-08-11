@@ -48,6 +48,11 @@ const PLAYER_OPTIONS: PlayerCount[] = [1, 2, 3, 4, 5, 6];
 const PRESET_OUTCOMES: Record<Preset['id'], string> = {
   freeplay: 'Deal, draw, and flip freely',
   'deal-two-each': 'Two face-down cards each',
+  war: 'Flip high, collect the battle',
+  'go-fish': 'Ask for ranks, collect books of four',
+  'old-maid': 'Pair up, then draw for the maid',
+  'crazy-eights': 'Match suit or rank · eights are wild',
+  sevens: 'Open with sevens, build the runs',
   blackjack: 'Dealer hand + scoring helper',
   poker: 'Hole cards, then community play',
 };
@@ -160,6 +165,15 @@ export function HubLayer({
     () => builtinPresets.find((p) => p.id === presetId) ?? builtinPresets[0],
     [presetId],
   );
+
+  const handlePresetSelect = (nextPreset: Preset) => {
+    setPresetId(nextPreset.id);
+    setPlayerCount((current) => {
+      const min = Math.max(1, nextPreset.minPlayers);
+      const max = Math.min(6, nextPreset.maxPlayers);
+      return Math.max(min, Math.min(max, current)) as PlayerCount;
+    });
+  };
 
   const handleStart = () => {
     if (sessionActive) {
@@ -436,7 +450,7 @@ export function HubLayer({
           <View style={styles.markerCopy}>
             <Text style={styles.markerEyebrow}>DEAL PREP</Text>
             <Text style={styles.markerValue}>
-              {playerCount} PLAYERS · {includeJokers ? '54' : '52'} CARD DECK
+              {playerCount} PLAYERS · {activePreset.id === 'old-maid' ? '53' : includeJokers ? '54' : '52'} CARD DECK
             </Text>
           </View>
           <View style={styles.markerRule} />
@@ -464,12 +478,12 @@ export function HubLayer({
                 index={idx}
                 selected={selected}
                 back={PRESET_BACKS[preset.id] ?? 'back-brand'}
-                oneLiner={PRESET_OUTCOMES[preset.id]}
+                oneLiner={PRESET_OUTCOMES[preset.id] ?? preset.recipe.oneLiner}
                 playerRange={`${preset.minPlayers}–${Math.min(preset.maxPlayers, 6)} players`}
                 progress={progress}
                 reduceMotion={reduceMotion}
                 reduceMotionSystem={reduceMotionSystem}
-                onPress={() => setPresetId(preset.id)}
+                onPress={() => handlePresetSelect(preset)}
               />
             );
           })}
@@ -485,6 +499,10 @@ export function HubLayer({
             <Text style={styles.sectionKicker}>
               {playerCount === 1
                 ? 'Solo blackjack against the house'
+                : activePreset.id === 'go-fish'
+                  ? 'Ask a rank, then keep fishing when you hit'
+                  : activePreset.id === 'old-maid'
+                    ? 'Lay down pairs before you draw'
                 : `Pass the deck between ${playerCount} people`}
             </Text>
           </View>

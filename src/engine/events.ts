@@ -31,6 +31,13 @@ export type GameEvent =
     })
   | (BaseEvent & { type: 'card/flip'; cardId: CardId })
   | (BaseEvent & { type: 'card/peek'; cardId: CardId; byPlayerId: PlayerId })
+  | (BaseEvent & {
+      type: 'card/ask';
+      targetPlayerId: PlayerId;
+      rank: string;
+      found: boolean;
+      transferredCount: number;
+    })
   | (BaseEvent & { type: 'card/reveal'; cardId: CardId })
   | (BaseEvent & {
       type: 'card/identify';

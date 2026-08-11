@@ -191,6 +191,12 @@ export function applyEvent(prev: GameState, event: GameEvent): GameState {
       return next;
     }
 
+    case 'card/ask': {
+      // Go Fish asks are an auditable marker. The actual private transfer is
+      // represented by the following card/move or card/deal events.
+      return next;
+    }
+
     case 'card/reveal': {
       const card = next.cards[event.cardId];
       if (!card) return next;

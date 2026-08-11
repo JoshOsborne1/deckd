@@ -7,6 +7,11 @@
 export const PRESET_BACKS: Record<string, string> = {
   freeplay: 'back-brand',
   'deal-two-each': 'back-crimson',
+  war: 'back-crimson',
+  'go-fish': 'back-brand',
+  'old-maid': 'back-crimson',
+  'crazy-eights': 'back-brand',
+  sevens: 'back-crimson',
   blackjack: 'back-noir',
   poker: 'back-crimson',
 };

@@ -154,7 +154,11 @@ function dealZoneId(deal: RecipeDeal, player: Player): ZoneId {
  * returns fresh arrays/objects, which makes recipes safe to test and persist.
  */
 export function executeRecipe(recipe: Recipe, input: RecipeSetupInput): RecipeSetupResult {
-  const zones = buildCoreZones(input.players);
+  const zones = buildCoreZones(input.players).map((zone) =>
+    recipe.deal.to === 'table' && zone.id.startsWith('table:')
+      ? { ...zone, visibility: { kind: 'hidden' as const } }
+      : zone,
+  );
   const queue = input.deckOrder.slice();
   const deals: RecipeInitialDeal[] = [];
   const dealer = recipe.deal.dealer ? input.players[input.players.length - 1] : undefined;

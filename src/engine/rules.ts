@@ -1,6 +1,6 @@
-import type { GameState, PlayerId, ZoneId } from './types';
+import type { GameState, Player, PlayerId, ZoneId } from './types';
 import type { Suit } from '@lib/types';
-import { ZONE_MUCK, communalZoneId, handZoneId } from './types';
+import { ZONE_DRAW, ZONE_MUCK, communalZoneId, handZoneId, tableZoneId } from './types';
 import { parseCardId } from './selectors';
 
 /**
@@ -32,7 +32,10 @@ export type GameAction =
   | 'check'
   | 'call'
   | 'raise'
-  | 'reveal';
+  | 'reveal'
+  | 'pair'
+  | `play:${string}`
+  | `ask:${string}:${string}`;
 
 export interface GameActionSpec {
   id: GameAction;
@@ -42,13 +45,17 @@ export interface GameActionSpec {
 }
 
 export interface PrimitiveEvent {
-  type: 'card/deal' | 'card/move' | 'card/flip' | 'card/reveal' | 'turn/end' | 'session/end' | 'game/street' | 'game/fold';
+  type: 'card/deal' | 'card/move' | 'card/flip' | 'card/reveal' | 'card/ask' | 'turn/set' | 'turn/end' | 'session/end' | 'game/street' | 'game/fold';
   cardId?: string;
   toZoneId?: ZoneId;
   face?: 'up' | 'down';
   playerId?: PlayerId;
   winnerId?: PlayerId;
   street?: number;
+  targetPlayerId?: PlayerId;
+  rank?: string;
+  found?: boolean;
+  transferredCount?: number;
 }
 
 export interface GameRules {
@@ -159,6 +166,559 @@ function blackjackReadout(state: GameState, playerId: PlayerId): string | null {
   if (hand.length === 0) return null;
   const value = handValue(state, playerId);
   return isBust(value) ? `HAND ${value} · BUST` : `HAND ${value}`;
+}
+
+// ---------------------------------------------------------------------------
+// War
+// ---------------------------------------------------------------------------
+
+const WAR_RANK_ORDER: Record<string, number> = {
+  '2': 2, '3': 3, '4': 4, '5': 5, '6': 6, '7': 7, '8': 8, '9': 9, '10': 10,
+  J: 11, Q: 12, K: 13, A: 14,
+};
+
+function warRank(cardId: string): number {
+  const parsed = parseCardId(cardId);
+  if (parsed) return WAR_RANK_ORDER[parsed.rank] ?? 0;
+  // Optional jokers are high cards for the one-table preview variant.
+  return cardId === 'JK-RED' || cardId === 'JK-BLACK' ? 15 : 0;
+}
+
+function warRemainingCards(state: GameState, playerId: PlayerId): number {
+  // `card/move` removes each played top card from its private pile before the
+  // rules inspect the result, so the zone count is already the true reserve.
+  return state.zones[`table:${playerId}`]?.cardIds.length ?? 0;
+}
+
+function warCanContinue(state: GameState, currentPlayerId: PlayerId): boolean {
+  return state.players.length === 2 && state.players.every((player) => {
+    const currentCardStillInPile = player.id === currentPlayerId ? 1 : 0;
+    return warRemainingCards(state, player.id) - currentCardStillInPile >= 4;
+  });
+}
+
+function warWinnerByRemaining(state: GameState): PlayerId | undefined {
+  const counts = state.players.map((player) => ({
+    id: player.id,
+    count: warRemainingCards(state, player.id),
+  }));
+  const highest = Math.max(...counts.map((entry) => entry.count));
+  const winners = counts.filter((entry) => entry.count === highest);
+  return winners.length === 1 ? winners[0]!.id : undefined;
+}
+
+function resolveWar(
+  state: GameState,
+  potIds: string[],
+  winnerId: PlayerId,
+  currentPlayerId: PlayerId,
+): PrimitiveEvent[] {
+  const events: PrimitiveEvent[] = potIds.map((cardId) => ({
+    type: 'card/move',
+    cardId,
+    toZoneId: `table:${winnerId}`,
+    face: 'down',
+  }));
+  const loser = state.players.find((player) => player.id !== winnerId);
+  const loserRemaining = loser
+    ? warRemainingCards(state, loser.id) - (loser.id === currentPlayerId ? 1 : 0)
+    : 0;
+  events.push(
+    { type: 'turn/set', playerId: winnerId },
+    { type: 'game/street', street: 0 },
+  );
+  if (loser && loserRemaining === 0) {
+    events.push({ type: 'session/end', winnerId });
+  }
+  return events;
+}
+
+function warActions(state: GameState, viewerId: PlayerId): GameActionSpec[] {
+  if (state.phase !== 'playing' || state.currentPlayerId !== viewerId) return [];
+  const pile = state.zones[`table:${viewerId}`];
+  if (!pile || pile.cardIds.length === 0) return [];
+  const street = state.game?.street ?? 0;
+  const isWarDown = street === 2 || street === 3;
+  return [{
+    id: 'flip',
+    label: isWarDown ? 'DOWN CARD' : 'FLIP',
+    hint: isWarDown ? 'Place one card face-down' : 'Play the top card',
+    kind: 'table',
+  }];
+}
+
+function warApply(
+  action: GameAction,
+  state: GameState,
+  viewerId: PlayerId,
+): PrimitiveEvent[] | null {
+  if (action !== 'flip' || state.phase !== 'playing' || state.currentPlayerId !== viewerId) return null;
+  if (state.players.length !== 2) return null;
+  const pile = state.zones[`table:${viewerId}`];
+  const cardId = pile?.cardIds[0];
+  if (!cardId) return null;
+
+  const street = state.game?.street ?? 0;
+  const face = street === 2 || street === 3 ? 'down' : 'up';
+  const events: PrimitiveEvent[] = [{
+    type: 'card/move',
+    cardId,
+    toZoneId: communalZoneId(0),
+    face,
+  }];
+  const currentIndex = state.players.findIndex((player) => player.id === viewerId);
+  const nextPlayerId = state.players[(currentIndex + 1) % state.players.length]!.id;
+
+  if (street === 0 || street === 2 || street === 4) {
+    return [
+      ...events,
+      { type: 'turn/set', playerId: nextPlayerId },
+      { type: 'game/street', street: street + 1 },
+    ];
+  }
+
+  const community = state.zones[communalZoneId(0)]?.cardIds ?? [];
+  const potIds = [...community, cardId];
+  const battle = potIds.slice(-2);
+  const firstRank = warRank(battle[0]!);
+  const secondRank = warRank(battle[1]!);
+
+  if (firstRank === secondRank) {
+    if (!warCanContinue(state, viewerId)) {
+      return [
+        ...events,
+        { type: 'session/end', winnerId: warWinnerByRemaining(state) },
+      ];
+    }
+    return [
+      ...events,
+      { type: 'turn/set', playerId: state.players[0]!.id },
+      { type: 'game/street', street: 2 },
+    ];
+  }
+
+  const winnerId = firstRank > secondRank
+    ? state.players[0]!.id
+    : state.players[1]!.id;
+  return [...events, ...resolveWar(state, potIds, winnerId, viewerId)];
+}
+
+function warReadout(state: GameState, playerId: PlayerId): string | null {
+  const count = state.zones[`table:${playerId}`]?.cardIds.length ?? 0;
+  return count > 0 ? `PILE ${count}` : 'OUT';
+}
+
+// ---------------------------------------------------------------------------
+// Go Fish
+// ---------------------------------------------------------------------------
+
+function nextPlayerWithCards(state: GameState, playerId: PlayerId): Player | null {
+  const sorted = state.players.slice().sort((a, b) => a.seat - b.seat);
+  const currentIndex = sorted.findIndex((player) => player.id === playerId);
+  if (currentIndex < 0) return null;
+  for (let offset = 1; offset < sorted.length; offset += 1) {
+    const candidate = sorted[(currentIndex + offset) % sorted.length]!;
+    const handSize = state.zones[handZoneId(candidate.id)]?.cardIds.length ?? 0;
+    if (handSize > 0) return candidate;
+  }
+  return null;
+}
+
+function uniqueHandRanks(state: GameState, playerId: PlayerId): string[] {
+  const ranks = new Set<string>();
+  for (const cardId of state.zones[handZoneId(playerId)]?.cardIds ?? []) {
+    const parsed = parseCardId(cardId);
+    if (parsed) ranks.add(parsed.rank);
+  }
+  return [...ranks];
+}
+
+function bookCardIds(cardIds: string[]): string[] {
+  const byRank = new Map<string, string[]>();
+  for (const cardId of cardIds) {
+    const parsed = parseCardId(cardId);
+    if (!parsed) continue;
+    const cards = byRank.get(parsed.rank) ?? [];
+    cards.push(cardId);
+    byRank.set(parsed.rank, cards);
+  }
+  return [...byRank.values()]
+    .filter((cards) => cards.length >= 4)
+    .flatMap((cards) => cards.slice(0, 4));
+}
+
+function goFishBooks(state: GameState, playerId: PlayerId): number {
+  return Math.floor((state.zones[tableZoneId(playerId)]?.cardIds.length ?? 0) / 4);
+}
+
+function goFishWinner(state: GameState, extraBooksFor?: PlayerId, extraBooks = 0): PlayerId | undefined {
+  let winner: PlayerId | undefined;
+  let best = -1;
+  for (const player of state.players) {
+    const score = goFishBooks(state, player.id) + (player.id === extraBooksFor ? extraBooks : 0);
+    if (score > best) {
+      best = score;
+      winner = player.id;
+    }
+  }
+  return winner;
+}
+
+function parseAskAction(action: GameAction): { targetId: PlayerId; rank: string } | null {
+  if (!action.startsWith('ask:')) return null;
+  const payload = action.slice('ask:'.length);
+  const divider = payload.lastIndexOf(':');
+  if (divider <= 0 || divider >= payload.length - 1) return null;
+  return {
+    targetId: payload.slice(0, divider),
+    rank: payload.slice(divider + 1),
+  };
+}
+
+function projectedHandSizes(
+  state: GameState,
+  changes: Map<PlayerId, number>,
+): Map<PlayerId, number> {
+  return new Map(state.players.map((player) => [
+    player.id,
+    (state.zones[handZoneId(player.id)]?.cardIds.length ?? 0) + (changes.get(player.id) ?? 0),
+  ]));
+}
+
+function nextActivePlayer(
+  state: GameState,
+  playerId: PlayerId,
+  projected: Map<PlayerId, number>,
+): Player | null {
+  const sorted = state.players.slice().sort((a, b) => a.seat - b.seat);
+  const currentIndex = sorted.findIndex((player) => player.id === playerId);
+  if (currentIndex < 0) return null;
+  for (let offset = 1; offset < sorted.length; offset += 1) {
+    const candidate = sorted[(currentIndex + offset) % sorted.length]!;
+    if ((projected.get(candidate.id) ?? 0) > 0) return candidate;
+  }
+  return null;
+}
+
+function goFishActions(state: GameState, viewerId: PlayerId): GameActionSpec[] {
+  if (state.phase !== 'playing' || state.currentPlayerId !== viewerId) return [];
+  const target = nextPlayerWithCards(state, viewerId);
+  if (!target) {
+    return [{ id: 'end', label: 'FINISH', hint: 'End the round and score the books', kind: 'table' }];
+  }
+  const ranks = uniqueHandRanks(state, viewerId);
+  if (ranks.length === 0) {
+    return state.zones[ZONE_DRAW]?.cardIds.length
+      ? [{ id: 'draw', label: 'DRAW', hint: 'Draw a card to find a rank', kind: 'table' }]
+      : [{ id: 'end', label: 'FINISH', hint: 'End the round and score the books', kind: 'table' }];
+  }
+  return ranks.map((rank) => ({
+    id: `ask:${target.id}:${rank}` as GameAction,
+    label: `ASK ${rank}`,
+    hint: `Ask ${target.name} for ${rank}`,
+    kind: 'table',
+  }));
+}
+
+function goFishApply(
+  action: GameAction,
+  state: GameState,
+  viewerId: PlayerId,
+): PrimitiveEvent[] | null {
+  if (state.phase !== 'playing' || state.currentPlayerId !== viewerId) return null;
+  if (action === 'end') return [{ type: 'session/end', winnerId: goFishWinner(state) }];
+
+  const targetAndRank = parseAskAction(action);
+  const target = targetAndRank
+    ? state.players.find((player) => player.id === targetAndRank.targetId)
+    : nextPlayerWithCards(state, viewerId);
+  if (!target) return [{ type: 'session/end', winnerId: goFishWinner(state) }];
+
+  const rank = targetAndRank?.rank;
+  const targetHand = state.zones[handZoneId(target.id)]?.cardIds ?? [];
+  const matching = rank
+    ? targetHand.filter((cardId) => parseCardId(cardId)?.rank === rank)
+    : [];
+  const events: PrimitiveEvent[] = [{
+    type: 'card/ask',
+    targetPlayerId: target.id,
+    rank: rank ?? 'any',
+    found: matching.length > 0,
+    transferredCount: matching.length,
+  }];
+
+  for (const cardId of matching) {
+    events.push({ type: 'card/move', cardId, toZoneId: handZoneId(viewerId), face: 'down' });
+  }
+
+  let drawnCardId: string | undefined;
+  if (matching.length === 0) {
+    drawnCardId = state.zones[ZONE_DRAW]?.cardIds[0];
+    if (drawnCardId) {
+      events.push({ type: 'card/deal', cardId: drawnCardId, toZoneId: handZoneId(viewerId), face: 'down' });
+    }
+  }
+
+  const currentHand = state.zones[handZoneId(viewerId)]?.cardIds ?? [];
+  const projectedHand = [...currentHand, ...matching, ...(drawnCardId ? [drawnCardId] : [])];
+  const books = bookCardIds(projectedHand);
+  for (const cardId of books) {
+    events.push({ type: 'card/move', cardId, toZoneId: tableZoneId(viewerId), face: 'up' });
+  }
+
+  const changes = new Map<PlayerId, number>([
+    [viewerId, matching.length + (drawnCardId ? 1 : 0) - books.length],
+    [target.id, -matching.length],
+  ]);
+  const projected = projectedHandSizes(state, changes);
+  const nonEmptyPlayers = [...projected.values()].filter((count) => count > 0).length;
+  const drawRemaining = Math.max(0, (state.zones[ZONE_DRAW]?.cardIds.length ?? 0) - (drawnCardId ? 1 : 0));
+  if (nonEmptyPlayers <= 1 || (drawRemaining === 0 && nonEmptyPlayers === 0)) {
+    events.push({ type: 'session/end', winnerId: goFishWinner(state, viewerId, books.length / 4) });
+    return events;
+  }
+
+  const drawMatched = drawnCardId !== undefined && parseCardId(drawnCardId)?.rank === rank;
+  if (matching.length === 0 && !drawMatched) {
+    events.push({ type: 'turn/end', playerId: viewerId });
+  }
+  return events;
+}
+
+function goFishReadout(state: GameState, playerId: PlayerId): string | null {
+  const handSize = state.zones[handZoneId(playerId)]?.cardIds.length ?? 0;
+  return `BOOKS ${goFishBooks(state, playerId)} · HAND ${handSize}`;
+}
+
+// ---------------------------------------------------------------------------
+// Old Maid
+// ---------------------------------------------------------------------------
+
+function pairCardIds(cardIds: string[]): string[] {
+  const byRank = new Map<string, string[]>();
+  for (const cardId of cardIds) {
+    const parsed = parseCardId(cardId);
+    if (!parsed) continue;
+    const cards = byRank.get(parsed.rank) ?? [];
+    cards.push(cardId);
+    byRank.set(parsed.rank, cards);
+  }
+  return [...byRank.values()].flatMap((cards) => cards.slice(0, cards.length - (cards.length % 2)));
+}
+
+function oldMaidWinner(state: GameState, projected: Map<PlayerId, number>): PlayerId | undefined {
+  return state.players.find((player) => (projected.get(player.id) ?? 0) === 0)?.id;
+}
+
+function oldMaidActions(state: GameState, viewerId: PlayerId): GameActionSpec[] {
+  if (state.phase !== 'playing' || state.currentPlayerId !== viewerId) return [];
+  const hand = state.zones[handZoneId(viewerId)]?.cardIds ?? [];
+  if (pairCardIds(hand).length > 0) {
+    return [{ id: 'pair', label: 'PAIR UP', hint: 'Lay down every matching pair', kind: 'table' }];
+  }
+  const target = nextPlayerWithCards(state, viewerId);
+  if (!target) {
+    return [{ id: 'end', label: 'FINISH', hint: 'End the round', kind: 'table' }];
+  }
+  return [{ id: 'draw', label: 'DRAW CARD', hint: `Take one card from ${target.name}`, kind: 'table' }];
+}
+
+function oldMaidApply(
+  action: GameAction,
+  state: GameState,
+  viewerId: PlayerId,
+): PrimitiveEvent[] | null {
+  if (state.phase !== 'playing' || state.currentPlayerId !== viewerId) return null;
+  if (action === 'end') return [{ type: 'session/end', winnerId: state.players[0]?.id }];
+
+  const currentHand = state.zones[handZoneId(viewerId)]?.cardIds ?? [];
+  const pairIds = action === 'pair' ? pairCardIds(currentHand) : [];
+  if (action === 'pair' && pairIds.length === 0) return null;
+
+  if (action === 'pair') {
+    const events: PrimitiveEvent[] = pairIds.map((cardId) => ({
+      type: 'card/move', cardId, toZoneId: tableZoneId(viewerId), face: 'up',
+    }));
+    const projected = projectedHandSizes(state, new Map([[viewerId, -pairIds.length]]));
+    const nonEmptyPlayers = [...projected.values()].filter((count) => count > 0).length;
+    if (nonEmptyPlayers <= 1) {
+      events.push({ type: 'session/end', winnerId: oldMaidWinner(state, projected) });
+      return events;
+    }
+    const next = nextActivePlayer(state, viewerId, projected);
+    if (next) events.push({ type: 'turn/set', playerId: next.id });
+    return events;
+  }
+
+  if (action !== 'draw') return null;
+  const target = nextPlayerWithCards(state, viewerId);
+  const cardId = target ? state.zones[handZoneId(target.id)]?.cardIds.at(-1) : undefined;
+  if (!target || !cardId) return [{ type: 'session/end', winnerId: state.players[0]?.id }];
+  const events: PrimitiveEvent[] = [{
+    type: 'card/move', cardId, toZoneId: handZoneId(viewerId), face: 'down',
+  }];
+  const projected = projectedHandSizes(state, new Map([
+    [viewerId, 1],
+    [target.id, -1],
+  ]));
+  const nonEmptyPlayers = [...projected.values()].filter((count) => count > 0).length;
+  if (nonEmptyPlayers <= 1) {
+    events.push({ type: 'session/end', winnerId: oldMaidWinner(state, projected) });
+    return events;
+  }
+  const next = nextActivePlayer(state, viewerId, projected);
+  if (next) events.push({ type: 'turn/set', playerId: next.id });
+  return events;
+}
+
+function oldMaidReadout(state: GameState, playerId: PlayerId): string | null {
+  const handSize = state.zones[handZoneId(playerId)]?.cardIds.length ?? 0;
+  const pairs = Math.floor((state.zones[tableZoneId(playerId)]?.cardIds.length ?? 0) / 2);
+  return `PAIRS ${pairs} · HAND ${handSize}`;
+}
+
+// ---------------------------------------------------------------------------
+// Crazy Eights
+// ---------------------------------------------------------------------------
+
+function discardTopId(state: GameState): string | null {
+  const discard = state.zones['discard'];
+  return discard?.cardIds.at(-1) ?? null;
+}
+
+function crazyEightPlayable(cardId: string, topCardId: string | null): boolean {
+  if (!topCardId) return true;
+  const card = parseCardId(cardId);
+  const top = parseCardId(topCardId);
+  if (!card || !top) return false;
+  return card.rank === '8' || top.rank === '8' || card.rank === top.rank || card.suit === top.suit;
+}
+
+function crazyEightsActions(state: GameState, viewerId: PlayerId): GameActionSpec[] {
+  if (state.phase !== 'playing' || state.currentPlayerId !== viewerId) return [];
+  const hand = state.zones[handZoneId(viewerId)]?.cardIds ?? [];
+  const topCardId = discardTopId(state);
+  const playable = hand.filter((cardId) => crazyEightPlayable(cardId, topCardId));
+  if (playable.length > 0) {
+    return playable.map((cardId) => ({
+      id: `play:${cardId}` as GameAction,
+      label: `PLAY ${parseCardId(cardId)?.rank ?? 'CARD'}`,
+      hint: 'Match the suit or rank, or play an eight',
+      kind: 'table',
+    }));
+  }
+  if ((state.zones[ZONE_DRAW]?.cardIds.length ?? 0) > 0) {
+    return [{ id: 'draw', label: 'DRAW', hint: 'Draw one card; play it if it fits', kind: 'table' }];
+  }
+  return [{ id: 'end', label: 'FINISH', hint: 'The deck is empty; finish the round', kind: 'table' }];
+}
+
+function crazyEightsApply(
+  action: GameAction,
+  state: GameState,
+  viewerId: PlayerId,
+): PrimitiveEvent[] | null {
+  if (state.phase !== 'playing' || state.currentPlayerId !== viewerId) return null;
+  const hand = state.zones[handZoneId(viewerId)]?.cardIds ?? [];
+  if (action === 'end') return [{ type: 'session/end', winnerId: viewerId }];
+  if (action === 'draw') {
+    const cardId = state.zones[ZONE_DRAW]?.cardIds[0];
+    if (!cardId) return [{ type: 'session/end', winnerId: viewerId }];
+    const events: PrimitiveEvent[] = [{
+      type: 'card/deal', cardId, toZoneId: handZoneId(viewerId), face: 'down',
+    }];
+    if (!crazyEightPlayable(cardId, discardTopId(state))) {
+      events.push({ type: 'turn/end', playerId: viewerId });
+    }
+    return events;
+  }
+  if (!action.startsWith('play:')) return null;
+  const cardId = action.slice('play:'.length);
+  if (!hand.includes(cardId) || !crazyEightPlayable(cardId, discardTopId(state))) return null;
+  if (hand.length === 1) {
+    return [
+      { type: 'card/move', cardId, toZoneId: 'discard', face: 'up' },
+      { type: 'session/end', winnerId: viewerId },
+    ];
+  }
+  return [
+    { type: 'card/move', cardId, toZoneId: 'discard', face: 'up' },
+    { type: 'turn/end', playerId: viewerId },
+  ];
+}
+
+function crazyEightsReadout(state: GameState, playerId: PlayerId): string | null {
+  const handSize = state.zones[handZoneId(playerId)]?.cardIds.length ?? 0;
+  const top = discardTopId(state);
+  return `HAND ${handSize}${top ? ` · TOP ${parseCardId(top)?.rank ?? 'JOKER'}` : ''}`;
+}
+
+// ---------------------------------------------------------------------------
+// Sevens
+// ---------------------------------------------------------------------------
+
+const SEVENS_RANK_ORDER = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
+
+function sevensPlayable(cardId: string, tableCardIds: string[]): boolean {
+  const card = parseCardId(cardId);
+  if (!card) return false;
+  if (tableCardIds.length === 0) return card.rank === '7';
+  const sameSuit = tableCardIds
+    .map(parseCardId)
+    .filter((parsed): parsed is NonNullable<ReturnType<typeof parseCardId>> => parsed?.suit === card.suit);
+  if (sameSuit.length === 0) return card.rank === '7';
+  const rankIndex = SEVENS_RANK_ORDER.indexOf(card.rank);
+  const playedIndexes = sameSuit.map((parsed) => SEVENS_RANK_ORDER.indexOf(parsed.rank));
+  const low = Math.min(...playedIndexes);
+  const high = Math.max(...playedIndexes);
+  return rankIndex === low - 1 || rankIndex === high + 1;
+}
+
+function sevensActions(state: GameState, viewerId: PlayerId): GameActionSpec[] {
+  if (state.phase !== 'playing' || state.currentPlayerId !== viewerId) return [];
+  const hand = state.zones[handZoneId(viewerId)]?.cardIds ?? [];
+  const tableCards = state.zones[communalZoneId(0)]?.cardIds ?? [];
+  const playable = hand.filter((cardId) => sevensPlayable(cardId, tableCards));
+  if (playable.length > 0) {
+    return playable.map((cardId) => ({
+      id: `play:${cardId}` as GameAction,
+      label: `PLAY ${parseCardId(cardId)?.rank ?? 'CARD'}`,
+      hint: tableCards.length === 0 ? 'Open the table with a seven' : 'Play one card next to its suit run',
+      kind: 'table',
+    }));
+  }
+  if (hand.length === 0) return [{ id: 'end', label: 'FINISH', hint: 'You have played every card', kind: 'table' }];
+  return [{ id: 'pass', label: 'PASS', hint: 'No legal card; pass to the next player', kind: 'table' }];
+}
+
+function sevensApply(
+  action: GameAction,
+  state: GameState,
+  viewerId: PlayerId,
+): PrimitiveEvent[] | null {
+  if (state.phase !== 'playing' || state.currentPlayerId !== viewerId) return null;
+  const hand = state.zones[handZoneId(viewerId)]?.cardIds ?? [];
+  const tableCards = state.zones[communalZoneId(0)]?.cardIds ?? [];
+  if (action === 'end') return [{ type: 'session/end', winnerId: viewerId }];
+  if (action === 'pass') return [{ type: 'turn/end', playerId: viewerId }];
+  if (!action.startsWith('play:')) return null;
+  const cardId = action.slice('play:'.length);
+  if (!hand.includes(cardId) || !sevensPlayable(cardId, tableCards)) return null;
+  const events: PrimitiveEvent[] = [{
+    type: 'card/move', cardId, toZoneId: communalZoneId(0), face: 'up',
+  }];
+  if (hand.length === 1) {
+    events.push({ type: 'session/end', winnerId: viewerId });
+  } else {
+    events.push({ type: 'turn/end', playerId: viewerId });
+  }
+  return events;
+}
+
+function sevensReadout(state: GameState, playerId: PlayerId): string | null {
+  const handSize = state.zones[handZoneId(playerId)]?.cardIds.length ?? 0;
+  const played = state.zones[communalZoneId(0)]?.cardIds.length ?? 0;
+  return `PLAYED ${played} · HAND ${handSize}`;
 }
 
 /** Dealer plays to 17 after every player has stuck. Returns events. */
@@ -477,6 +1037,36 @@ export const GAME_RULES: Record<string, GameRules> = {
     id: 'deal-two-each',
     actions: noActions,
     apply: () => null,
+  },
+  war: {
+    id: 'war',
+    actions: warActions,
+    apply: warApply,
+    readout: warReadout,
+  },
+  'go-fish': {
+    id: 'go-fish',
+    actions: goFishActions,
+    apply: goFishApply,
+    readout: goFishReadout,
+  },
+  'old-maid': {
+    id: 'old-maid',
+    actions: oldMaidActions,
+    apply: oldMaidApply,
+    readout: oldMaidReadout,
+  },
+  'crazy-eights': {
+    id: 'crazy-eights',
+    actions: crazyEightsActions,
+    apply: crazyEightsApply,
+    readout: crazyEightsReadout,
+  },
+  sevens: {
+    id: 'sevens',
+    actions: sevensActions,
+    apply: sevensApply,
+    readout: sevensReadout,
   },
   blackjack: {
     id: 'blackjack',

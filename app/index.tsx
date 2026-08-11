@@ -195,8 +195,11 @@ const styles = StyleSheet.create({
   },
   tableRail: {
     position: 'absolute',
-    left: -70,
-    right: -70,
+    // Keep the ornament inside the canvas. Negative insets make the root
+    // horizontally scrollable on web, so a focused recipe card can shift the
+    // entire table layer left by the rail's overflow amount.
+    left: 0,
+    right: 0,
     top: '23%',
     height: '62%',
     borderRadius: 260,
