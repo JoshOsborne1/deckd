@@ -64,7 +64,7 @@ export interface GameActionSpec {
 }
 
 export interface PrimitiveEvent {
-  type: 'card/deal' | 'card/move' | 'card/flip' | 'card/reveal' | 'card/ask' | 'turn/set' | 'turn/end' | 'session/end' | 'game/street' | 'game/bet' | 'game/fold';
+  type: 'card/deal' | 'card/move' | 'card/flip' | 'card/reveal' | 'card/ask' | 'turn/set' | 'turn/end' | 'session/end' | 'game/street' | 'game/burn' | 'game/bet' | 'game/fold';
   cardId?: string;
   toZoneId?: ZoneId;
   face?: 'up' | 'down';
@@ -887,7 +887,12 @@ export function evaluatePokerHand(cardIds: string[]): PokerHandScore {
       tiebreak = [groups[0]![0], ...groups.slice(1).map((g) => g[0])];
     }
 
-    if (category > best.category) {
+    const candidate: PokerHandScore = {
+      category,
+      tiebreak,
+      label: POKER_HAND_LABELS[category]!,
+    };
+    if (beats(candidate, best)) {
       best.category = category;
       best.tiebreak = tiebreak;
       best.label = POKER_HAND_LABELS[category]!;
@@ -1012,10 +1017,13 @@ function pokerActions(state: GameState, viewerId: PlayerId): GameActionSpec[] {
 
   if (betting.roundComplete && pokerAdvanceAllowed(state, viewerId)) {
     if (street <= 2 && !drawEmpty) {
-      specs.push({ id: 'burn', label: 'BURN', hint: 'Remove the top card before the next street', kind: 'host' });
-      if (street === 0) specs.push({ id: 'flop', label: 'FLOP', hint: 'Deal three community cards', kind: 'host' });
-      if (street === 1) specs.push({ id: 'turn', label: 'TURN', hint: 'Deal the fourth community card', kind: 'host' });
-      if (street === 2) specs.push({ id: 'river', label: 'RIVER', hint: 'Deal the fifth community card', kind: 'host' });
+      if (betting.burnedStreet !== street) {
+        specs.push({ id: 'burn', label: 'BURN', hint: 'Remove the top card before the next street', kind: 'host' });
+      } else {
+        if (street === 0) specs.push({ id: 'flop', label: 'FLOP', hint: 'Deal three community cards', kind: 'host' });
+        if (street === 1) specs.push({ id: 'turn', label: 'TURN', hint: 'Deal the fourth community card', kind: 'host' });
+        if (street === 2) specs.push({ id: 'river', label: 'RIVER', hint: 'Deal the fifth community card', kind: 'host' });
+      }
     }
     if (street === 3) {
       specs.push({ id: 'reveal', label: 'SHOWDOWN', hint: 'Reveal live hands and award the pot', kind: 'host' });
@@ -1040,13 +1048,17 @@ function pokerApply(
 
   switch (action) {
     case 'burn': {
-      if (!pokerAdvanceAllowed(state, viewerId) || !betting.roundComplete || street > 2) return null;
+      if (!pokerAdvanceAllowed(state, viewerId) || !betting.roundComplete || street > 2 || betting.burnedStreet === street) return null;
       const cid = top();
       if (!cid) return null;
-      return [{ type: 'card/move', cardId: cid, toZoneId: ZONE_MUCK, face: 'down' }];
+      return [
+        { type: 'card/move', cardId: cid, toZoneId: ZONE_MUCK, face: 'down' },
+        { type: 'game/burn', street },
+      ];
     }
     case 'flop': {
-      if (!pokerAdvanceAllowed(state, viewerId) || !betting.roundComplete || street !== 0) return null;
+      if (!pokerAdvanceAllowed(state, viewerId) || !betting.roundComplete || street !== 0 || betting.burnedStreet !== street) return null;
+      if (!draw || draw.cardIds.length < 3) return null;
       const events: PrimitiveEvent[] = [];
       for (let i = 0; i < 3; i += 1) {
         // Rules are pure: state never mutates, so index into the draw pile
@@ -1063,7 +1075,7 @@ function pokerApply(
       return events;
     }
     case 'turn': {
-      if (!pokerAdvanceAllowed(state, viewerId) || !betting.roundComplete || street !== 1) return null;
+      if (!pokerAdvanceAllowed(state, viewerId) || !betting.roundComplete || street !== 1 || betting.burnedStreet !== street) return null;
       const cid = top();
       if (!cid) return null;
       return [
@@ -1073,7 +1085,7 @@ function pokerApply(
       ];
     }
     case 'river': {
-      if (!pokerAdvanceAllowed(state, viewerId) || !betting.roundComplete || street !== 2) return null;
+      if (!pokerAdvanceAllowed(state, viewerId) || !betting.roundComplete || street !== 2 || betting.burnedStreet !== street) return null;
       const cid = top();
       if (!cid) return null;
       return [

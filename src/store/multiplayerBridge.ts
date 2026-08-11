@@ -50,6 +50,22 @@ function sessionIdOf(events: GameEvent[]): string | null {
 }
 
 /**
+ * The host's session/start event is the canonical source of game metadata, so
+ * its mode is `online-host` for every recipient. A guest still needs a local
+ * role marker for privacy-sensitive view selection (and it must survive the
+ * relay session being temporarily torn down), so rewrite only the local copy
+ * of session/start before folding it into the guest store.
+ */
+function markGuestSession(events: GameEvent[]): GameEvent[] {
+  if (useLobbyStore.getState().session?.role !== 'guest') return events;
+  return events.map((event) => (
+    event.type === 'session/start'
+      ? { ...event, meta: { ...event.meta, mode: 'online-guest' as const } }
+      : event
+  ));
+}
+
+/**
  * The last seq the host has broadcast. Exposed for tests.
  */
 export function getLastBroadcastSeq(): number {
@@ -247,7 +263,7 @@ export function installMultiplayerBridge(): void {
   useLobbyStore.getState().registerGameSyncHandlers({
     // Guest path: host broadcast a batch of events.
     onEventsReceived: (events: GameEvent[]) => {
-      useGameStore.getState().ingestRemoteEvents(events);
+      useGameStore.getState().ingestRemoteEvents(markGuestSession(events));
     },
     // Host path: a guest sent an intent.
     onIntentReceived: (intent: string, payload: unknown, fromClientId?: string) => {

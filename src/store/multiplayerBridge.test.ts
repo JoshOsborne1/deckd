@@ -171,16 +171,13 @@ describe('multiplayerBridge', () => {
     const hostSession = useLobbyStore.getState().session!;
     const hostCid = useLobbyStore.getState().localClientId;
     hostCallbacks.onOpen?.(hostSession);
+    hostCallbacks.onPlayersChanged?.([
+      { clientId: hostCid, nickname: 'Alice', isHost: true, joinedAt: 1 },
+      { clientId: 'guest-cid', nickname: 'Bob', isHost: false, joinedAt: 2 },
+    ]);
 
-    // Guest side: join + connect.
-    useLobbyStore.getState().joinLobby('TEST01', 'Bob');
-    const guestSession = useLobbyStore.getState().session!;
-    guestCallbacks.onOpen?.(guestSession);
-
-    // Guest should have requested a snapshot on connect.
-    expect(guestSentIntents.some((i) => i.intent === 'request_snapshot')).toBe(true);
-
-    // Host creates a session.
+    // Host creates a session before the guest joins so we can capture the
+    // real recipient-filtered opening batch.
     useGameStore.getState().createSession({
       mode: 'online-host',
       presetId: 'freeplay',
@@ -192,13 +189,24 @@ describe('multiplayerBridge', () => {
       hostId: hostCid,
     });
 
-    // Host answers snapshot: relay the per-guest filtered events to the guest.
-    const broadcastEvents = hostSentTo.flatMap((s) => s.events);
+    const broadcastEvents = hostSentTo.find((s) => s.clientId === 'guest-cid')?.events ?? [];
+
+    // Guest side: join + connect.
+    useLobbyStore.getState().joinLobby('TEST01', 'Bob');
+    const guestSession = useLobbyStore.getState().session!;
+    guestCallbacks.onOpen?.(guestSession);
+
+    // Guest should have requested a snapshot on connect.
+    expect(guestSentIntents.some((i) => i.intent === 'request_snapshot')).toBe(true);
+
+    // Fold the host batch into a cold guest store.
+    useGameStore.getState().resetSession();
     guestCallbacks.onEventsReceived?.(broadcastEvents);
 
     // Guest's gameStore should now mirror the host's.
     const guestGameState = useGameStore.getState().state;
     expect(guestGameState.phase).toBe('playing');
+    expect(guestGameState.meta.mode).toBe('online-guest');
     expect(guestGameState.players).toHaveLength(2);
     expect(selectDrawPileCount(guestGameState)).toBe(52);
   });
@@ -365,6 +373,39 @@ describe('multiplayerBridge', () => {
     const afterDraw = useGameStore.getState().state;
     expect(selectDrawPileCount(afterDraw)).toBe(51);
     expect(selectLocalHand(afterDraw, 'you')).toHaveLength(1);
+  });
+
+  it('replaySession starts a fresh poker hand after showdown/fold end', () => {
+    useGameStore.getState().createSession({
+      mode: 'pass',
+      presetId: 'poker',
+      players: [
+        { id: 'you', name: 'You', avatarSeed: 'seed' },
+        { id: 'p2', name: 'Player 2', avatarSeed: 'seed2' },
+      ],
+      config: { includeJokers: false, fanStyle: 'wide' },
+      hostId: 'you',
+    });
+
+    const firstHandId = useGameStore.getState().state.meta.id;
+    expect(useGameStore.getState().state.game?.pot).toBe(15);
+    expect(useGameStore.getState().state.game?.street).toBe(0);
+
+    // Folding the first player ends the heads-up hand and exercises the same
+    // session/end path used by the showdown action.
+    expect(useGameStore.getState().gameAction('fold', 'you')).toBe(true);
+    expect(useGameStore.getState().state.phase).toBe('ended');
+
+    useGameStore.getState().replaySession();
+
+    const replayed = useGameStore.getState().state;
+    expect(replayed.phase).toBe('playing');
+    expect(replayed.meta.id).not.toBe(firstHandId);
+    expect(replayed.game?.street).toBe(0);
+    expect(replayed.game?.pot).toBe(15);
+    expect(replayed.game?.folded).toEqual([]);
+    expect(selectLocalHand(replayed, 'you')).toHaveLength(2);
+    expect(selectLocalHand(replayed, 'p2')).toHaveLength(2);
   });
 
   it('card moves propagate to guest: discard top mirrors host', () => {

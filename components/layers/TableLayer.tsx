@@ -224,9 +224,13 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
   const handleGameAction = useCallback(
     (action: GameAction) => {
       if (!viewerId) return;
-      if (isGuest && lobbySession) {
-        // Guests send the intent; the host's rules engine validates it.
-        void lobbySession.sendIntent('game_action', { action });
+      if (isGuest) {
+        // Guests never mutate their local mirror. If the relay has gone away,
+        // keep the table read-only until the room reconnects instead of
+        // accidentally forking a private hand on this device.
+        if (lobbySession) {
+          void lobbySession.sendIntent('game_action', { action });
+        }
         return;
       }
       haptic('medium');
@@ -717,22 +721,26 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
           return (
             <View key={opp.id} style={styles.opponent}>
               <AvatarPlaceholder seed={opp.avatarSeed} label={opp.name} size={56} />
-              <View style={styles.countPill}>
-                <Text style={styles.countText}>
-                  {handSize} {handSize === 1 ? 'CARD' : 'CARDS'}
-                </Text>
-              </View>
-              <View style={styles.stubCards}>
-                {handSize > 0 && (
-                  <PlayingCard
-                    face="down"
-                    size="xs"
-                    back={equippedBackId}
-                    style={{ transform: [{ rotate: '-8deg' }, { translateX: 4 }] }}
-                  />
-                )}
-                {handSize > 1 && <PlayingCard face="down" size="xs" back={equippedBackId} />}
-              </View>
+              {!isPoker && (
+                <View style={styles.countPill}>
+                  <Text style={styles.countText}>
+                    {handSize} {handSize === 1 ? 'CARD' : 'CARDS'}
+                  </Text>
+                </View>
+              )}
+              {!isPoker && (
+                <View style={styles.stubCards}>
+                  {handSize > 0 && (
+                    <PlayingCard
+                      face="down"
+                      size="xs"
+                      back={equippedBackId}
+                      style={{ transform: [{ rotate: '-8deg' }, { translateX: 4 }] }}
+                    />
+                  )}
+                  {handSize > 1 && <PlayingCard face="down" size="xs" back={equippedBackId} />}
+                </View>
+              )}
             </View>
           );
         })}
@@ -1290,8 +1298,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    alignSelf: 'stretch',
+    alignSelf: 'center',
+    width: '100%',
     maxWidth: 360,
+    marginTop: space.sm,
     paddingHorizontal: space.md,
     paddingVertical: space.sm,
     borderTopWidth: StyleSheet.hairlineWidth,
@@ -1422,14 +1432,16 @@ const styles = StyleSheet.create({
   },
   guidance: {
     position: 'absolute',
-    left: space.md,
-    right: space.md,
+    left: '50%',
+    right: undefined,
     bottom: 0,
     alignSelf: 'center',
+    width: '100%',
     flexDirection: 'row',
     alignItems: 'center',
     maxWidth: 320,
     minHeight: 58,
+    transform: [{ translateX: -160 }],
     paddingHorizontal: space.md,
     paddingVertical: space.sm,
     gap: space.sm,

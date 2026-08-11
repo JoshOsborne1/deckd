@@ -112,7 +112,13 @@ describe('poker rules', () => {
     const afterCheck = applyRuleEvents(afterCall, check, 'p2');
     expect(afterCheck.game?.pot).toBe(20);
     expect(afterCheck.game?.betting?.roundComplete).toBe(true);
-    expect(rules.actions(afterCheck, 'p2').map((action) => action.id)).toEqual(['burn', 'flop']);
+    expect(rules.actions(afterCheck, 'p2').map((action) => action.id)).toEqual(['burn']);
+    expect(rules.apply('flop', afterCheck, 'p2')).toBeNull();
+
+    const burn = rules.apply('burn', afterCheck, 'p2');
+    const afterBurn = applyRuleEvents(afterCheck, burn, 'p2');
+    expect(afterBurn.game?.betting?.burnedStreet).toBe(0);
+    expect(rules.actions(afterBurn, 'p2').map((action) => action.id)).toEqual(['flop']);
   });
 
   test('raise/call updates the pot and advances the community street once', () => {
@@ -130,12 +136,13 @@ describe('poker rules', () => {
     expect(called.game?.pot).toBe(40);
     expect(called.game?.betting?.roundComplete).toBe(true);
 
-    const flop = rules.apply('flop', called, 'p2');
+    const burned = applyRuleEvents(called, rules.apply('burn', called, 'p2'), 'p2');
+    const flop = rules.apply('flop', burned, 'p2');
     expect(flop?.filter((event) => event.type === 'card/deal')).toHaveLength(3);
-    const afterFlop = applyRuleEvents(called, flop, 'p2');
+    const afterFlop = applyRuleEvents(burned, flop, 'p2');
     expect(afterFlop.game?.street).toBe(1);
     expect(afterFlop.game?.betting?.roundComplete).toBe(false);
-    expect(afterFlop.currentPlayerId).toBe('p1');
+    expect(afterFlop.currentPlayerId).toBe('p2');
     expect(afterFlop.zones[communalZoneId(0)]?.cardIds).toHaveLength(3);
   });
 
@@ -159,6 +166,17 @@ describe('poker rules', () => {
     expect(tens.category).toBe(1);
     expect(nines.category).toBe(1);
     expect(tens.tiebreak[0]).toBeGreaterThan(nines.tiebreak[0]!);
+  });
+
+  test('evaluatePokerHand keeps the strongest same-category five-card hand', () => {
+    const score = evaluatePokerHand([
+      'H-2', 'D-2',
+      'S-3', 'C-3',
+      'H-4', 'D-4',
+      'S-A',
+    ]);
+    expect(score.category).toBe(2);
+    expect(score.tiebreak).toEqual([4, 3, 14]);
   });
 
   test('evaluatePokerHand detects a flush', () => {
@@ -188,7 +206,8 @@ describe('poker rules', () => {
     const preflop = applyRuleEvents(afterCall, rules.apply('check', afterCall, 'p2'), 'p2');
     const host = preflop.currentPlayerId;
 
-    const flop = rules.apply('flop', preflop, host)!;
+    const burned = applyRuleEvents(preflop, rules.apply('burn', preflop, host), host);
+    const flop = rules.apply('flop', burned, host)!;
     const flopDeals = flop.filter((e) => e.type === 'card/deal');
     expect(flopDeals).toHaveLength(3);
     for (const deal of flopDeals) expect(deal.toZoneId).toBe(communalZoneId(0));
@@ -231,6 +250,46 @@ describe('poker rules', () => {
     const communal = folded.zones[communalZoneId(0)];
     expect(communal?.cardIds.length).toBe(3);
     expect(folded.game?.street).toBe(1);
+  });
+
+  test('poker refuses a flop when the draw pile cannot cover the burn plus three cards', () => {
+    const state = makeSession(
+      [{ id: 'p1', name: 'P1' }, { id: 'p2', name: 'P2' }],
+      'poker',
+    );
+    state.currentPlayerId = 'p2';
+    state.zones[ZONE_DRAW] = {
+      ...state.zones[ZONE_DRAW]!,
+      cardIds: state.zones[ZONE_DRAW]!.cardIds.slice(0, 2),
+    };
+    state.game = {
+      ...state.game!,
+      betting: { ...state.game!.betting!, roundComplete: true, burnedStreet: 0 },
+    };
+
+    expect(getGameRules('poker').apply('flop', state, 'p2')).toBeNull();
+  });
+
+  test('poker showdown chooses the strongest live hand', () => {
+    const state = makeSession(
+      [{ id: 'p1', name: 'P1' }, { id: 'p2', name: 'P2' }],
+      'poker',
+    );
+    state.currentPlayerId = 'p1';
+    state.zones[handZoneId('p1')] = { ...state.zones[handZoneId('p1')]!, cardIds: ['H-A', 'D-A'] };
+    state.zones[handZoneId('p2')] = { ...state.zones[handZoneId('p2')]!, cardIds: ['H-K', 'D-K'] };
+    state.zones[communalZoneId(0)] = {
+      ...state.zones[communalZoneId(0)]!,
+      cardIds: ['S-2', 'C-3', 'H-4', 'S-8', 'C-9'],
+    };
+    state.game = {
+      ...state.game!,
+      street: 3,
+      betting: { ...state.game!.betting!, roundComplete: true },
+    };
+
+    const reveal = getGameRules('poker').apply('reveal', state, 'p1');
+    expect(reveal?.find((event) => event.type === 'session/end')).toMatchObject({ winnerId: 'p1' });
   });
 });
 

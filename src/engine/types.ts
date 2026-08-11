@@ -71,6 +71,7 @@ export interface PokerBettingState {
   roundContributions: Record<PlayerId, number>;
   acted: PlayerId[];
   roundComplete: boolean;
+  burnedStreet: number | null;
 }
 
 export type FanStyle = 'tight' | 'wide' | 'stacked';

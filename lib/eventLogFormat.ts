@@ -32,6 +32,8 @@ export function formatGameEventLine(e: GameEvent): string {
       return `${head} privacy/exit`;
     case 'game/street':
       return `${head} game/street · ${e.street}`;
+    case 'game/burn':
+      return `${head} game/burn · ${e.street}`;
     case 'game/bet':
       return `${head} game/bet · ${e.playerId} · ${e.action} · ${e.amount}`;
     case 'game/fold':

@@ -21,7 +21,7 @@ function createPokerBettingState(players: Player[]): PokerBettingState {
     ? dealerIndex
     : (bigBlindIndex + 1) % Math.max(ordered.length, 1);
   const firstPostflopIndex = ordered.length === 2
-    ? dealerIndex
+    ? bigBlindIndex
     : ordered.length > 1
       ? (dealerIndex + 1) % ordered.length
       : dealerIndex;
@@ -63,6 +63,7 @@ function createPokerBettingState(players: Player[]): PokerBettingState {
     roundContributions,
     acted: [],
     roundComplete: ordered.length < 2,
+    burnedStreet: null,
   };
 }
 
@@ -340,9 +341,20 @@ export function applyEvent(prev: GameState, event: GameEvent): GameState {
             ),
             acted: [],
             roundComplete: false,
+            burnedStreet: null,
           }
         : undefined;
       next.game = { ...game, street: event.street, ...(betting ? { betting } : {}) };
+      return next;
+    }
+
+    case 'game/burn': {
+      const game = next.game;
+      if (!game?.betting) return next;
+      next.game = {
+        ...game,
+        betting: { ...game.betting, burnedStreet: event.street },
+      };
       return next;
     }
 

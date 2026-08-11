@@ -59,6 +59,7 @@ export type GameEvent =
   | (BaseEvent & { type: 'privacy/enter'; playerId: PlayerId })
   | (BaseEvent & { type: 'privacy/exit' })
   | (BaseEvent & { type: 'game/street'; street: number })
+  | (BaseEvent & { type: 'game/burn'; street: number })
   | (BaseEvent & {
       type: 'game/bet';
       playerId: PlayerId;

@@ -97,6 +97,7 @@ export function HubLayer({
   const nickname = useProfileStore((s) => s.nickname);
   const avatarSeed = useProfileStore((s) => s.avatarSeed);
   const createSession = useGameStore((s) => s.createSession);
+  const gameState = useGameStore((s) => s.state);
   const events = useGameStore((s) => s.events);
   const sessionActive = events.length > 0;
 
@@ -107,6 +108,12 @@ export function HubLayer({
   /** Online host: a connected relay session with at least one guest. */
   const isOnlineHost =
     lobbySession?.role === 'host' && lobbyStatus === 'connected';
+  /** Online guest: the local relay role or the persisted game mode protects
+   * the guest from accidentally starting a private pass-and-play table. */
+  const isOnlineGuest =
+    lobbySession?.role === 'guest' || gameState.meta.mode === 'online-guest';
+  const guestTableReady =
+    isOnlineGuest && sessionActive && gameState.meta.mode === 'online-guest' && gameState.phase !== 'idle';
 
   const libraryDefaultId = useUserPresetsStore((s) => s.defaultPresetId);
   const userPresets = useUserPresetsStore((s) => s.presets);
@@ -126,6 +133,7 @@ export function HubLayer({
   const [fanStyle, setFanStyle] = React.useState<FanStyle>('wide');
   const [autoReshuffle, setAutoReshuffle] = React.useState(true);
   const [rulesOpen, setRulesOpen] = useState(false);
+  const [guestWaiting, setGuestWaiting] = useState(false);
 
   const { progress, reduceMotion } = useSurfaceMorph();
   const { reduceMotion: reduceMotionSystem } = useMotion();
@@ -179,6 +187,18 @@ export function HubLayer({
   };
 
   const handleStart = () => {
+    // Guests never create a local session. The host's event stream is the
+    // only source of truth; entering the table is safe once that stream has
+    // arrived, otherwise keep the guest in a visible waiting state.
+    if (isOnlineGuest) {
+      if (guestTableReady) {
+        setViewMode('table');
+      } else {
+        setGuestWaiting(true);
+      }
+      return;
+    }
+
     if (sessionActive) {
       const { state, events: ev } = useGameStore.getState();
       if (state.meta.id && ev.length > 0 && state.phase !== 'ended') {
@@ -231,6 +251,13 @@ export function HubLayer({
   };
 
   const handleResume = () => setViewMode('table');
+
+  useEffect(() => {
+    // If the guest has already entered the setup surface when the host deals,
+    // take them straight to the shared table. A guest who is still on the
+    // lobby room screen can use its existing "Start the table" affordance.
+    if (active && guestTableReady) setViewMode('table');
+  }, [active, guestTableReady, setViewMode]);
 
   const headerStyle = useAnimatedStyle(() => {
     const p = progress.value;
@@ -633,7 +660,15 @@ export function HubLayer({
           <Animated.View style={[styles.startCtaWrap, startCtaStyle]}>
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel={sessionActive ? 'Start a new table' : 'Deal now'}
+              accessibilityLabel={
+                isOnlineGuest
+                  ? guestTableReady
+                    ? 'Enter the shared table'
+                    : 'Wait for the host to deal'
+                  : sessionActive
+                    ? 'Start a new table'
+                    : 'Deal now'
+              }
               onPress={handleStart}
               style={({ pressed }) => [styles.dealDeckButton, pressed && styles.dealDeckButtonPressed]}
             >
@@ -649,8 +684,18 @@ export function HubLayer({
                 />
               </View>
               <View style={styles.dealDeckCopy}>
-                <Text style={styles.dealDeckEyebrow}>DEAL NOW</Text>
-                <Text style={styles.dealDeckText}>{sessionActive ? 'New table' : 'Drop into play'}</Text>
+                <Text style={styles.dealDeckEyebrow}>{isOnlineGuest ? 'MULTIPLAYER' : 'DEAL NOW'}</Text>
+                <Text style={styles.dealDeckText}>
+                  {isOnlineGuest
+                    ? guestTableReady
+                      ? 'Enter table'
+                      : guestWaiting
+                        ? 'Waiting for host'
+                        : 'Host deals first'
+                    : sessionActive
+                      ? 'New table'
+                      : 'Drop into play'}
+                </Text>
               </View>
             </Pressable>
           </Animated.View>
