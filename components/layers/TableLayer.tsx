@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions, Alert } from 'react-native';
 import Animated, {
   cancelAnimation,
   useAnimatedStyle,
@@ -553,8 +553,21 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
   }, [haptic]);
 
   const handleEndSession = useCallback(() => {
-    haptic('heavy');
-    endSession(viewerId ?? undefined);
+    Alert.alert(
+      'End the table?',
+      'This ends the session for everyone. You can start a new one from the hub.',
+      [
+        { text: 'Keep playing', style: 'cancel' },
+        {
+          text: 'End table',
+          style: 'destructive',
+          onPress: () => {
+            haptic('heavy');
+            endSession(viewerId ?? undefined);
+          },
+        },
+      ],
+    );
   }, [haptic, endSession, viewerId]);
 
   const handleBackToHub = useCallback(() => {
