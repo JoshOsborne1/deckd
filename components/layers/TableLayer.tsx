@@ -21,6 +21,7 @@ import { RulesSheet } from '@components/RulesSheet';
 import { KlondikeLayout } from '@components/KlondikeLayout';
 import { HandFan } from '@components/HandFan';
 import { HandStack } from '@components/HandStack';
+import { SolitaireBoard } from '@components/SolitaireBoard';
 import { useLayerSurfaceEntrance } from '@hooks/useLayerSurfaceEntrance';
 import { useMotion } from '@hooks/useMotion';
 import { useTableSound } from '@hooks/useTableSound';
@@ -214,6 +215,9 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
       ? state.currentPlayerId
       : hostPlayerId;
   const hasSession = events.length > 0 && state.phase !== 'idle';
+
+  // --- Solitaire games render their own dedicated board ---
+  const isSolitaire = ['klondike', 'freecell', 'pyramid'].includes(state.config.presetId ?? '');
 
   // --- Selectors (memoized off state) ---
   const drawCount = useMemo(() => selectDrawPileCount(state), [state]);
@@ -778,6 +782,24 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
   // --- Discard top parsed ---
   const discardParsed = discardTop ? parseCardId(discardTop.id) : null;
   const discardJoker = discardTop ? parseJokerId(discardTop.id) : null;
+
+  // --- Solitaire games: render the dedicated solitaire board ---
+  if (isSolitaire && viewerId) {
+    return (
+      <Animated.View
+        pointerEvents={active ? 'auto' : 'none'}
+        style={[styles.root, { bottom: bottomInset }, surfaceStyle]}
+      >
+        <TableSurface mode="play" />
+        <SolitaireBoard
+          state={state}
+          viewerId={viewerId}
+          topInset={topInset}
+          bottomInset={bottomInset}
+        />
+      </Animated.View>
+    );
+  }
 
   return (
     <Animated.View

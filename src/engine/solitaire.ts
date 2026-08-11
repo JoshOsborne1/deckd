@@ -17,6 +17,7 @@
 import type { GameState, PlayerId, ZoneId, Zone } from './types';
 import {
   ZONE_DRAW,
+  ZONE_MUCK,
   communalZoneId,
   handZoneId,
   tableZoneId,
@@ -393,6 +394,9 @@ export function buildPyramidLayout(deckOrder: string[], playerId: PlayerId): Pyr
     { id: PYRAMID_ZONE, label: 'Pyramid', visibility: { kind: 'public' }, cardIds: [] },
     { id: PYRAMID_STOCK, label: 'Stock', visibility: { kind: 'hidden' }, cardIds: [] },
     { id: PYRAMID_WASTE, label: 'Waste', visibility: { kind: 'public' }, cardIds: [] },
+    // Muck (removed cards). The pyramid rules move paired/removed cards here;
+    // `canApplyEvent` requires the target zone to exist or the move silently no-ops.
+    { id: ZONE_MUCK, label: 'Muck', visibility: { kind: 'hidden' }, cardIds: [] },
   ];
 
   const initialDeals: PyramidLayout['initialDeals'] = [];

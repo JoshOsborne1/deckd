@@ -14,6 +14,8 @@ import {
   foundationZoneId,
   freeCellTableauZoneId,
   freeCellZoneId,
+  pyramidPairMatches,
+  freePyramidIndices,
 } from './solitaire';
 import type { GameState } from './types';
 
@@ -234,5 +236,58 @@ describe('Pyramid rules', () => {
     const readout = rules.readout!(state, 'you');
     expect(readout).toContain('PYRAMID 28/28');
     expect(readout).toContain('STOCK 24');
+  });
+
+  test('REGRESSION: removing a pyramid card preserves stable indices (no filter shift)', () => {
+    // The pyramid rules emit card/move to the muck zone. The state reducer MUST
+    // leave an empty-string slot at the card's original index (NOT filter it out),
+    // or every subsequent index shifts and the pyramid geometry corrupts.
+    // This folds the returned events through the real reducer and checks.
+    const { state, events } = buildSolitaireEvents('pyramid');
+    const rules = getGameRules('pyramid');
+    const pyramid = state.zones[PYRAMID_ZONE]!;
+
+    // Find a free King in the bottom row (indices 21-27).
+    let kingIdx = -1;
+    for (let i = 21; i <= 27; i += 1) {
+      const cardId = pyramid.cardIds[i];
+      if (cardId && cardId.endsWith('-K')) { kingIdx = i; break; }
+    }
+    // If this seed has no free King, find any free pair instead.
+    if (kingIdx < 0) {
+      // Find two free bottom-row cards that pair to 13.
+      let idxA = -1, idxB = -1;
+      for (let i = 21; i <= 27 && idxA < 0; i += 1) {
+        for (let j = i + 1; j <= 27; j += 1) {
+          const a = pyramid.cardIds[i], b = pyramid.cardIds[j];
+          if (a && b && pyramidPairMatches(a, b)) { idxA = i; idxB = j; break; }
+        }
+      }
+      expect(idxA).toBeGreaterThanOrEqual(0);
+      const play = `play:${idxA}:${idxB}` as never;
+      const result = rules.apply(play, state, 'you');
+      expect(result).not.toBeNull();
+      const after = applyEvents(events, state, result!.filter((e) => e.type === 'card/move').map((e) => ({ type: 'card/move' as const, cardId: e.cardId!, toZoneId: e.toZoneId! as never, face: e.face ?? 'down' as const })));
+      const afterPyramid = after.zones[PYRAMID_ZONE]!.cardIds;
+      expect(afterPyramid.length).toBe(28); // length unchanged
+      expect(afterPyramid[idxA]).toBeFalsy(); // slot A is empty
+      expect(afterPyramid[idxB]).toBeFalsy(); // slot B is empty
+      // The parent of idxA (row 5) should now be free IF both its children are gone.
+      // At minimum, geometry is intact: freePyramidIndices returns valid indices.
+      const free = freePyramidIndices(after);
+      expect(free.every((idx) => idx >= 0 && idx < 28)).toBe(true);
+      return;
+    }
+
+    const play = `play:${kingIdx}:` as never;
+    const result = rules.apply(play, state, 'you');
+    expect(result).not.toBeNull();
+    const moveEvents = result!.filter((e) => e.type === 'card/move');
+    const after = applyEvents(events, state, moveEvents.map((e) => ({ type: 'card/move' as const, cardId: e.cardId!, toZoneId: e.toZoneId! as never, face: e.face ?? 'down' as const })));
+    const afterPyramid = after.zones[PYRAMID_ZONE]!.cardIds;
+    expect(afterPyramid.length).toBe(28); // length unchanged — no filter shift
+    expect(afterPyramid[kingIdx]).toBeFalsy(); // the King's slot is empty
+    // The card is now in the muck.
+    expect(after.zones['muck']!.cardIds).toContain(pyramid.cardIds[kingIdx]);
   });
 });

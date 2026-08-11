@@ -6,6 +6,7 @@ import type {
   PokerBettingState,
   ZoneId,
 } from './types';
+import { PYRAMID_ZONE } from './solitaire';
 
 const POKER_STARTING_STACK = 100;
 const POKER_SMALL_BLIND = 5;
@@ -67,11 +68,25 @@ function createPokerBettingState(players: Player[]): PokerBettingState {
   };
 }
 
-function removeCardFromZone(state: GameState, cardId: string): void {
+function removeCardFromZone(state: GameState, cardId: string, toZoneId?: ZoneId): void {
   const card = state.cards[cardId];
   if (!card) return;
   const zone = state.zones[card.zoneId];
   if (!zone) return;
+  // Pyramid solitaire keeps stable array indices: a card removed from the
+  // pyramid (to the muck or any other zone) becomes an empty-string slot at
+  // its original position, NOT a filtered-out entry. The geometry helpers
+  // (isPyramidCardFree, pyramidChildren) index by position and use !cardId
+  // to detect removal; filtering would shift every subsequent index and
+  // corrupt the pyramid layout. `card/deal` re-inserts into the SAME zone,
+  // so we only apply the stable-slot behaviour for genuine cross-zone moves.
+  if (card.zoneId === PYRAMID_ZONE && toZoneId !== undefined && toZoneId !== card.zoneId) {
+    state.zones[card.zoneId] = {
+      ...zone,
+      cardIds: zone.cardIds.map((id) => (id === cardId ? '' : id)),
+    };
+    return;
+  }
   state.zones[card.zoneId] = {
     ...zone,
     cardIds: zone.cardIds.filter((id) => id !== cardId),
@@ -236,7 +251,7 @@ export function applyEvent(prev: GameState, event: GameEvent): GameState {
       const card = next.cards[event.cardId];
       if (!card) return next;
       const fromZoneId = card.zoneId;
-      removeCardFromZone(next, event.cardId);
+      removeCardFromZone(next, event.cardId, event.toZoneId);
       insertCardIntoZone(next, event.cardId, event.toZoneId, event.type === 'card/move' ? event.toIndex : undefined);
       const nextFace = event.face ?? card.face;
       next.cards[event.cardId] = {
