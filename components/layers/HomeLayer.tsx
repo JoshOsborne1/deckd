@@ -72,6 +72,8 @@ export function HomeLayer({
 }: HomeLayerProps) {
   const router = useRouter();
   const setViewMode = useUiStore((s) => s.setViewMode);
+  const firstRunHintDismissed = useUiStore((s) => s.firstRunHintDismissed);
+  const dismissFirstRunHint = useUiStore((s) => s.dismissFirstRunHint);
   const nickname = useProfileStore((s) => s.nickname);
   const avatarSeed = useProfileStore((s) => s.avatarSeed);
   const level = useProfileStore((s) => s.level);
@@ -374,6 +376,22 @@ export function HomeLayer({
               />
             </CardButton>
           </Animated.View>
+
+          {interactive && !firstRunHintDismissed && (
+            <Pressable
+              onPress={() => {
+                dismissFirstRunHint();
+                setViewMode('hub');
+              }}
+              accessibilityRole="button"
+              accessibilityLabel="Tap the deck to deal. Dismiss hint."
+              style={styles.firstRunHint}
+            >
+              <Text style={styles.firstRunHintText}>
+                Tap the deck to deal →
+              </Text>
+            </Pressable>
+          )}
         </View>
 
         <Animated.View style={[styles.sectionDivider, sectionDividerStyle]}>
@@ -529,6 +547,21 @@ const styles = StyleSheet.create({
     color: colors.inkMuted,
     fontSize: 15,
     fontFamily: fonts.semibold,
+  },
+  firstRunHint: {
+    marginTop: space.lg,
+    paddingHorizontal: space.lg,
+    paddingVertical: space.sm,
+    borderRadius: radii.pill,
+    backgroundColor: alpha.brand10,
+    borderWidth: 1,
+    borderColor: alpha.brand20,
+  },
+  firstRunHintText: {
+    fontSize: 13,
+    fontFamily: fonts.semibold,
+    color: colors.brand,
+    letterSpacing: 0.3,
   },
   sectionDivider: {
     flexDirection: 'row',
