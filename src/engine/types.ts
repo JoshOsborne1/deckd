@@ -50,6 +50,29 @@ export interface Player {
   avatarSeed: string;
 }
 
+export type PokerBetAction = 'blind' | 'check' | 'call' | 'raise' | 'fold';
+
+/**
+ * Serialisable Hold'em betting state. `contributions` are for the whole hand;
+ * `roundContributions` reset after each community street so the reducer can
+ * distinguish a call from a check without hiding state in the UI.
+ */
+export interface PokerBettingState {
+  dealerId: PlayerId;
+  smallBlindPlayerId: PlayerId;
+  bigBlindPlayerId: PlayerId;
+  firstPreflopPlayerId: PlayerId;
+  firstPostflopPlayerId: PlayerId;
+  smallBlind: number;
+  bigBlind: number;
+  currentBet: number;
+  stacks: Record<PlayerId, number>;
+  contributions: Record<PlayerId, number>;
+  roundContributions: Record<PlayerId, number>;
+  acted: PlayerId[];
+  roundComplete: boolean;
+}
+
 export type FanStyle = 'tight' | 'wide' | 'stacked';
 
 export interface SessionConfig {
@@ -84,6 +107,7 @@ export interface GameState {
     street: number;
     folded: PlayerId[];
     pot: number;
+    betting?: PokerBettingState;
   };
 }
 

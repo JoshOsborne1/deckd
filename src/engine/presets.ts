@@ -242,7 +242,7 @@ export const blackjackStylePreset = makePreset({
 export const pokerStylePreset = makePreset({
   id: 'poker',
   name: 'Poker-style',
-  oneLiner: 'Two hole cards each. Burn/flop/turn/river triggered by host. No rule enforcement.',
+  oneLiner: 'Post blinds, bet with chips, then build the best hand from the community.',
   minPlayers: 2,
   maxPlayers: 10,
   backs: ['back-crimson'],

@@ -1,5 +1,5 @@
 import { buildDeck, makeSeed, mulberry32, shuffleInPlace } from './deck';
-import { emptyState, foldEvents } from './state';
+import { applyEvent, emptyState, foldEvents } from './state';
 import { eventId } from './events';
 import type { GameEvent } from './events';
 import { ZONE_DRAW, communalZoneId, handZoneId } from './types';
@@ -52,6 +52,26 @@ function makeBlackjackState(players: { id: string; name: string }[]) {
   return makeSession(players, 'blackjack');
 }
 
+function applyRuleEvents(
+  state: ReturnType<typeof makeSession>,
+  events: ReturnType<ReturnType<typeof getGameRules>['apply']>,
+  actorId = state.currentPlayerId,
+) {
+  let next = state;
+  let seq = 1000;
+  for (const event of events ?? []) {
+    next = applyEvent(next, {
+      ...event,
+      id: eventId(seq),
+      ts: Date.now(),
+      actorId,
+      seq,
+    } as GameEvent);
+    seq += 1;
+  }
+  return next;
+}
+
 describe('poker rules', () => {
   test('poker preset creates the communal zone so flop deals are accepted', () => {
     const state = makeSession(
@@ -62,6 +82,74 @@ describe('poker rules', () => {
       'poker',
     );
     expect(state.zones[communalZoneId(0)]).toBeDefined();
+  });
+
+  test('poker starts with blinds, stacks, and the correct preflop actor', () => {
+    const state = makeSession(
+      [{ id: 'p1', name: 'P1' }, { id: 'p2', name: 'P2' }],
+      'poker',
+    );
+    expect(state.currentPlayerId).toBe('p1');
+    expect(state.game?.pot).toBe(15);
+    expect(state.game?.betting?.currentBet).toBe(10);
+    expect(state.game?.betting?.stacks).toEqual({ p1: 95, p2: 90 });
+    expect(state.game?.betting?.roundContributions).toEqual({ p1: 5, p2: 10 });
+  });
+
+  test('call/check closes a betting round and exposes the street controls', () => {
+    const state = makeSession(
+      [{ id: 'p1', name: 'P1' }, { id: 'p2', name: 'P2' }],
+      'poker',
+    );
+    const rules = getGameRules('poker');
+    const call = rules.apply('call', state, 'p1');
+    expect(call?.find((event) => event.type === 'game/bet')).toMatchObject({ action: 'call', amount: 5 });
+    const afterCall = applyRuleEvents(state, call, 'p1');
+    expect(afterCall.currentPlayerId).toBe('p2');
+
+    const check = rules.apply('check', afterCall, 'p2');
+    expect(check?.find((event) => event.type === 'game/bet')).toMatchObject({ action: 'check', roundComplete: true });
+    const afterCheck = applyRuleEvents(afterCall, check, 'p2');
+    expect(afterCheck.game?.pot).toBe(20);
+    expect(afterCheck.game?.betting?.roundComplete).toBe(true);
+    expect(rules.actions(afterCheck, 'p2').map((action) => action.id)).toEqual(['burn', 'flop']);
+  });
+
+  test('raise/call updates the pot and advances the community street once', () => {
+    const state = makeSession(
+      [{ id: 'p1', name: 'P1' }, { id: 'p2', name: 'P2' }],
+      'poker',
+    );
+    const rules = getGameRules('poker');
+    const raised = applyRuleEvents(state, rules.apply('raise', state, 'p1'), 'p1');
+    expect(raised.game?.pot).toBe(30);
+    expect(raised.game?.betting?.currentBet).toBe(20);
+    expect(raised.currentPlayerId).toBe('p2');
+
+    const called = applyRuleEvents(raised, rules.apply('call', raised, 'p2'), 'p2');
+    expect(called.game?.pot).toBe(40);
+    expect(called.game?.betting?.roundComplete).toBe(true);
+
+    const flop = rules.apply('flop', called, 'p2');
+    expect(flop?.filter((event) => event.type === 'card/deal')).toHaveLength(3);
+    const afterFlop = applyRuleEvents(called, flop, 'p2');
+    expect(afterFlop.game?.street).toBe(1);
+    expect(afterFlop.game?.betting?.roundComplete).toBe(false);
+    expect(afterFlop.currentPlayerId).toBe('p1');
+    expect(afterFlop.zones[communalZoneId(0)]?.cardIds).toHaveLength(3);
+  });
+
+  test('folding ends heads-up play with the remaining player as winner', () => {
+    const state = makeSession(
+      [{ id: 'p1', name: 'P1' }, { id: 'p2', name: 'P2' }],
+      'poker',
+    );
+    const rules = getGameRules('poker');
+    const ended = applyRuleEvents(state, rules.apply('fold', state, 'p1'), 'p1');
+    expect(ended.phase).toBe('ended');
+    expect(ended.winnerId).toBe('p2');
+    expect(ended.game?.folded).toEqual(['p1']);
+    expect(ended.game?.pot).toBe(15);
   });
 
   test('evaluatePokerHand ranks pairs numerically (regression: string compare)', () => {
@@ -96,9 +184,11 @@ describe('poker rules', () => {
       'poker',
     );
     const rules = getGameRules('poker');
-    const host = state.meta.hostId;
+    const afterCall = applyRuleEvents(state, rules.apply('call', state, 'p1'), 'p1');
+    const preflop = applyRuleEvents(afterCall, rules.apply('check', afterCall, 'p2'), 'p2');
+    const host = preflop.currentPlayerId;
 
-    const flop = rules.apply('flop', state, host)!;
+    const flop = rules.apply('flop', preflop, host)!;
     const flopDeals = flop.filter((e) => e.type === 'card/deal');
     expect(flopDeals).toHaveLength(3);
     for (const deal of flopDeals) expect(deal.toZoneId).toBe(communalZoneId(0));

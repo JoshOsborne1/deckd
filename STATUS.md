@@ -1,6 +1,6 @@
 # Deckd status
 
-Last update: 2026-08-11 (solo Klondike draw-one slice — local gates and public 375/1440 QA green; preview redeployed; `t_9f20d120`).
+Last update: 2026-08-11 (Hold'em betting slice — real blinds/chips/pot, betting-round progression, showdown; local gates and public 375/1440 QA green; preview redeployed; `t_6bb2127e`).
 
 ## Deployment
 
@@ -34,6 +34,13 @@ Expo SDK 57, React Native 0.86, React 19, TypeScript strict. Expo Router app wit
 
 - Added a serialisable one-player Klondike recipe with deterministic 28-card tableau / 24-card stock setup, public tableau/foundation zones, draw-one stock, waste recycle, exposed-card flips, alternating-colour run moves, foundation validation, and a 52-card win event.
 - Added the table-native `KlondikeLayout`, setup player-range guard, shared rules copy, fresh-deal replay path, focused engine coverage (109 tests total), and `qa/deckd-klondike-qa.cjs` for the real 375×812 + 1440×900 setup → rules → draw/recycle → end → new-deal flow.
+
+## Hold'em betting slice (2026-08-11, `t_6bb2127e`)
+
+- Texas Hold'em now plays a real betting loop: 100-chip starting stacks, 5/10 blinds, fold/check/call/raise with pot and per-player contribution accounting, round completion, and street advance gated on a closed betting round. Fold-to-last-live-player ends the hand immediately; showdown reveals live hands and names the winner.
+- New `PokerBettingState` on `GameState.game.betting` drives legal action derivation (`pokerActions`/`pokerApply`). A new `game/bet` primitive event records each action, preserving the event-sourced multiplayer bridge. `turn/set` events move the action between live players; `game/street` resets round contributions.
+- TableLayer renders a pot/bet/stack ledger and per-opponent chip pills in the warm ivory/crimson table language. Poker guidance copy explains betting turns vs street advance. Rules guide copy explains the blind/bet/showdown loop in plain English.
+- `qa/deckd-poker-qa.cjs` exercises the full heads-up loop (CALL → CHECK → BURN → FLOP → CHECK×2 → BURN → TURN → CHECK×2 → BURN → RIVER → CHECK×2 → SHOWDOWN → winner) at 375×812 against the public preview with zero browser errors. Jest is now **113 tests / 13 suites** (4 new poker betting tests). Typecheck, lint (0/0), expo-doctor 20/20 pass. Bundle `entry-5e99e23bf8b33f40ec7347585906701a.js` is live.
 
 ## Product direction
 
@@ -82,7 +89,7 @@ Expo SDK 57, React Native 0.86, React 19, TypeScript strict. Expo Router app wit
 
 - `npm run typecheck` passed.
 - `npm run lint` passed (0 errors, 0 warnings).
-- `npx jest --runInBand` passed **12 suites / 104 tests**, including the shared rules-guide contract, War, Go Fish, Old Maid, Crazy Eights, Sevens, poker communal-zone, evaluator tiebreak, flop-deal, and blackjack dealer-play regressions.
+- `npx jest --runInBand` passed **13 suites / 113 tests**, including the shared rules-guide contract, War, Go Fish, Old Maid, Crazy Eights, Sevens, Klondike, poker blinds/betting-round/raise/fold-to-win, evaluator tiebreak, flop-deal, and blackjack dealer-play regressions.
 - `npx expo-doctor` passed 20/20 checks.
 - Public smoke: `DECKD_QA_URL=https://deckd-app.roxai.click node qa/deckd-visual-qa.cjs` passed Home → setup → Deal 2 each → table → ten-card draw → `PASS TURN` → pass veil. `qa/deckd-rules-replay-qa.cjs` also passed setup/live rules, end state, replay, and 48px sheet action bounds. Both scripts reported required flags true and `errors: []`.
 - Public setup scroll probe reported `tokenCount: 5` and `tokensAboveDock: true`; asset cache-busting is available through `DECKD_QA_CACHEBUST` for CDN previews.
@@ -94,6 +101,7 @@ Expo SDK 57, React Native 0.86, React 19, TypeScript strict. Expo Router app wit
 - Local browser proof for `TableSurface` passed at 375×812 and 1440×900: setup → Deal now → table → draw completed, document/body scroll widths matched the viewport, key controls stayed in bounds, and console/page errors were empty.
 - Local post-fix visual proof passed at 375×812 and 1440×900: Home contrast remained healthy, setup/table stayed continuous, menu/deck controls remained in bounds, and page/body widths matched the viewport with no browser errors. Reduced-motion local proxy also passed at 375×812.
 - Local/public free-library proof passed with `qa/deckd-library-qa.cjs`: 375×812 War → Go Fish → Old Maid → Crazy Eights → Sevens flows each exposed and executed a real action, retained turn/readout copy, stayed at document/body/root width 375, and reported no browser errors. `qa/deckd-desktop-qa.cjs` passed War at 1440×900 with stable root geometry and in-bounds Home/Profile/FLIP controls.
+- Public Hold'em betting proof passed with `qa/deckd-poker-qa.cjs` against `entry-5e99e23bf8b33f40ec7347585906701a.js`: 375×812 heads-up CALL → CHECK → BURN → FLOP → CHECK×2 → BURN → TURN → CHECK×2 → BURN → RIVER → CHECK×2 → SHOWDOWN → winner banner, 15 actions, zero browser errors.
 
 ## Decisions
 

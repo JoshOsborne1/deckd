@@ -2,8 +2,69 @@ import type { GameEvent } from './events';
 import type {
   CardInstance,
   GameState,
+  Player,
+  PokerBettingState,
   ZoneId,
 } from './types';
+
+const POKER_STARTING_STACK = 100;
+const POKER_SMALL_BLIND = 5;
+const POKER_BIG_BLIND = 10;
+
+function createPokerBettingState(players: Player[]): PokerBettingState {
+  const ordered = players.slice().sort((a, b) => a.seat - b.seat);
+  const fallback = ordered[0]?.id ?? '';
+  const dealerIndex = 0;
+  const smallBlindIndex = ordered.length === 2 ? dealerIndex : (dealerIndex + 1) % Math.max(ordered.length, 1);
+  const bigBlindIndex = ordered.length > 1 ? (smallBlindIndex + 1) % ordered.length : smallBlindIndex;
+  const firstPreflopIndex = ordered.length === 2
+    ? dealerIndex
+    : (bigBlindIndex + 1) % Math.max(ordered.length, 1);
+  const firstPostflopIndex = ordered.length === 2
+    ? dealerIndex
+    : ordered.length > 1
+      ? (dealerIndex + 1) % ordered.length
+      : dealerIndex;
+  const stacks: Record<string, number> = {};
+  const contributions: Record<string, number> = {};
+  const roundContributions: Record<string, number> = {};
+  for (const player of ordered) {
+    stacks[player.id] = POKER_STARTING_STACK;
+    contributions[player.id] = 0;
+    roundContributions[player.id] = 0;
+  }
+
+  const smallBlindPlayerId = ordered[smallBlindIndex]?.id ?? fallback;
+  const bigBlindPlayerId = ordered[bigBlindIndex]?.id ?? fallback;
+  const smallBlind = smallBlindPlayerId ? Math.min(POKER_SMALL_BLIND, stacks[smallBlindPlayerId] ?? 0) : 0;
+  const bigBlind = bigBlindPlayerId ? Math.min(POKER_BIG_BLIND, stacks[bigBlindPlayerId] ?? 0) : 0;
+  if (smallBlindPlayerId) {
+    stacks[smallBlindPlayerId] = (stacks[smallBlindPlayerId] ?? 0) - smallBlind;
+    contributions[smallBlindPlayerId] = smallBlind;
+    roundContributions[smallBlindPlayerId] = smallBlind;
+  }
+  if (bigBlindPlayerId) {
+    stacks[bigBlindPlayerId] = (stacks[bigBlindPlayerId] ?? 0) - bigBlind;
+    contributions[bigBlindPlayerId] = (contributions[bigBlindPlayerId] ?? 0) + bigBlind;
+    roundContributions[bigBlindPlayerId] = (roundContributions[bigBlindPlayerId] ?? 0) + bigBlind;
+  }
+
+  return {
+    dealerId: ordered[dealerIndex]?.id ?? fallback,
+    smallBlindPlayerId,
+    bigBlindPlayerId,
+    firstPreflopPlayerId: ordered[firstPreflopIndex]?.id ?? fallback,
+    firstPostflopPlayerId: ordered[firstPostflopIndex]?.id ?? fallback,
+    smallBlind,
+    bigBlind,
+    currentBet: bigBlind,
+    stacks,
+    contributions,
+    roundContributions,
+    acted: [],
+    roundComplete: ordered.length < 2,
+  };
+}
 
 function removeCardFromZone(state: GameState, cardId: string): void {
   const card = state.cards[cardId];
@@ -126,7 +187,10 @@ export function applyEvent(prev: GameState, event: GameEvent): GameState {
       next.meta = event.meta;
       next.config = event.config;
       next.players = event.players.map((p) => ({ ...p }));
-      next.currentPlayerId = event.meta.hostId;
+      const pokerBetting = event.config.presetId === 'poker'
+        ? createPokerBettingState(next.players)
+        : undefined;
+      next.currentPlayerId = pokerBetting?.firstPreflopPlayerId ?? event.meta.hostId;
       next.turn = 0;
       next.phase = 'playing';
       next.zones = {};
@@ -147,6 +211,14 @@ export function applyEvent(prev: GameState, event: GameEvent): GameState {
       next.deckCardIds = Object.keys(next.cards);
       next.winnerId = null;
       next.privacySeat = null;
+      next.game = pokerBetting
+        ? {
+            street: 0,
+            folded: [],
+            pot: pokerBetting.smallBlind + pokerBetting.bigBlind,
+            betting: pokerBetting,
+          }
+        : undefined;
       return next;
     }
 
@@ -258,7 +330,56 @@ export function applyEvent(prev: GameState, event: GameEvent): GameState {
     }
 
     case 'game/street': {
-      next.game = { ...(next.game ?? { street: 0, folded: [], pot: 0 }), street: event.street };
+      const game = next.game ?? { street: 0, folded: [], pot: 0 };
+      const betting = game.betting
+        ? {
+            ...game.betting,
+            currentBet: 0,
+            roundContributions: Object.fromEntries(
+              Object.keys(game.betting.roundContributions).map((playerId) => [playerId, 0]),
+            ),
+            acted: [],
+            roundComplete: false,
+          }
+        : undefined;
+      next.game = { ...game, street: event.street, ...(betting ? { betting } : {}) };
+      return next;
+    }
+
+    case 'game/bet': {
+      const game = next.game ?? { street: 0, folded: [], pot: 0 };
+      const betting = game.betting;
+      if (!betting || !(event.playerId in betting.stacks)) return next;
+      const available = betting.stacks[event.playerId] ?? 0;
+      const amount = Math.max(0, Math.min(Math.floor(event.amount), available));
+      const nextStacks = { ...betting.stacks, [event.playerId]: available - amount };
+      const nextContributions = {
+        ...betting.contributions,
+        [event.playerId]: (betting.contributions[event.playerId] ?? 0) + amount,
+      };
+      const nextRoundContributions = {
+        ...betting.roundContributions,
+        [event.playerId]: (betting.roundContributions[event.playerId] ?? 0) + amount,
+      };
+      const currentBet = event.action === 'raise'
+        ? Math.max(betting.currentBet, nextRoundContributions[event.playerId] ?? 0)
+        : betting.currentBet;
+      const acted = event.action === 'raise'
+        ? [event.playerId]
+        : Array.from(new Set([...betting.acted, event.playerId]));
+      next.game = {
+        ...game,
+        pot: game.pot + amount,
+        betting: {
+          ...betting,
+          stacks: nextStacks,
+          contributions: nextContributions,
+          roundContributions: nextRoundContributions,
+          currentBet,
+          acted,
+          roundComplete: event.roundComplete ?? false,
+        },
+      };
       return next;
     }
 

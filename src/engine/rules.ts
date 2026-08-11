@@ -1,4 +1,11 @@
-import type { CardInstance, GameState, Player, PlayerId, ZoneId } from './types';
+import type {
+  CardInstance,
+  GameState,
+  Player,
+  PlayerId,
+  PokerBettingState,
+  ZoneId,
+} from './types';
 import type { Suit } from '@lib/types';
 import {
   KLONDIKE_FOUNDATION_SUITS,
@@ -57,7 +64,7 @@ export interface GameActionSpec {
 }
 
 export interface PrimitiveEvent {
-  type: 'card/deal' | 'card/move' | 'card/flip' | 'card/reveal' | 'card/ask' | 'turn/set' | 'turn/end' | 'session/end' | 'game/street' | 'game/fold';
+  type: 'card/deal' | 'card/move' | 'card/flip' | 'card/reveal' | 'card/ask' | 'turn/set' | 'turn/end' | 'session/end' | 'game/street' | 'game/bet' | 'game/fold';
   cardId?: string;
   toZoneId?: ZoneId;
   face?: 'up' | 'down';
@@ -68,6 +75,9 @@ export interface PrimitiveEvent {
   rank?: string;
   found?: boolean;
   transferredCount?: number;
+  action?: 'blind' | 'check' | 'call' | 'raise' | 'fold';
+  amount?: number;
+  roundComplete?: boolean;
 }
 
 export interface GameRules {
@@ -790,7 +800,7 @@ export function blackjackDealerPlay(state: GameState): PrimitiveEvent[] {
 }
 
 // ---------------------------------------------------------------------------
-// Poker
+// Texas Hold'em
 // ---------------------------------------------------------------------------
 
 const POKER_RANK_ORDER: Record<string, number> = {
@@ -898,26 +908,118 @@ function beats(a: PokerHandScore, b: PokerHandScore): boolean {
   return false;
 }
 
+function pokerBetting(state: GameState): PokerBettingState | null {
+  return state.game?.betting ?? null;
+}
+
+function pokerLivePlayers(state: GameState, folded: readonly PlayerId[] = state.game?.folded ?? []): Player[] {
+  const foldedSet = new Set(folded);
+  return state.players
+    .slice()
+    .sort((a, b) => a.seat - b.seat)
+    .filter((player) => !foldedSet.has(player.id));
+}
+
+function pokerNextActionablePlayer(
+  state: GameState,
+  playerId: PlayerId,
+  betting: PokerBettingState,
+  folded: readonly PlayerId[] = state.game?.folded ?? [],
+): PlayerId | null {
+  const live = pokerLivePlayers(state, folded);
+  const currentIndex = live.findIndex((player) => player.id === playerId);
+  if (currentIndex < 0) return live.find((player) => (betting.stacks[player.id] ?? 0) > 0)?.id ?? null;
+  for (let offset = 1; offset <= live.length; offset += 1) {
+    const candidate = live[(currentIndex + offset) % live.length];
+    if (candidate && (betting.stacks[candidate.id] ?? 0) > 0) return candidate.id;
+  }
+  return null;
+}
+
+function pokerRoundComplete(
+  state: GameState,
+  betting: PokerBettingState,
+  folded: readonly PlayerId[],
+): boolean {
+  const live = pokerLivePlayers(state, folded);
+  const actionable = live.filter((player) => (betting.stacks[player.id] ?? 0) > 0);
+  if (live.length <= 1 || actionable.length <= 1) return true;
+  return actionable.every((player) =>
+    (betting.roundContributions[player.id] ?? 0) === betting.currentBet &&
+    betting.acted.includes(player.id),
+  );
+}
+
+function pokerAdvanceAllowed(state: GameState, viewerId: PlayerId): boolean {
+  // On one phone, the player holding the table advances the physical deal.
+  // Online, the host remains the single street/deal authority.
+  return state.meta.mode === 'pass'
+    ? state.currentPlayerId === viewerId
+    : state.meta.hostId === viewerId;
+}
+
+function pokerAmountForAction(
+  action: Extract<GameAction, 'check' | 'call' | 'raise' | 'fold'>,
+  betting: PokerBettingState,
+  viewerId: PlayerId,
+): number | null {
+  const stack = betting.stacks[viewerId] ?? 0;
+  const roundContribution = betting.roundContributions[viewerId] ?? 0;
+  if (action === 'fold' || action === 'check') {
+    if (action === 'check' && roundContribution !== betting.currentBet) return null;
+    return 0;
+  }
+  if (stack <= 0) return null;
+  if (action === 'call') {
+    const due = betting.currentBet - roundContribution;
+    if (due <= 0) return null;
+    return Math.min(due, stack);
+  }
+
+  // The action rail is intentionally one-tap: a raise is one big blind above
+  // the current bet, capped at the player's remaining stack (all-in).
+  const target = Math.max(betting.currentBet + betting.bigBlind, betting.bigBlind);
+  const amount = Math.min(target - roundContribution, stack);
+  return amount > betting.currentBet - roundContribution ? amount : null;
+}
+
 function pokerActions(state: GameState, viewerId: PlayerId): GameActionSpec[] {
   if (state.phase !== 'playing') return [];
+  const betting = pokerBetting(state);
+  if (!betting) return [];
   const specs: GameActionSpec[] = [];
-  const isHost = state.meta.hostId === viewerId;
   const isCurrent = state.currentPlayerId === viewerId;
   const street = (state.game?.street ?? 0) as number;
   const drawEmpty = (state.zones['draw']?.cardIds.length ?? 0) === 0;
+  const folded = state.game?.folded ?? [];
+  const isFolded = folded.includes(viewerId);
 
-  if (isHost) {
-    if (street === 0 && !drawEmpty) specs.push({ id: 'burn', label: 'BURN', hint: 'Burn the top card', kind: 'host' });
-    if (street === 0 && !drawEmpty) specs.push({ id: 'flop', label: 'FLOP', hint: 'Deal the flop (3 cards)', kind: 'host' });
-    if (street === 1 && !drawEmpty) specs.push({ id: 'turn', label: 'TURN', hint: 'Deal the turn', kind: 'host' });
-    if (street === 2 && !drawEmpty) specs.push({ id: 'river', label: 'RIVER', hint: 'Deal the river', kind: 'host' });
-    if (street === 3) specs.push({ id: 'reveal', label: 'SHOWDOWN', hint: 'Reveal all hands', kind: 'host' });
+  if (!betting.roundComplete && isCurrent && !isFolded && (betting.stacks[viewerId] ?? 0) > 0) {
+    specs.push({ id: 'fold', label: 'FOLD', hint: 'Leave the hand; the live players continue', kind: 'bet' });
+    const roundContribution = betting.roundContributions[viewerId] ?? 0;
+    const callAmount = pokerAmountForAction('call', betting, viewerId);
+    const raiseAmount = pokerAmountForAction('raise', betting, viewerId);
+    if (roundContribution === betting.currentBet) {
+      specs.push({ id: 'check', label: 'CHECK', hint: 'Pass without adding chips', kind: 'bet' });
+    } else if (callAmount !== null) {
+      specs.push({ id: 'call', label: 'CALL', hint: `Match ${callAmount} chip${callAmount === 1 ? '' : 's'}`, kind: 'bet' });
+    }
+    if (raiseAmount !== null) {
+      const raiseTo = roundContribution + raiseAmount;
+      specs.push({ id: 'raise', label: 'RAISE', hint: `Raise to ${raiseTo} chips`, kind: 'bet' });
+    }
   }
-  if (isCurrent) {
-    specs.push({ id: 'fold', label: 'FOLD', hint: 'Fold your hand', kind: 'bet' });
-    specs.push({ id: 'check', label: 'CHECK', hint: 'Pass without betting', kind: 'bet' });
-    specs.push({ id: 'call', label: 'CALL', hint: 'Match the current bet', kind: 'bet' });
-    specs.push({ id: 'raise', label: 'RAISE', hint: 'Double the current bet', kind: 'bet' });
+
+  if (betting.roundComplete && pokerAdvanceAllowed(state, viewerId)) {
+    if (street <= 2 && !drawEmpty) {
+      specs.push({ id: 'burn', label: 'BURN', hint: 'Remove the top card before the next street', kind: 'host' });
+      if (street === 0) specs.push({ id: 'flop', label: 'FLOP', hint: 'Deal three community cards', kind: 'host' });
+      if (street === 1) specs.push({ id: 'turn', label: 'TURN', hint: 'Deal the fourth community card', kind: 'host' });
+      if (street === 2) specs.push({ id: 'river', label: 'RIVER', hint: 'Deal the fifth community card', kind: 'host' });
+    }
+    if (street === 3) {
+      specs.push({ id: 'reveal', label: 'SHOWDOWN', hint: 'Reveal live hands and award the pot', kind: 'host' });
+    }
   }
   return specs;
 }
@@ -928,21 +1030,23 @@ function pokerApply(
   viewerId: PlayerId,
 ): PrimitiveEvent[] | null {
   if (state.phase !== 'playing') return null;
-  const isHost = state.meta.hostId === viewerId;
+  const betting = pokerBetting(state);
+  if (!betting) return null;
   const isCurrent = state.currentPlayerId === viewerId;
   const street = (state.game?.street ?? 0) as number;
   const draw = state.zones['draw'];
   const top = (): string | null => (draw && draw.cardIds.length > 0 ? draw.cardIds[0]! : null);
+  const folded = state.game?.folded ?? [];
 
   switch (action) {
     case 'burn': {
-      if (!isHost || street !== 0) return null;
+      if (!pokerAdvanceAllowed(state, viewerId) || !betting.roundComplete || street > 2) return null;
       const cid = top();
       if (!cid) return null;
       return [{ type: 'card/move', cardId: cid, toZoneId: ZONE_MUCK, face: 'down' }];
     }
     case 'flop': {
-      if (!isHost || street !== 0) return null;
+      if (!pokerAdvanceAllowed(state, viewerId) || !betting.roundComplete || street !== 0) return null;
       const events: PrimitiveEvent[] = [];
       for (let i = 0; i < 3; i += 1) {
         // Rules are pure: state never mutates, so index into the draw pile
@@ -952,29 +1056,34 @@ function pokerApply(
         if (!cid) break;
         events.push({ type: 'card/deal', cardId: cid, toZoneId: communalZoneId(0), face: 'up' });
       }
-      events.push({ type: 'game/street', street: 1 });
+      events.push(
+        { type: 'game/street', street: 1 },
+        { type: 'turn/set', playerId: betting.firstPostflopPlayerId },
+      );
       return events;
     }
     case 'turn': {
-      if (!isHost || street !== 1) return null;
+      if (!pokerAdvanceAllowed(state, viewerId) || !betting.roundComplete || street !== 1) return null;
       const cid = top();
       if (!cid) return null;
       return [
         { type: 'card/deal', cardId: cid, toZoneId: communalZoneId(0), face: 'up' },
         { type: 'game/street', street: 2 },
+        { type: 'turn/set', playerId: betting.firstPostflopPlayerId },
       ];
     }
     case 'river': {
-      if (!isHost || street !== 2) return null;
+      if (!pokerAdvanceAllowed(state, viewerId) || !betting.roundComplete || street !== 2) return null;
       const cid = top();
       if (!cid) return null;
       return [
         { type: 'card/deal', cardId: cid, toZoneId: communalZoneId(0), face: 'up' },
         { type: 'game/street', street: 3 },
+        { type: 'turn/set', playerId: betting.firstPostflopPlayerId },
       ];
     }
     case 'reveal': {
-      if (!isHost || street !== 3) return null;
+      if (!pokerAdvanceAllowed(state, viewerId) || !betting.roundComplete || street !== 3) return null;
       const events: PrimitiveEvent[] = [];
       for (const player of state.players) {
         for (const cid of state.zones[handZoneId(player.id)]?.cardIds ?? []) {
@@ -1000,30 +1109,73 @@ function pokerApply(
       return events;
     }
     case 'fold': {
-      if (!isCurrent) return null;
-      const events: PrimitiveEvent[] = [];
+      if (!isCurrent || betting.roundComplete || folded.includes(viewerId)) return null;
+      const amount = pokerAmountForAction('fold', betting, viewerId);
+      if (amount === null) return null;
+      const projectedFolded = [...folded, viewerId];
+      const projectedBetting = {
+        ...betting,
+        acted: Array.from(new Set([...betting.acted, viewerId])),
+      };
+      const liveAfterFold = pokerLivePlayers(state, projectedFolded);
+      const roundComplete = pokerRoundComplete(state, projectedBetting, projectedFolded);
+      const events: PrimitiveEvent[] = [
+        { type: 'game/bet', playerId: viewerId, action: 'fold', amount, roundComplete },
+      ];
       for (const cid of state.zones[handZoneId(viewerId)]?.cardIds ?? []) {
         events.push({ type: 'card/move', cardId: cid, toZoneId: ZONE_MUCK, face: 'down' });
       }
       events.push({ type: 'game/fold', playerId: viewerId });
-      events.push({ type: 'turn/end', playerId: viewerId });
+      if (liveAfterFold.length === 1) {
+        events.push({ type: 'session/end', winnerId: liveAfterFold[0]!.id });
+      } else {
+        const nextPlayerId = pokerNextActionablePlayer(state, viewerId, projectedBetting, projectedFolded);
+        if (nextPlayerId && !roundComplete) events.push({ type: 'turn/set', playerId: nextPlayerId });
+      }
       return events;
     }
-    case 'check': {
-      if (!isCurrent) return null;
-      return [{ type: 'turn/end', playerId: viewerId }];
-    }
-    case 'call': {
-      if (!isCurrent) return null;
-      return [{ type: 'turn/end', playerId: viewerId }];
-    }
+    case 'check':
+    case 'call':
     case 'raise': {
-      if (!isCurrent) return null;
-      return [{ type: 'turn/end', playerId: viewerId }];
+      if (!isCurrent || betting.roundComplete || folded.includes(viewerId)) return null;
+      const amount = pokerAmountForAction(action, betting, viewerId);
+      if (amount === null) return null;
+      const roundContribution = (betting.roundContributions[viewerId] ?? 0) + amount;
+      const currentBet = action === 'raise'
+        ? Math.max(betting.currentBet, roundContribution)
+        : betting.currentBet;
+      const projectedBetting: PokerBettingState = {
+        ...betting,
+        currentBet,
+        roundContributions: { ...betting.roundContributions, [viewerId]: roundContribution },
+        stacks: { ...betting.stacks, [viewerId]: (betting.stacks[viewerId] ?? 0) - amount },
+        acted: action === 'raise'
+          ? [viewerId]
+          : Array.from(new Set([...betting.acted, viewerId])),
+      };
+      const roundComplete = pokerRoundComplete(state, projectedBetting, folded);
+      const events: PrimitiveEvent[] = [{
+        type: 'game/bet',
+        playerId: viewerId,
+        action,
+        amount,
+        roundComplete,
+      }];
+      if (!roundComplete) {
+        const nextPlayerId = pokerNextActionablePlayer(state, viewerId, projectedBetting, folded);
+        if (nextPlayerId) events.push({ type: 'turn/set', playerId: nextPlayerId });
+      }
+      return events;
     }
     default:
       return null;
   }
+}
+
+function pokerReadout(state: GameState, playerId: PlayerId): string | null {
+  const betting = pokerBetting(state);
+  if (!betting) return null;
+  return `POT ${state.game?.pot ?? 0} · STACK ${betting.stacks[playerId] ?? 0}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -1274,6 +1426,7 @@ export const GAME_RULES: Record<string, GameRules> = {
     id: 'poker',
     actions: pokerActions,
     apply: pokerApply,
+    readout: pokerReadout,
   },
 };
 

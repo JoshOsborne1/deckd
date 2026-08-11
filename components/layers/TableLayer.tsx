@@ -210,6 +210,14 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
     () => (viewerId ? rules.actions(state, viewerId) : []),
     [rules, state, viewerId],
   );
+  const isPoker = rules.id === 'poker';
+  const pokerBetting = isPoker ? state.game?.betting : undefined;
+  const opponentStackLabel = opponents.length === 1 ? 'OPP STACK' : 'LIVE SEATS';
+  const opponentStackValue = pokerBetting
+    ? opponents.length === 1
+      ? pokerBetting.stacks[opponents[0]?.id ?? ''] ?? 0
+      : opponents.length
+    : null;
   const { width: viewportWidth } = useWindowDimensions();
   const compactRuleActions = viewportWidth < 420 && ruleActions.length > 3;
   const gameAction = useGameStore((s) => s.gameAction);
@@ -236,8 +244,8 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
     [viewerId, isGuest, lobbySession, haptic, gameAction, playSound],
   );
   const myHandValue = useMemo(
-    () => (viewerId ? rules.readout?.(state, viewerId) ?? null : null),
-    [rules, state, viewerId],
+    () => (viewerId && !isPoker ? rules.readout?.(state, viewerId) ?? null : null),
+    [isPoker, rules, state, viewerId],
   );
   const myBust = myHandValue !== null && myHandValue.includes('BUST');
   const communityCards = useMemo(
@@ -382,6 +390,30 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
       };
     }
 
+    if (isPoker && guidanceState !== 'ended') {
+      const hasStreetControl = ruleActions.some((action) => action.kind === 'host');
+      if (hasStreetControl) {
+        return {
+          eyebrow: 'TABLE READY',
+          title: 'Advance the hand',
+          detail: ruleActions[0]?.hint ?? 'Burn, deal the next street, or reveal at showdown.',
+        };
+      }
+      if (!isMyTurn) {
+        const waitingFor = currentPlayerName || 'The next player';
+        return {
+          eyebrow: 'BETTING ROUND',
+          title: `${waitingFor} is choosing`,
+          detail: 'Watch the pot and stack ledger; the next action will appear when the table is passed.',
+        };
+      }
+      return {
+        eyebrow: 'YOUR TURN',
+        title: 'Choose your bet',
+        detail: ruleActions[0]?.hint ?? 'Fold, check, call, or raise.',
+      };
+    }
+
     switch (guidanceState) {
       case 'draw':
         return {
@@ -436,7 +468,7 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
           detail: 'Deal a session to see the next useful move.',
         };
     }
-  }, [availableActions, currentPlayerName, guidanceState, isContextualGame, isMyTurn, ruleActions, rules.id, suggestedAction]);
+  }, [availableActions, currentPlayerName, guidanceState, isContextualGame, isMyTurn, isPoker, ruleActions, rules.id, suggestedAction]);
 
   const surfaceStyle = useLayerSurfaceEntrance(active);
 
@@ -708,6 +740,34 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
 
       {/* Table middle */}
       <View style={styles.table}>
+        {isPoker && pokerBetting && (
+          <View
+            style={styles.pokerLedger}
+            accessible
+            accessibilityRole="text"
+            accessibilityLabel={`Pot ${state.game?.pot ?? 0} chips. Current bet ${pokerBetting.currentBet} chips. Your stack ${pokerBetting.stacks[viewerId ?? ''] ?? 0} chips. ${opponentStackLabel} ${opponentStackValue ?? 0}.`}
+          >
+            <View style={styles.pokerMetric}>
+              <Text style={styles.pokerMetricLabel}>POT</Text>
+              <Text style={styles.pokerMetricValue}>{state.game?.pot ?? 0}</Text>
+            </View>
+            <View style={styles.pokerMetricRule} />
+            <View style={styles.pokerMetric}>
+              <Text style={styles.pokerMetricLabel}>BET</Text>
+              <Text style={styles.pokerMetricValue}>{pokerBetting.currentBet}</Text>
+            </View>
+            <View style={styles.pokerMetricRule} />
+            <View style={styles.pokerMetric}>
+              <Text style={styles.pokerMetricLabel}>YOUR STACK</Text>
+              <Text style={styles.pokerMetricValue}>{pokerBetting.stacks[viewerId ?? ''] ?? 0}</Text>
+            </View>
+            <View style={styles.pokerMetricRule} />
+            <View style={styles.pokerMetric}>
+              <Text style={styles.pokerMetricLabel}>{opponentStackLabel}</Text>
+              <Text style={styles.pokerMetricValue}>{opponentStackValue ?? 0}</Text>
+            </View>
+          </View>
+        )}
         {isWar ? (
           <View style={styles.warPiles}>
             {warPiles.map(({ player, count }) => (
@@ -835,6 +895,7 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
                   : 'Table cleared'}
             </Text>
             <Text style={styles.endedMeta}>
+              {isPoker ? `Pot ${state.game?.pot ?? 0} chips · ` : ''}
               Round complete · {state.turn} {state.turn === 1 ? 'turn' : 'turns'}
             </Text>
             {state.meta.mode === 'pass' ? (
@@ -880,8 +941,34 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
         </View>
       )}
 
+      {isPoker && state.phase !== 'ended' && ruleActions.length > 0 && (
+        <View style={styles.pokerActionsRail}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.pokerActionsContent}
+          >
+            {ruleActions.map((spec) => (
+              <CardButton
+                key={spec.id}
+                variant={spec.kind === 'host' ? 'secondary' : 'primary'}
+                size="sm"
+                haptic="medium"
+                onPress={() => handleGameAction(spec.id)}
+                style={styles.ruleActionBtn}
+                innerStyle={styles.ruleActionInner}
+              >
+                <Text style={styles.ruleActionText} numberOfLines={1}>
+                  {spec.label}
+                </Text>
+              </CardButton>
+            ))}
+          </ScrollView>
+        </View>
+      )}
+
       {/* Action bar */}
-      <View style={[styles.actionBar, { marginBottom: bottomInset > 0 ? 0 : space.lg }]}>
+      <View style={[styles.actionBar, isPoker && styles.pokerUtilityBar, { marginBottom: bottomInset > 0 ? 0 : space.lg }]}>
         <Pressable
           onPress={handleShuffle}
           disabled={!isHost}
@@ -918,7 +1005,7 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
           </Pressable>
         )}
 
-        {usesRuleActionBar && state.phase !== 'ended' ? (
+        {usesRuleActionBar && !isPoker && state.phase !== 'ended' ? (
           ruleActions.length > 0 ? (
             compactRuleActions ? (
               <View style={[styles.ruleActions, styles.ruleActionsCompact]}>
@@ -969,6 +1056,8 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
               </Text>
             </View>
           )
+        ) : isPoker ? (
+          <View style={styles.pokerUtilitySpacer} />
         ) : (isPassMode || isOnline) && state.phase !== 'ended' ? (
           <CardButton
             variant="primary"
@@ -1182,6 +1271,7 @@ const styles = StyleSheet.create({
     color: colors.inkMuted,
     letterSpacing: letterSpacing.cap,
   },
+
   stubCards: {
     flexDirection: 'row',
     marginTop: space.xs,
@@ -1195,6 +1285,40 @@ const styles = StyleSheet.create({
     paddingHorizontal: space.xl,
     gap: space.md,
     minHeight: 0,
+  },
+  pokerLedger: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    alignSelf: 'stretch',
+    maxWidth: 360,
+    paddingHorizontal: space.md,
+    paddingVertical: space.sm,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderColor: alpha.inkOverlay12,
+    backgroundColor: alpha.whiteOverlay45,
+  },
+  pokerMetric: {
+    flex: 1,
+    alignItems: 'center',
+    gap: 2,
+  },
+  pokerMetricLabel: {
+    fontSize: 9,
+    fontFamily: fonts.bold,
+    color: colors.inkSubtle,
+    letterSpacing: letterSpacing.cap,
+  },
+  pokerMetricValue: {
+    fontSize: fontSizes.body,
+    fontFamily: fonts.extra,
+    color: colors.ink,
+  },
+  pokerMetricRule: {
+    width: StyleSheet.hairlineWidth,
+    alignSelf: 'stretch',
+    backgroundColor: alpha.inkOverlay12,
   },
   tablePiles: {
     flexDirection: 'row',
@@ -1353,6 +1477,24 @@ const styles = StyleSheet.create({
     paddingHorizontal: space.md,
     gap: space.md,
     paddingTop: space.md,
+  },
+  pokerActionsRail: {
+    alignSelf: 'stretch',
+    paddingHorizontal: space.md,
+    paddingTop: space.xs,
+  },
+  pokerActionsContent: {
+    flexGrow: 1,
+    justifyContent: 'center',
+    gap: space.xs,
+    paddingHorizontal: space.xs,
+  },
+  pokerUtilityBar: {
+    paddingTop: space.xs,
+  },
+  pokerUtilitySpacer: {
+    flex: 1,
+    minWidth: 0,
   },
   ruleActions: {
     flexDirection: 'row',

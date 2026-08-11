@@ -1,4 +1,13 @@
-import type { CardFace, CardId, PlayerId, SessionConfig, SessionMeta, Zone, ZoneId } from './types';
+import type {
+  CardFace,
+  CardId,
+  PlayerId,
+  PokerBetAction,
+  SessionConfig,
+  SessionMeta,
+  Zone,
+  ZoneId,
+} from './types';
 
 export interface BaseEvent {
   readonly id: string;
@@ -50,6 +59,13 @@ export type GameEvent =
   | (BaseEvent & { type: 'privacy/enter'; playerId: PlayerId })
   | (BaseEvent & { type: 'privacy/exit' })
   | (BaseEvent & { type: 'game/street'; street: number })
+  | (BaseEvent & {
+      type: 'game/bet';
+      playerId: PlayerId;
+      action: PokerBetAction;
+      amount: number;
+      roundComplete?: boolean;
+    })
   | (BaseEvent & { type: 'game/fold'; playerId: PlayerId })
   | (BaseEvent & { type: 'session/pause' })
   | (BaseEvent & { type: 'session/resume' })

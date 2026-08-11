@@ -124,14 +124,15 @@ export const RULES_GUIDES: Record<string, RulesGuide> = {
   poker: {
     id: 'poker',
     title: "Texas Hold'em-style",
-    summary: 'Build the best five-card hand from your hole cards and the community.',
+    summary: 'Post blinds, build the pot, and make the best five-card hand from the table.',
     steps: [
-      'Use CHECK, CALL, RAISE, or FOLD during the betting turns.',
-      'The host advances the table through BURN, FLOP, TURN, and RIVER.',
+      'The hand opens with a 5-chip small blind and a 10-chip big blind.',
+      'Use CHECK, CALL, RAISE, or FOLD until every live player has matched the bet.',
+      'The table advances through BURN, FLOP, TURN, and RIVER before SHOWDOWN.',
       'At SHOWDOWN, the best five-card combination wins the pot.',
     ],
-    win: 'The highest-ranked live hand takes the table; folded hands cannot win.',
-    tableNote: 'Private hole cards stay private; community cards are always public.',
+    win: 'The highest-ranked live hand takes the table; folding leaves the pot to the last live player.',
+    tableNote: 'Each player starts with 100 chips. Private hole cards stay private; community cards are always public.',
   },
 };
 

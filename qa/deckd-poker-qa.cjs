@@ -5,92 +5,114 @@ const BASE_URL = process.env.DECKD_QA_URL ?? 'http://127.0.0.1:8082';
   const browser = await chromium.launch({ headless: true });
   const page = await browser.newPage({ viewport: { width: 375, height: 812 }, deviceScaleFactor: 1 });
   const errors = [];
+  const actions = [];
   page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`));
   page.on('console', (m) => { if (m.type() === 'error') errors.push(`console: ${m.text()}`); });
+
+  const waitForTable = async () => page.waitForTimeout(900);
+  const clickAction = async (name) => {
+    const button = page.getByRole('button', { name, exact: true });
+    if (!(await button.count())) return false;
+    await button.first().click();
+    actions.push(name);
+    await waitForTable();
+    return true;
+  };
+  const text = async () => page.locator('body').innerText();
 
   await page.goto(`${BASE_URL}/`, { waitUntil: 'commit', timeout: 30000 });
   await page.waitForTimeout(8000);
 
-  // Deal a table
+  // Deal a table, choose Poker, then start the hand.
   await page.getByRole('button', { name: 'Deal the deck', exact: true }).last().click();
-  await page.waitForTimeout(900);
-
-  // Pick Poker preset
+  await waitForTable();
   const presetBtn = page.getByRole('button', { name: /Poker/i });
   if (await presetBtn.count()) {
     await presetBtn.click();
     await page.waitForTimeout(500);
   }
-
-  // Deal now
   const dealNow = page.getByRole('button', { name: 'Deal now', exact: true });
   if (await dealNow.count()) {
     await dealNow.click();
     await page.waitForTimeout(1500);
   }
 
-  // Initial poker table: hole cards down + BURN/FLOP host actions
   await page.screenshot({ path: '.qa-poker-dealt-375.png', fullPage: false });
-  let text = await page.locator('body').innerText();
-
+  let bodyText = await text();
   const initial = {
-    hasBurn: text.includes('BURN'),
-    hasFlop: text.includes('FLOP'),
-    hasFold: text.includes('FOLD'),
-    hasCheck: text.includes('CHECK'),
-    hasCall: text.includes('CALL'),
-    hasRaise: text.includes('RAISE'),
-    hasPassVeil: text.includes('PASS DEVICE TO'),
+    hasPot: bodyText.includes('POT'),
+    hasStack: bodyText.includes('YOUR STACK'),
+    hasFold: bodyText.includes('FOLD'),
+    hasCheck: bodyText.includes('CHECK'),
+    hasCall: bodyText.includes('CALL'),
+    hasRaise: bodyText.includes('RAISE'),
+    hasStreetControlBeforeBetting: bodyText.includes('BURN') || bodyText.includes('FLOP'),
     errors: [...errors],
   };
 
-  // FLOP: deals 3 community cards
-  const flopBtn = page.getByRole('button', { name: 'FLOP', exact: true });
-  if (await flopBtn.count()) {
-    await flopBtn.click();
-    await page.waitForTimeout(1200);
-  }
+  // Heads-up preflop: small blind calls, big blind checks.
+  const preflopCall = await clickAction('CALL');
+  const preflopCheck = await clickAction('CHECK');
+  bodyText = await text();
+  const preflop = {
+    callClicked: preflopCall,
+    checkClicked: preflopCheck,
+    hasBurn: bodyText.includes('BURN'),
+    hasFlop: bodyText.includes('FLOP'),
+    errors: [...errors],
+  };
+
+  // Flop and post-flop check/check.
+  const burnFlop = [await clickAction('BURN'), await clickAction('FLOP')];
   await page.screenshot({ path: '.qa-poker-flop-375.png', fullPage: false });
-  text = await page.locator('body').innerText();
-
+  const flopCheckOne = await clickAction('CHECK');
+  const flopCheckTwo = await clickAction('CHECK');
+  bodyText = await text();
   const afterFlop = {
-    hasTurn: text.includes('TURN'),
-    hasRiver: text.includes('RIVER'),
-    hasShowdown: text.includes('SHOWDOWN'),
-    flopLabel: text.includes('FLOP'),
+    burnClicked: burnFlop[0],
+    flopClicked: burnFlop[1],
+    checksClicked: flopCheckOne && flopCheckTwo,
+    hasTurn: bodyText.includes('TURN'),
+    hasRiver: bodyText.includes('RIVER'),
     errors: [...errors],
   };
 
-  // TURN: deals the 4th community card
-  const turnBtn = page.getByRole('button', { name: 'TURN', exact: true });
-  if (await turnBtn.count()) {
-    await turnBtn.click();
-    await page.waitForTimeout(1200);
-  }
+  // Turn, then another check/check.
+  const turnBurn = await clickAction('BURN');
+  const turnDeal = await clickAction('TURN');
   await page.screenshot({ path: '.qa-poker-turn-375.png', fullPage: false });
+  const turnCheckOne = await clickAction('CHECK');
+  const turnCheckTwo = await clickAction('CHECK');
 
-  // RIVER: deals the 5th
-  const riverBtn = page.getByRole('button', { name: 'RIVER', exact: true });
-  if (await riverBtn.count()) {
-    await riverBtn.click();
-    await page.waitForTimeout(1200);
-  }
+  // River, then the final check/check.
+  const riverBurn = await clickAction('BURN');
+  const riverDeal = await clickAction('RIVER');
   await page.screenshot({ path: '.qa-poker-river-375.png', fullPage: false });
+  const riverCheckOne = await clickAction('CHECK');
+  const riverCheckTwo = await clickAction('CHECK');
+  bodyText = await text();
+  const river = {
+    turnSequence: turnBurn && turnDeal && turnCheckOne && turnCheckTwo,
+    riverSequence: riverBurn && riverDeal && riverCheckOne && riverCheckTwo,
+    hasShowdown: bodyText.includes('SHOWDOWN'),
+    errors: [...errors],
+  };
 
-  // SHOWDOWN: reveals all hands and ends the session
-  const showdownBtn = page.getByRole('button', { name: 'SHOWDOWN', exact: true });
-  if (await showdownBtn.count()) {
-    await showdownBtn.click();
-    await page.waitForTimeout(1500);
-  }
+  // Showdown: reveal all hands and end the session.
+  const showdownClicked = await clickAction('SHOWDOWN');
   await page.screenshot({ path: '.qa-poker-showdown-375.png', fullPage: false });
-  text = await page.locator('body').innerText();
+  bodyText = await text();
 
   const result = {
     initial,
+    preflop,
     afterFlop,
-    hasWinnerBanner: text.includes('SESSION OVER') || text.includes('takes the table'),
-    showdownRevealed: !text.includes('HAND LOCKED'),
+    river,
+    showdownClicked,
+    actionCount: actions.length,
+    actions,
+    hasWinnerBanner: bodyText.includes('SESSION OVER') || bodyText.includes('takes the table'),
+    showdownRevealed: !bodyText.includes('HAND LOCKED'),
     errors,
   };
   process.stdout.write(JSON.stringify(result, null, 2));

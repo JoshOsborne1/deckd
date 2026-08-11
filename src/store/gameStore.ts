@@ -403,6 +403,16 @@ export const useGameStore = create<GameStoreState>()(
             case 'game/street':
               get().setStreet(ev.street ?? 0);
               break;
+            case 'game/bet':
+              get().dispatch({
+                type: 'game/bet',
+                actorId: playerId,
+                playerId: ev.playerId!,
+                action: ev.action!,
+                amount: ev.amount ?? 0,
+                roundComplete: ev.roundComplete,
+              });
+              break;
             case 'game/fold':
               get().foldPlayer(ev.playerId!);
               break;
