@@ -182,6 +182,14 @@ export function HubLayer({
     [presetId],
   );
 
+  // FreeCell and Pyramid layouts are hardcoded to a 52-card deck (FreeCell
+  // 4×7 + 4×6, Pyramid 28 + 24). Enabling jokers silently drops 2 cards from
+  // those deals, so the token is hidden and the flag forced off for them.
+  const jokersSupported =
+    activePreset?.recipe.layout !== 'freecell' &&
+    activePreset?.recipe.layout !== 'pyramid';
+  const effectiveIncludeJokers = jokersSupported && includeJokers;
+
   const handlePresetSelect = (nextPreset: Preset) => {
     setPresetId(nextPreset.id);
     setPlayerCount((current) => {
@@ -229,7 +237,7 @@ export function HubLayer({
         mode: 'online-host',
         presetId: activePreset.id,
         players,
-        config: { includeJokers, fanStyle, autoReshuffleDiscard: autoReshuffle },
+        config: { includeJokers: effectiveIncludeJokers, fanStyle, autoReshuffleDiscard: autoReshuffle },
         hostId: localClientId,
       });
       useProfileStore.getState().bumpGamesPlayed();
@@ -248,7 +256,7 @@ export function HubLayer({
       mode: playerCount === 1 ? 'solo' : 'pass',
       presetId: activePreset.id,
       players,
-      config: { includeJokers, fanStyle, autoReshuffleDiscard: autoReshuffle },
+      config: { includeJokers: effectiveIncludeJokers, fanStyle, autoReshuffleDiscard: autoReshuffle },
       hostId: 'you',
     });
     useProfileStore.getState().bumpGamesPlayed();
@@ -611,12 +619,14 @@ export function HubLayer({
         </Animated.View>
         <Animated.View style={optionsCardStyle}>
           <View style={styles.tokenGrid}>
-            <OptionToken
-              label="Jokers"
-              detail={includeJokers ? '54 cards' : '52 cards'}
-              selected={includeJokers}
-              onPress={() => setIncludeJokers((v) => !v)}
-            />
+            {jokersSupported && (
+              <OptionToken
+                label="Jokers"
+                detail={includeJokers ? '54 cards' : '52 cards'}
+                selected={includeJokers}
+                onPress={() => setIncludeJokers((v) => !v)}
+              />
+            )}
             <OptionToken
               label="Wide fan"
               detail="hand layout"
