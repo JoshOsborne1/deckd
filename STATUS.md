@@ -1,6 +1,6 @@
 # Deckd status
 
-Last update: 2026-08-10 (poker fixed + online blackjack house seat — `571daa6`, `7970086`).
+Last update: 2026-08-11 (solo blackjack + offline shell — `cc06d8e`, `c017844`).
 
 ## Deployment
 
@@ -48,6 +48,13 @@ Expo SDK 57, React Native 0.86, React 19, TypeScript strict. Expo Router app wit
 - **Online blackjack house seat:** gameStore appends a virtual `house` player (last seat = dealer) when creating a blackjack session. Previously the last REAL player was the dealer — in a 2-player online lobby the guest never got a turn. Pass ritual copy: "You're choosing" (was "You is choosing").
 - **Poker unit suite added:** communal zone, flush, straight/wheel, flop deals land, numeric-tiebreak regression. **82 tests total.**
 
+## Solo blackjack + offline shell (Aug 10 2026, `cc06d8e` + `c017844`)
+
+- **Solo mode:** Hub 1-player chip (blackjack-only: auto-switches preset, disabled for others), blackjack preset `minPlayers: 1` + `solo` flag, virtual `house` seat as dealer, `startNextHand` re-deals a fresh hand, HAND OVER banner ("You beat the house" / "House wins this hand") + Next hand CTA.
+- **Offline shell:** service worker `public/sw.js` (precache shell, network-first navigations with cache fallback, stale-while-revalidate assets) registered in `+html.tsx`; `serve.mjs` serves hashed build assets `max-age=31536000, immutable`.
+- **Proven live in browser:** full solo loop (deal → TWIST → bust → house auto-play → HAND OVER → Next hand → fresh deal) and offline cold launch (server stopped, app boots from cache with game state intact).
+- **Tests: 87 total** (2 new solo tests: one-player session, next-hand re-deal). Detail in `references/solo-offline-batch-2026-08-10.md`.
+
 ## Verification
 
 - `npm run typecheck` passed.
@@ -73,9 +80,9 @@ Expo SDK 57, React Native 0.86, React 19, TypeScript strict. Expo Router app wit
 
 ## Immediate next actions
 
-1. Run a native device touch/safe-area/reduced-motion pass.
-2. Complete the real 2-device lobby test against the deployed relay.
-3. Keep RevenueCat product/key work, Rive, and broader game-library expansion behind the gameplay-first priority.
+1. Run a native device touch/safe-area/reduced-motion pass (physical iPhone + Android).
+2. Keep RevenueCat product/key work, Rive, and broader game-library expansion behind the gameplay-first priority.
+3. Josh's UI pass on the shipped surfaces whenever he wants to drop it; correctness/infra layer stays ahead of design drops.
 
 ## Parked tracks
 
