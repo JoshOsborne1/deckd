@@ -3,15 +3,12 @@ import { foldEvents } from './state';
 import { eventId } from './events';
 import type { GameEvent } from './events';
 import { ZONE_DRAW } from './types';
-import { klondikePreset, freeCellPreset, pyramidPreset } from './presets';
+import { freeCellPreset, pyramidPreset } from './presets';
 import { getGameRules, encodeMoveAction } from './rules';
 import {
-  ZONE_WASTE,
   PYRAMID_ZONE,
   PYRAMID_STOCK,
   PYRAMID_WASTE,
-  tableauZoneId,
-  foundationZoneId,
   freeCellTableauZoneId,
   freeCellZoneId,
   pyramidPairMatches,
@@ -19,13 +16,13 @@ import {
 } from './solitaire';
 import type { GameState } from './types';
 
-function buildSolitaireEvents(presetId: 'klondike' | 'freecell' | 'pyramid', seed = 'test-solitaire-seed'): { events: GameEvent[]; state: GameState } {
+function buildSolitaireEvents(presetId: 'freecell' | 'pyramid', seed = 'test-solitaire-seed'): { events: GameEvent[]; state: GameState } {
   const deckOrder = shuffleInPlace(
     buildDeck({ includeJokers: false }).map((c) => c.id),
     mulberry32(seed),
   );
   const playerObjs = [{ id: 'you', name: 'You', seat: 0, avatarSeed: 's' }];
-  const preset = presetId === 'klondike' ? klondikePreset : presetId === 'freecell' ? freeCellPreset : pyramidPreset;
+  const preset = presetId === 'freecell' ? freeCellPreset : pyramidPreset;
   const setup = preset.setup({
     players: playerObjs,
     config: { includeJokers: false, fanStyle: 'wide', autoReshuffleDiscard: true, presetId },
@@ -62,84 +59,6 @@ function applyEvents(prevEvents: GameEvent[], state: GameState, primitives: { ty
   }));
   return foldEvents([...prevEvents, ...next]);
 }
-
-describe('Klondike rules', () => {
-  test('cycleStock moves the top stock card to the waste face-up', () => {
-    const { state, events } = buildSolitaireEvents('klondike');
-    const rules = getGameRules('klondike');
-    const stockBefore = state.zones[ZONE_DRAW]!.cardIds.length;
-    const result = rules.apply('cycleStock', state, 'you');
-    expect(result).toHaveLength(1);
-    expect(result![0]!.type).toBe('card/move');
-    expect(result![0]!.toZoneId).toBe(ZONE_WASTE);
-    expect(result![0]!.face).toBe('up');
-    const next = applyEvents(events, state, [{ type: 'card/move', cardId: result![0]!.cardId!, toZoneId: ZONE_WASTE, face: 'up' }]);
-    expect(next.zones[ZONE_DRAW]!.cardIds.length).toBe(stockBefore - 1);
-    expect(next.zones[ZONE_WASTE]!.cardIds.length).toBe(1);
-  });
-
-  test('a waste card can move to a valid tableau or foundation', () => {
-    const { state, events } = buildSolitaireEvents('klondike');
-    const rules = getGameRules('klondike');
-    // Cycle stock to get a waste card.
-    const cycle = rules.apply('cycleStock', state, 'you')!;
-    const stateAfter = applyEvents(events, state, [{ type: 'card/move', cardId: cycle[0]!.cardId!, toZoneId: ZONE_WASTE, face: 'up' }]);
-    const wasteCard = stateAfter.zones[ZONE_WASTE]!.cardIds[stateAfter.zones[ZONE_WASTE]!.cardIds.length - 1]!;
-    // Try moving to each tableau column.
-    let movedToTableau = false;
-    for (let col = 0; col < 7; col += 1) {
-      const move = encodeMoveAction(ZONE_WASTE, tableauZoneId(col));
-      const result = rules.apply(move, stateAfter, 'you');
-      if (result) {
-        expect(result[0]!.cardId).toBe(wasteCard);
-        expect(result[0]!.toZoneId).toBe(tableauZoneId(col));
-        movedToTableau = true;
-        break;
-      }
-    }
-    // Try each foundation.
-    let movedToFoundation = false;
-    for (let f = 0; f < 4; f += 1) {
-      const move = encodeMoveAction(ZONE_WASTE, foundationZoneId(f));
-      const result = rules.apply(move, stateAfter, 'you');
-      if (result) {
-        expect(result[0]!.cardId).toBe(wasteCard);
-        movedToFoundation = true;
-        break;
-      }
-    }
-    // The waste card should be movable to at least one tableau or foundation.
-    expect(movedToTableau || movedToFoundation).toBe(true);
-  });
-
-  test('end action returns null unless the game is won', () => {
-    const { state } = buildSolitaireEvents('klondike');
-    const rules = getGameRules('klondike');
-    expect(rules.apply('end', state, 'you')).toBeNull();
-  });
-
-  test('klondike readout shows stock and foundation counts', () => {
-    const { state } = buildSolitaireEvents('klondike');
-    const rules = getGameRules('klondike');
-    const readout = rules.readout!(state, 'you');
-    expect(readout).toContain('STOCK');
-    expect(readout).toContain('FOUNDATION 0/52');
-  });
-
-  test('illegal move to a foundation returns null', () => {
-    const { state } = buildSolitaireEvents('klondike');
-    const rules = getGameRules('klondike');
-    const col0Ids = state.zones[tableauZoneId(0)]!.cardIds;
-    const topCard = col0Ids[col0Ids.length - 1]!;
-    const move = encodeMoveAction(tableauZoneId(0), foundationZoneId(0));
-    const result = rules.apply(move, state, 'you');
-    if (topCard.endsWith('-A')) {
-      expect(result).not.toBeNull();
-    } else {
-      expect(result).toBeNull();
-    }
-  });
-});
 
 describe('FreeCell rules', () => {
   test('a single card can move to an empty free cell', () => {

@@ -31,7 +31,6 @@ import {
   freeCellTableauZoneId,
   isFreeCellWon,
   isKing,
-  isKlondikeWon,
   isPyramidCardFree,
   isPyramidWon,
   pyramidPairMatches,
@@ -1401,14 +1400,12 @@ function noActions(): GameActionSpec[] {
   return [];
 }
 
-// ---------------------------------------------------------------------------
-// Klondike solitaire
-// ---------------------------------------------------------------------------
+/** Exported so the UI can build tap-to-move actions from zone ids. */
+export function encodeMoveAction(from: string, to: string): GameAction {
+  return `move:${from}:to:${to}` as GameAction;
+}
 
-/**
- * Move action encoding: `move:<from>:<to>` where from/to are zone ids. The UI
- * builds these from tap-to-move selection; the rules layer validates each.
- */
+/** Shared by Klondike/FreeCell move actions: `move:<from>:to:<to>`. */
 function parseMoveAction(
   action: GameAction,
 ): { from: string; to: string } | null {
@@ -1417,11 +1414,6 @@ function parseMoveAction(
   const divider = rest.indexOf(':to:');
   if (divider < 0) return null;
   return { from: rest.slice(0, divider), to: rest.slice(divider + 4) };
-}
-
-/** Exported so the UI can build tap-to-move actions from zone ids. */
-export function encodeMoveAction(from: string, to: string): GameAction {
-  return `move:${from}:to:${to}` as GameAction;
 }
 
 /** Returns the card ids that would move from `from` zone (a single run or card). */
@@ -1452,53 +1444,6 @@ function movableCardIds(state: GameState, from: string): { ids: string[]; isTopO
     return top ? { ids: [top], isTopOnly: true } : null;
   }
   return null;
-}
-
-function klondikeActions(state: GameState, _viewerId: PlayerId): GameActionSpec[] {
-  if (state.phase !== 'playing') return [];
-  const specs: GameActionSpec[] = [];
-  const stockCount = state.zones[ZONE_DRAW]?.cardIds.length ?? 0;
-  if (stockCount > 0) {
-    specs.push({ id: 'cycleStock', label: 'DRAW', hint: 'Flip cards from the stock', kind: 'table' });
-  } else if ((state.zones[ZONE_WASTE]?.cardIds.length ?? 0) > 0) {
-    specs.push({ id: 'cycleStock', label: 'RECYCLE', hint: 'Turn the waste back into the stock', kind: 'table' });
-  }
-  if (isKlondikeWon(state)) {
-    specs.push({ id: 'end', label: 'FINISH', hint: 'You cleared the board', kind: 'table' });
-  }
-  return specs;
-}
-
-function klondikeApply(action: GameAction, state: GameState, viewerId: PlayerId): PrimitiveEvent[] | null {
-  if (state.phase !== 'playing') return null;
-  if (action === 'end') {
-    return isKlondikeWon(state)
-      ? [{ type: 'session/end', winnerId: viewerId }]
-      : null;
-  }
-  if (action === 'cycleStock') {
-    const stock = state.zones[ZONE_DRAW];
-    const waste = state.zones[ZONE_WASTE];
-    if (stock && stock.cardIds.length > 0) {
-      // Draw 1 (draw-3 is a variant; default to 1 for clarity).
-      const top = stock.cardIds[stock.cardIds.length - 1]!;
-      return [{ type: 'card/move', cardId: top, toZoneId: ZONE_WASTE, face: 'up' }];
-    }
-    // Recycle waste → stock (face-down, reversed).
-    if (waste && waste.cardIds.length > 0) {
-      const events: PrimitiveEvent[] = [];
-      // Move waste cards back to stock in reverse (last-in becomes first-out).
-      const reversed = [...waste.cardIds].reverse();
-      for (const cardId of reversed) {
-        events.push({ type: 'card/move', cardId, toZoneId: ZONE_DRAW, face: 'down' });
-      }
-      return events;
-    }
-    return null;
-  }
-  const move = parseMoveAction(action);
-  if (!move) return null;
-  return resolveMove(state, move.from, move.to);
 }
 
 /** Shared move resolver for Klondike and FreeCell. */
@@ -1543,16 +1488,6 @@ function resolveMove(state: GameState, from: string, to: string): PrimitiveEvent
   }
 
   return null;
-}
-
-function klondikeReadout(state: GameState, _playerId: PlayerId): string | null {
-  const stock = state.zones[ZONE_DRAW]?.cardIds.length ?? 0;
-  const waste = state.zones[ZONE_WASTE]?.cardIds.length ?? 0;
-  let foundationCount = 0;
-  for (let i = 0; i < 4; i += 1) {
-    foundationCount += state.zones[foundationZoneId(i)]?.cardIds.length ?? 0;
-  }
-  return `STOCK ${stock + waste} · FOUNDATION ${foundationCount}/52`;
 }
 
 // ---------------------------------------------------------------------------
@@ -1768,12 +1703,6 @@ export const GAME_RULES: Record<string, GameRules> = {
     actions: pokerActions,
     apply: pokerApply,
     readout: pokerReadout,
-  },
-  klondike: {
-    id: 'klondike',
-    actions: klondikeActions,
-    apply: klondikeApply,
-    readout: klondikeReadout,
   },
   freecell: {
     id: 'freecell',

@@ -134,19 +134,6 @@ export const RULES_GUIDES: Record<string, RulesGuide> = {
     win: 'The highest-ranked live hand takes the table; folding leaves the pot to the last live player.',
     tableNote: 'Each player starts with 100 chips. Private hole cards stay private; community cards are always public.',
   },
-  klondike: {
-    id: 'klondike',
-    title: 'Klondike Solitaire',
-    summary: 'The classic: build the four foundations Ace to King.',
-    steps: [
-      'Tap a card or run, then tap a destination to move it.',
-      'Stack tableau columns in descending order, alternating red and black.',
-      'Send Aces to the foundations, then build each suit up to King.',
-      'Tap the stock to draw; when it empties, recycle the waste.',
-    ],
-    win: 'All 52 cards face-up in the four foundations.',
-    tableNote: 'Only a King (or a run starting with a King) may move to an empty column.',
-  },
   freecell: {
     id: 'freecell',
     title: 'FreeCell',

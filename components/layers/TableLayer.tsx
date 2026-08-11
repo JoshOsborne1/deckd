@@ -216,8 +216,9 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
       : hostPlayerId;
   const hasSession = events.length > 0 && state.phase !== 'idle';
 
-  // --- Solitaire games render their own dedicated board ---
-  const isSolitaire = ['klondike', 'freecell', 'pyramid'].includes(state.config.presetId ?? '');
+  // --- Solitaire games render their own dedicated board (FreeCell/Pyramid only).
+  // Klondike renders through KlondikeLayout (main's suit-based implementation). ---
+  const isSolitaire = ['freecell', 'pyramid'].includes(state.config.presetId ?? '');
 
   // --- Selectors (memoized off state) ---
   const drawCount = useMemo(() => selectDrawPileCount(state), [state]);

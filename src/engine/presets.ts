@@ -4,11 +4,6 @@ import {
   type RecipeSetupInput,
   type RecipeSetupResult,
 } from './recipes';
-import {
-  buildKlondikeLayout,
-  buildFreeCellLayout,
-  buildPyramidLayout,
-} from './solitaire';
 
 export { executeRecipe } from './recipes';
 export type {
@@ -267,108 +262,51 @@ export const pokerStylePreset = makePreset({
 // ---------------------------------------------------------------------------
 // Solitaire presets
 //
-// These don't use the standard executeRecipe round-robin deal; they use custom
-// layout builders from solitaire.ts. The Preset wrapper still needs a `recipe`
-// for the recipe-card UI, but `setup` is overridden to build the layout.
+// Klondike ships from the shared recipe dispatch (`layout: 'klondike'` in
+// recipes.ts). FreeCell and Pyramid use the same dispatch pattern with their
+// own layout families; the store creates sessions via executeRecipe, so these
+// must never override `setup`.
 // ---------------------------------------------------------------------------
 
-function makeSolitairePreset(
-  recipe: Recipe,
-  setupFn: (input: PresetSetupInput) => PresetSetupResult,
-): Preset {
-  return {
-    recipe,
-    id: recipe.id,
-    name: recipe.name,
-    summary: recipe.oneLiner,
-    minPlayers: recipe.minPlayers,
-    maxPlayers: recipe.maxPlayers,
-    supportsPlayerCount: (n) => n >= recipe.minPlayers && n <= recipe.maxPlayers,
-    setup: setupFn,
-    helpers: recipe.helpers,
-  };
-}
-
-function klondikeSetup(input: PresetSetupInput): PresetSetupResult {
-  const layout = buildKlondikeLayout(input.deckOrder, input.players[0]!.id);
-  return { zones: layout.zones, initialDeals: layout.initialDeals };
-}
-
-function freeCellSetup(input: PresetSetupInput): PresetSetupResult {
-  const layout = buildFreeCellLayout(input.deckOrder, input.players[0]!.id);
-  return { zones: layout.zones, initialDeals: layout.initialDeals };
-}
-
-function pyramidSetup(input: PresetSetupInput): PresetSetupResult {
-  const layout = buildPyramidLayout(input.deckOrder, input.players[0]!.id);
-  return { zones: layout.zones, initialDeals: layout.initialDeals };
-}
-
-export const klondikePreset = makeSolitairePreset(
-  {
-    id: 'klondike',
-    name: 'Klondike',
-    oneLiner: 'The classic solitaire: build the four foundations Ace to King.',
-    minPlayers: 1,
-    maxPlayers: 1,
-    backs: ['back-brand'],
-    deal: { pattern: 'none', rounds: 0, face: 'down', to: 'table' },
-    actionPolicy: {
-      allowDraw: true,
-      allowDiscard: false,
-      allowFlip: true,
-      allowPassTurn: false,
-      allowPlay: true,
-    },
-    turnPolicy: 'free',
-    winCondition: 'scoreTarget',
+export const freeCellPreset = makePreset({
+  id: 'freecell',
+  name: 'FreeCell',
+  oneLiner: 'Every card face-up. Build the foundations with four free cells.',
+  minPlayers: 1,
+  maxPlayers: 1,
+  backs: ['back-noir'],
+  deal: { pattern: 'none', rounds: 0, face: 'down', to: 'table' },
+  actionPolicy: {
+    allowDraw: false,
+    allowDiscard: false,
+    allowFlip: false,
+    allowPassTurn: false,
+    allowPlay: true,
   },
-  klondikeSetup,
-);
+  turnPolicy: 'free',
+  winCondition: 'scoreTarget',
+  layout: 'freecell',
+});
 
-export const freeCellPreset = makeSolitairePreset(
-  {
-    id: 'freecell',
-    name: 'FreeCell',
-    oneLiner: 'Every card face-up. Build the foundations with four free cells.',
-    minPlayers: 1,
-    maxPlayers: 1,
-    backs: ['back-noir'],
-    deal: { pattern: 'none', rounds: 0, face: 'down', to: 'table' },
-    actionPolicy: {
-      allowDraw: false,
-      allowDiscard: false,
-      allowFlip: false,
-      allowPassTurn: false,
-      allowPlay: true,
-    },
-    turnPolicy: 'free',
-    winCondition: 'scoreTarget',
+export const pyramidPreset = makePreset({
+  id: 'pyramid',
+  name: 'Pyramid',
+  oneLiner: 'Pair cards to thirteen and dismantle the pyramid.',
+  minPlayers: 1,
+  maxPlayers: 1,
+  backs: ['back-crimson'],
+  deal: { pattern: 'none', rounds: 0, face: 'down', to: 'table' },
+  actionPolicy: {
+    allowDraw: true,
+    allowDiscard: false,
+    allowFlip: false,
+    allowPassTurn: false,
+    allowPlay: true,
   },
-  freeCellSetup,
-);
-
-export const pyramidPreset = makeSolitairePreset(
-  {
-    id: 'pyramid',
-    name: 'Pyramid',
-    oneLiner: 'Pair cards to thirteen and dismantle the pyramid.',
-    minPlayers: 1,
-    maxPlayers: 1,
-    backs: ['back-crimson'],
-    deal: { pattern: 'none', rounds: 0, face: 'down', to: 'table' },
-    actionPolicy: {
-      allowDraw: true,
-      allowDiscard: false,
-      allowFlip: false,
-      allowPassTurn: false,
-      allowPlay: true,
-    },
-    turnPolicy: 'free',
-    winCondition: 'scoreTarget',
-  },
-  pyramidSetup,
-);
+  turnPolicy: 'free',
+  winCondition: 'scoreTarget',
+  layout: 'pyramid',
+});
 
 export const builtinPresets: Preset[] = [
   freeplayPreset,
@@ -381,7 +319,6 @@ export const builtinPresets: Preset[] = [
   klondikePreset,
   blackjackStylePreset,
   pokerStylePreset,
-  klondikePreset,
   freeCellPreset,
   pyramidPreset,
 ];

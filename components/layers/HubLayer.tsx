@@ -57,7 +57,6 @@ const PRESET_OUTCOMES: Record<string, string> = {
   klondike: 'Build four foundations from ace to king',
   blackjack: 'Dealer hand + scoring helper',
   poker: 'Hole cards, then community play',
-  klondike: 'Build the four foundations · solo',
   freecell: 'Every card face-up · four free cells · solo',
   pyramid: 'Pair to thirteen · dismantle the pyramid · solo',
 };
@@ -565,9 +564,11 @@ export function HubLayer({
             const selected = n === playerCount;
             // Solo (1 player) is valid for blackjack and all solitaire presets.
             const isSoloPreset = SOLO_PRESETS.has(activePreset.id);
+            const outsideRecipeRange = n < activePreset.minPlayers || n > Math.min(activePreset.maxPlayers, 6);
             const soloDisabled = n === 1
               ? activePreset.id !== 'blackjack' && !isSoloPreset
               : isSoloPreset; // solitaire presets cannot take more than 1 player
+            const playerDisabled = outsideRecipeRange || soloDisabled;
             return (
               <StaggeredChip
                 key={n}

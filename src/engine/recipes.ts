@@ -8,6 +8,10 @@ import {
   handZoneId,
   tableZoneId,
 } from './types';
+import {
+  buildFreeCellLayout,
+  buildPyramidLayout,
+} from './solitaire';
 
 export type RecipeDealPattern = 'roundRobin' | 'perPlayer' | 'none';
 export type RecipeDealFace = 'up' | 'down' | 'upDown' | 'mixed';
@@ -68,7 +72,7 @@ export interface Recipe {
   turnPolicy: RecipeTurnPolicy;
   winCondition: RecipeWinCondition;
   /** Optional layout family for recipes with more than hand/table zones. */
-  layout?: 'klondike';
+  layout?: 'klondike' | 'freecell' | 'pyramid';
   helpers?: RecipeHelpers;
   variants?: RecipeVariants;
 }
@@ -200,6 +204,14 @@ function dealZoneId(deal: RecipeDeal, player: Player): ZoneId {
  */
 export function executeRecipe(recipe: Recipe, input: RecipeSetupInput): RecipeSetupResult {
   if (recipe.layout === 'klondike') return executeKlondikeRecipe(input);
+  if (recipe.layout === 'freecell') {
+    const layout = buildFreeCellLayout(input.deckOrder, input.players[0]!.id);
+    return { zones: layout.zones, initialDeals: layout.initialDeals };
+  }
+  if (recipe.layout === 'pyramid') {
+    const layout = buildPyramidLayout(input.deckOrder, input.players[0]!.id);
+    return { zones: layout.zones, initialDeals: layout.initialDeals };
+  }
 
   const zones = buildCoreZones(input.players).map((zone) =>
     recipe.deal.to === 'table' && zone.id.startsWith('table:')
