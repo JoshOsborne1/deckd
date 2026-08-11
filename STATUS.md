@@ -1,6 +1,6 @@
 # Deckd status
 
-Last update: 2026-08-11 (physical card-motion pass — draw arrivals + discard land motion; local 375×812 / 1440×900 QA green; preview deployment in progress).
+Last update: 2026-08-11 (physical card-motion pass — draw arrivals + discard land motion; preview `entry-4cf2cb5ea7a83df6fb2373eda15cd119.js` live; public mobile/desktop/reduced-motion QA green).
 
 ## Deployment
 
@@ -110,6 +110,7 @@ Expo SDK 57, React Native 0.86, React 19, TypeScript strict. Expo Router app wit
 - `HandFan` now gives every mounted card one deck-line arrival: opening cards keep the measured stagger, while later draws enter immediately and settle into the measured fan without replaying the opening batch.
 - A new discard card now lands with a bounded translate/rotate/settle motion while retaining the existing pulse; reduced motion stays a plain fade/settle.
 - Local Metro proof passed `qa/deckd-visual-qa.cjs` at 375×812 and `qa/deckd-desktop-qa.cjs` at 1440×900 with zero page/console errors, stable root geometry, no document overflow, and all setup/table/pass milestones true. Typecheck, lint, 117 Jest tests, and Expo Doctor 20/20 are green.
+- Public preview now serves the new bundle with HTTP 200; visual QA passed at 375×812 and 1440×900, and the reduced-motion proxy stayed in bounds with `prefers-reduced-motion: true`, zero errors, and no horizontal overflow.
 
 ## Decisions
 
