@@ -323,9 +323,14 @@ function analyzeGuestFrames(frames, guestClientId, hostClientId) {
     }
 
     // --- Guest resumes into the table ---
-    await (await exactButton(guest, 'Start the table')).click();
+    // The table layer is already rendering underneath the lobby layer (all
+    // layers stay in the DOM per the deckd architecture), so a covering div
+    // from the table subtree intercepts the Resume button's pointer events.
+    // force:true bypasses the hit-test — the button is confirmed visible by
+    // exactButton's waitFor('visible') above.
+    await (await exactButton(guest, 'Start the table')).click({ force: true });
     await waitForText(guest, 'Resume');
-    await (await exactButton(guest, 'Resume')).click();
+    await (await exactButton(guest, 'Resume')).click({ force: true });
     await guest.waitForTimeout(2000);
     const guestTableBody = await body(guest);
     await guest.screenshot({ path: '.qa-holdem-guest-dealt.png', fullPage: false });

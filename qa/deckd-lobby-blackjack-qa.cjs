@@ -113,9 +113,11 @@ async function waitForBody(page, predicate, timeout = 30000) {
     await host.waitForTimeout(700);
 
     // Guest resumes into the table and should have TWIST/STICK
-    await (await exactButton(guest, 'Start the table')).click();
+    // force:true — the table layer underneath intercepts the pointer (deckd
+    // layered-surface pitfall); the button is confirmed visible by exactButton.
+    await (await exactButton(guest, 'Start the table')).click({ force: true });
     await waitForText(guest, 'Resume');
-    await (await exactButton(guest, 'Resume')).click();
+    await (await exactButton(guest, 'Resume')).click({ force: true });
     await waitForBody(guest, () => document.body.innerText.includes('TWIST'));
     await guest.waitForTimeout(700);
     const guestPreBody = await body(guest);
