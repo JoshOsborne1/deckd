@@ -94,6 +94,9 @@ Solo play is first-class, not a side feature: solitaire (Klondike + at least one
 ### 17. PRODUCTION READY — BUILD ALL DAY (Josh, 2026-08-11)
 Josh's mandate: stop asking, just build & push all day. He knows the goal, the visuals exist, the scope is in docs/AUDIT_2026-08-11.md. Work the audit's dispatch order, slice by slice, gates green every time, deploy each slice to the live preview. Do not wait for direction. Monetisation is parked until gameplay is right.
 
+### 18. PARALLEL LANES (Josh, 2026-08-11 — do NOT duplicate)
+Solo pillar, sound/UX-pass, and multiplayer E2E are being built in PARALLEL branches (deckd-para-solo, deckd-para-holdem, deckd-para-ux) by separate workers on the Ollama lane. DO NOT start those slices here — focus on Hold'em completeness, then animation pass, then continuity/home. Merges come from the main repo when the lanes land. If a parallel branch's files change under you, expect a merge and resolve it.
+
 ## Standing rules (from AGENTS.md, unchanged)
 
 - TypeScript strict, NO new dependencies, no raw hex outside src/lib/theme.ts.
