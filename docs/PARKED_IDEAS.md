@@ -35,6 +35,62 @@ are right.
 - Out of scope for pass-and-play: Snap, Egyptian Ratscrew, Speed
   (reaction-based).
 
+## Table modes (specced 2026-08-11 by Josh, deferred — not in the current build)
+
+Two new ways of playing, both one-phone-centric. Neither is built; both live here
+until the current pillars (solo, Hold'em, animation, UX, multiplayer E2E) land.
+
+### A. Shared phone deck ("the table phone")
+
+One phone becomes the TABLE. The other players hold their own hands on their own
+phones. The table phone renders the shared surface only: face-down deck, discard,
+community/play piles. Players' phones render only their own hand.
+
+- **When it applies:** any game where players pick up cards and do NOT place
+  them (War, Go Fish, Old Maid style draw-and-keep games). On the table phone,
+  the top card of the face-down deck is drawn by a **swipe down** on the card —
+  it leaves the deck with a synced animation and lands in the player's hand on
+  their own phone.
+- **When cards are placed face up:** the table phone splits into two zones —
+  playing pile and pick-up pile.
+- **Poker-style (players don't pick up):** the table phone shows the 5 played
+  cards / community. The screen use is dynamic per game: one layout per way a
+  game is played.
+- **Pass-and-play must still work even in multiplayer mode:** at least 2 players
+  will share a phone without sitting out, so pass & play coexists with
+  multi-device play (some players on their own hands, others passing the table
+  phone).
+- **Sync:** synced draw/deal animations across devices (card leaves the table
+  phone's deck, appears in the player's hand).
+
+**Architecture note (for when this is picked up):** inverts the current model.
+Today every device renders the full table (recipient-filtered for privacy). The
+table-phone mode needs a table-only surface (deck + piles, no hands) and a
+hand-only surface (no table). The relay's recipient-filtered event log
+(`filterEventsForViewer`) is the right plumbing — the missing pieces are the two
+new surface layouts and the draw-into-hand event flow. This is a post-v1
+multiplayer feature, sized after the multiplayer E2E pillar.
+
+### B. Dual-end one-phone play ("hold to peek")
+
+Offline, one device, exactly 2 players. The phone sits between them; each
+player's hand is face-down at their end of the phone.
+
+- **Layout:** each end takes ~30% of the screen (top and bottom), the middle
+  ~40% holds the deck + gameplay. The ends grow when a player is viewing but
+  must never obstruct the gameplay area. Both players can view at the same time
+  without obstructing each other.
+- **Viewing:** cards stay face-down (existing privacy veil). A player holds a
+  **view button** on their end and their cards rotate to face them, so they can
+  read their hand while physically covering the screen from the other player
+  (the human blocking is the privacy mechanism). Release = cards face down
+  again.
+- **Works on:** games where hands are hidden (War, Go Fish, Old Maid, Crazy
+  Eights, Sevens, blackjack). Not for open-table games (poker community style).
+- **Fit:** this is a TableLayer layout mode + a hold-to-peek interaction on the
+  existing hand fan — NO new networking, NO engine change. Small slice once the
+  current lanes land (est. half a day incl. 375px verification).
+
 ## Product ideas (not yet specced)
 
 - **Custom rules DSL / recipe builder UI**: manifest scaffold exists
