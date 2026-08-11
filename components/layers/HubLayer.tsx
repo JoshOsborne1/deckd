@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View, type ViewStyle } from 'react-native';
 import Animated, {
   Extrapolation,
@@ -139,6 +139,8 @@ export function HubLayer({
   const [autoReshuffle, setAutoReshuffle] = React.useState(true);
   const [rulesOpen, setRulesOpen] = useState(false);
   const [guestWaiting, setGuestWaiting] = useState(false);
+  const launching = useRef(false);
+  const dealLaunch = useSharedValue(0);
 
   const { progress, reduceMotion } = useSurfaceMorph();
   const { reduceMotion: reduceMotionSystem } = useMotion();
@@ -199,13 +201,31 @@ export function HubLayer({
     });
   };
 
+  const launchTable = () => {
+    if (launching.current) return;
+    if (reduceMotionSystem) {
+      setViewMode('table');
+      return;
+    }
+    launching.current = true;
+    dealLaunch.value = withTiming(
+      1,
+      { duration: motion.duration.base, easing: EASING_EMPHASIZED },
+      (finished) => {
+        'worklet';
+        if (finished) runOnJS(setViewMode)('table');
+      },
+    );
+  };
+
   const handleStart = () => {
+    if (launching.current) return;
     // Guests never create a local session. The host's event stream is the
     // only source of truth; entering the table is safe once that stream has
     // arrived, otherwise keep the guest in a visible waiting state.
     if (isOnlineGuest) {
       if (guestTableReady) {
-        setViewMode('table');
+        launchTable();
       } else {
         setGuestWaiting(true);
       }
@@ -241,7 +261,7 @@ export function HubLayer({
         hostId: localClientId,
       });
       useProfileStore.getState().bumpGamesPlayed();
-      setViewMode('table');
+      launchTable();
       return;
     }
 
@@ -260,10 +280,17 @@ export function HubLayer({
       hostId: 'you',
     });
     useProfileStore.getState().bumpGamesPlayed();
-    setViewMode('table');
+    launchTable();
   };
 
   const handleResume = () => setViewMode('table');
+
+  useEffect(() => {
+    if (!active && dealLaunch.value !== 0) {
+      dealLaunch.value = 0;
+      launching.current = false;
+    }
+  }, [active, dealLaunch]);
 
   useEffect(() => {
     // If the guest has already entered the setup surface when the host deals,
@@ -410,6 +437,18 @@ export function HubLayer({
     return {
       transform: [
         { scale: interpolate(p, [0.7, 1.0], [0.92, 1], Extrapolation.CLAMP) },
+      ],
+    };
+  });
+
+  const dealLaunchStyle = useAnimatedStyle(() => {
+    const p = dealLaunch.value;
+    return {
+      opacity: interpolate(p, [0, 0.72, 1], [1, 1, 0], Extrapolation.CLAMP),
+      transform: [
+        { translateY: interpolate(p, [0, 1], [0, -24], Extrapolation.CLAMP) },
+        { scale: interpolate(p, [0, 0.72, 1], [1, 1.04, 0.88], Extrapolation.CLAMP) },
+        { rotate: `${interpolate(p, [0, 1], [0, -4], Extrapolation.CLAMP)}deg` },
       ],
     };
   });
@@ -678,7 +717,7 @@ export function HubLayer({
             </View>
           </Pressable>
 
-          <Animated.View style={[styles.startCtaWrap, startCtaStyle]}>
+          <Animated.View style={[styles.startCtaWrap, startCtaStyle, dealLaunchStyle]}>
             <Pressable
               accessibilityRole="button"
               accessibilityLabel={
