@@ -1,6 +1,6 @@
 # Deckd status
 
-Last update: 2026-08-11 (solo Klondike draw-one slice — local gates and 375/1440 QA green; preview deployment in progress; `t_9f20d120`).
+Last update: 2026-08-11 (solo Klondike draw-one slice — local gates and public 375/1440 QA green; preview redeployed; `t_9f20d120`).
 
 ## Deployment
 

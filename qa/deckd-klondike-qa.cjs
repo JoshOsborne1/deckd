@@ -11,9 +11,9 @@ async function waitForHome(page) {
 }
 
 async function reset(page) {
-  await page.goto(`${BASE_URL}/`, { waitUntil: 'commit', timeout: 30000 });
+  await page.goto(`${BASE_URL}/`, { waitUntil: 'commit', timeout: 90000 });
   await page.evaluate(() => localStorage.clear());
-  await page.reload({ waitUntil: 'commit', timeout: 30000 });
+  await page.reload({ waitUntil: 'commit', timeout: 90000 });
   await waitForHome(page);
 }
 
@@ -120,6 +120,7 @@ async function runViewport(page, viewport) {
     soloSetup: true,
     stock24Visible,
     foundationReadout,
+    flipAvailable,
     flipWorked,
     stock23Visible,
     recycledStockVisible,

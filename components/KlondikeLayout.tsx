@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { PlayingCard, type PlayingCardBack } from '@components/PlayingCard';
 import type { GameAction } from '@engine/rules';
 import {
@@ -13,9 +13,6 @@ import {
 import { parseCardId } from '@engine/selectors';
 import { alpha, colors, fonts, letterSpacing, radii, space } from '@theme';
 
-const SLOT_WIDTH = 44;
-const SLOT_HEIGHT = 62;
-const CARD_SCALE = 0.72;
 const SUIT_GLYPHS: Record<(typeof KLONDIKE_FOUNDATION_SUITS)[number], string> = {
   hearts: '♥',
   diamonds: '♦',
@@ -41,6 +38,10 @@ function CardSlot({
   disabled,
   placeholder,
   back,
+  cardSize,
+  cardScale,
+  slotWidth,
+  slotHeight,
   onPress,
 }: {
   card?: CardInstance;
@@ -49,6 +50,10 @@ function CardSlot({
   disabled?: boolean;
   placeholder?: string;
   back: PlayingCardBack;
+  cardSize: 'sm' | 'md';
+  cardScale: number;
+  slotWidth: number;
+  slotHeight: number;
   onPress?: () => void;
 }) {
   const parsed = card ? parseCardId(card.id) : null;
@@ -60,6 +65,7 @@ function CardSlot({
       onPress={onPress}
       style={({ pressed }) => [
         styles.cardSlot,
+        { width: slotWidth, height: slotHeight },
         selected && styles.cardSlotSelected,
         disabled && styles.cardSlotDisabled,
         pressed && styles.cardSlotPressed,
@@ -70,21 +76,29 @@ function CardSlot({
           rank={parsed.rank}
           suit={parsed.suit}
           face={card.face}
-          size="sm"
+          size={cardSize}
           back={back}
           elevated={selected}
-          style={{ transform: [{ scale: CARD_SCALE }] }}
+          style={{ transform: [{ scale: cardScale }] }}
         />
       ) : card ? (
-        <PlayingCard face={card.face} size="sm" back={back} style={{ transform: [{ scale: CARD_SCALE }] }} />
+        <PlayingCard face={card.face} size={cardSize} back={back} style={{ transform: [{ scale: cardScale }] }} />
       ) : (
-        <Text style={styles.emptySlotText}>{placeholder ?? '·'}</Text>
+        <Text style={[styles.emptySlotText, { width: slotWidth, height: slotHeight }]}>{placeholder ?? '·'}</Text>
       )}
     </Pressable>
   );
 }
 
 export function KlondikeLayout({ state, onAction, back }: KlondikeLayoutProps) {
+  const { width: viewportWidth } = useWindowDimensions();
+  const desktopLayout = viewportWidth >= 700;
+  const slotWidth = desktopLayout ? 72 : 44;
+  const slotHeight = desktopLayout ? 100 : 62;
+  const cardSize: 'sm' | 'md' = desktopLayout ? 'md' : 'sm';
+  const cardScale = desktopLayout ? 0.8 : 0.72;
+  const stackOverlap = desktopLayout ? 44 : 28;
+  const slotProps = { back, cardSize, cardScale, slotWidth, slotHeight };
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const tableau = useMemo(
     () => Array.from({ length: KLONDIKE_TABLEAU_COUNT }, (_, index) => state.zones[klondikeTableauZoneId(index)]?.cardIds ?? []),
@@ -128,18 +142,18 @@ export function KlondikeLayout({ state, onAction, back }: KlondikeLayoutProps) {
       <View style={styles.topRow}>
         <View style={styles.stockWasteRow}>
           <CardSlot
+            {...slotProps}
             card={stockIds.length > 0 ? { id: stockIds[0]!, face: 'down', zoneId: 'draw', order: 0 } : undefined}
             label={stockIds.length > 0 ? `Stock, ${stockIds.length} cards` : 'Recycle waste'}
             placeholder="↻"
-            back={back}
             disabled={stockIds.length === 0 && wasteIds.length === 0}
             onPress={() => onAction(stockIds.length > 0 ? 'draw' : 'recycle')}
           />
           <CardSlot
+            {...slotProps}
             card={wasteIds.length > 0 ? state.cards[wasteIds[wasteIds.length - 1]!] : undefined}
             label={wasteIds.length > 0 ? `Waste, ${cardLabel(state.cards[wasteIds[wasteIds.length - 1]!]!)}` : 'Empty waste'}
             placeholder="·"
-            back={back}
             selected={Boolean(wasteIds.length > 0 && selectedId === wasteIds[wasteIds.length - 1])}
             disabled={wasteIds.length === 0}
             onPress={wasteIds.length > 0 ? () => moveOrSelect(wasteIds[wasteIds.length - 1]!) : undefined}
@@ -152,11 +166,11 @@ export function KlondikeLayout({ state, onAction, back }: KlondikeLayoutProps) {
             const topCard = topId ? state.cards[topId] : undefined;
             return (
               <CardSlot
+                {...slotProps}
                 key={suit}
                 card={topCard}
                 label={topCard ? `${suit} foundation, ${cardLabel(topCard)}` : `${SUIT_GLYPHS[suit]} foundation, empty`}
                 placeholder={SUIT_GLYPHS[suit]}
-                back={back}
                 selected={Boolean(topId && activeSelectedId === topId)}
                 disabled={!activeSelectedId && !topId}
                 onPress={topId ? () => moveOrSelect(topId) : () => handleFoundationPress(suit)}
@@ -176,12 +190,18 @@ export function KlondikeLayout({ state, onAction, back }: KlondikeLayoutProps) {
         {tableau.map((ids, column) => {
           const topId = ids[ids.length - 1];
           return (
-            <View key={column} style={styles.column}>
+            <View
+              key={column}
+              style={[
+                styles.column,
+                { width: slotWidth, minHeight: slotHeight + (slotHeight - stackOverlap) * (ids.length > 0 ? ids.length - 1 : 0) },
+              ]}
+            >
               {ids.length === 0 ? (
                 <CardSlot
+                  {...slotProps}
                   label="Empty tableau, requires a king"
                   placeholder="K"
-                  back={back}
                   disabled={!activeSelectedId}
                   onPress={() => {
                     if (activeSelectedId) {
@@ -197,11 +217,18 @@ export function KlondikeLayout({ state, onAction, back }: KlondikeLayoutProps) {
                   const top = cardId === topId;
                   const canPress = card.face === 'up';
                   return (
-                    <View key={cardId} style={[styles.stackedCard, index > 0 && styles.stackedCardOverlap]}>
+                    <View
+                      key={cardId}
+                      style={[
+                        styles.stackedCard,
+                        { width: slotWidth, height: slotHeight },
+                        index > 0 && { marginTop: -stackOverlap },
+                      ]}
+                    >
                       <CardSlot
+                        {...slotProps}
                         card={card}
                         label={`${cardLabel(card)}${card.face === 'down' ? ', face down' : ''}`}
-                        back={back}
                         selected={activeSelectedId === cardId}
                         disabled={!canPress && card.face === 'up'}
                         onPress={
@@ -231,6 +258,8 @@ export function KlondikeLayout({ state, onAction, back }: KlondikeLayoutProps) {
 const styles = StyleSheet.create({
   root: {
     width: '100%',
+    maxWidth: 640,
+    alignSelf: 'center',
     alignItems: 'center',
     paddingHorizontal: space.xs,
   },
@@ -270,8 +299,6 @@ const styles = StyleSheet.create({
     gap: space.xs,
   },
   cardSlot: {
-    width: SLOT_WIDTH,
-    height: SLOT_HEIGHT,
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: radii.sm,
@@ -290,8 +317,6 @@ const styles = StyleSheet.create({
     transform: [{ scale: 0.96 }],
   },
   emptySlotText: {
-    width: SLOT_WIDTH,
-    height: SLOT_HEIGHT,
     borderWidth: 1,
     borderStyle: 'dashed',
     borderColor: colors.borderStrong,
@@ -329,17 +354,10 @@ const styles = StyleSheet.create({
     gap: space.xs,
   },
   column: {
-    width: SLOT_WIDTH,
-    minHeight: 160,
     alignItems: 'center',
   },
   stackedCard: {
-    width: SLOT_WIDTH,
-    height: SLOT_HEIGHT,
     zIndex: 1,
-  },
-  stackedCardOverlap: {
-    marginTop: -28,
   },
   helperText: {
     maxWidth: 340,
