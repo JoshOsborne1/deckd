@@ -14,6 +14,7 @@ import {
   buildDeck,
   emptyState,
   eventId,
+  executeRecipe,
   findPreset,
   foldEvents,
   getGameRules,
@@ -131,7 +132,7 @@ export const useGameStore = create<GameStoreState>()(
         const hostId = input.hostId ?? players[0]?.id ?? 'host';
 
         const deckOrder = orderedDeckForPreset(seed, config.includeJokers);
-        const setup = preset.setup({ players, config, deckOrder });
+        const setup = executeRecipe(preset.recipe, { players, config, deckOrder });
 
         const events: GameEvent[] = [];
         let seq = 1;
@@ -190,7 +191,11 @@ export const useGameStore = create<GameStoreState>()(
           seat: p.seat,
         }));
         const deckOrder = orderedDeckForPreset(seed, state.config.includeJokers);
-        const setup = preset.setup({ players, config: state.config, deckOrder });
+        const setup = executeRecipe(preset.recipe, {
+          players,
+          config: state.config,
+          deckOrder,
+        });
 
         const events: GameEvent[] = [];
         let seq = 1;

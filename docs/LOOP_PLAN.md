@@ -1,7 +1,7 @@
 # Deckd LOOP plan
 
-Last updated: 2026-08-10 (audit `t_5324ac11`; Slice A `t_e8f01b75`). This plan is the living
-prioritisation for the Deckd LOOP. It is rewritten against the current
+Last updated: 2026-08-11 (LOOP `t_9f20d120`; recipe slice in progress). This plan is the living
+prioritisation for the Deckd LOOP. It is updated against the current
 directives and repository reality each audit. `docs/LOOP_DIRECTIVES.md` wins
 over anything here where they conflict; `docs/DESIGN_PLAN.md` is the design
 thesis; `STATUS.md` keeps the verified-state log.
@@ -16,12 +16,13 @@ physical actions without turning the app into a page carousel. Assisted
 freedom: the game helps, it does not restrict. The acceptance viewport is
 375×812, with a desktop check as the second proof point.
 
-## Current state snapshot (verified 2026-08-10)
+## Current state snapshot (verified 2026-08-11)
 
-Branch `cleanup/ready-to-build`, head `c574869`. Gates green:
-`npm run typecheck` pass, `npm run lint` 0/0, `npx jest --runInBand` 7 suites /
-73 tests pass, `npx expo-doctor` 20/20 (per STATUS.md; typecheck/lint/jest
-re-confirmed this audit). Preview live at https://deckd-app.roxai.click
+Branch `cleanup/ready-to-build`. This run reconfirmed `npm run typecheck`,
+`npm run lint` (0 errors / 0 warnings), `npx jest --runInBand` (9 suites / 92
+tests), and `npx expo-doctor` (20/20) after aligning six Expo patch packages.
+Preview remains live at
+https://deckd-app.roxai.click
 (PM2 `deckd-app`), relay live at https://relay.roxai.click, landing at
 https://deckd.roxai.click.
 
@@ -59,10 +60,11 @@ https://deckd.roxai.click.
   current affordance set allows, and the relay host rejects out-of-turn hand
   intents or moves outside the public discard zone. Waiting players can inspect
   the table without mutating their hand.
-- **Manifest DSL scaffold exists** (`manifest.ts`: `GamePresetManifest`,
-  `SetupOp`, `ActionManifest`, `validateManifest`, `compileSetupOps`) but is
-  **not wired to the live session path** — `presets.ts` still uses code-based
-  `Preset.setup()`. The recipe schema (DESIGN_PLAN §6) is the planned evolution.
+- **Recipe schema slice is now wired:** `src/engine/recipes.ts` defines the
+  serialisable `Recipe` model and pure `executeRecipe`; the four built-ins are
+  data definitions in `presets.ts`, and `gameStore` executes recipes for new
+  sessions and solo next-hand deals. The old `Preset.setup()` remains only as a
+  compatibility adapter while the manifest scaffold stays separate.
 - No game rules enforced beyond deal + free actions. Blackjack/poker are
   "ish" (no win conditions, no scoring beyond `showHandSum` helper).
 - No win/end celebration or winner display (`session/end` event exists, no UI).
@@ -328,12 +330,41 @@ device evidence; no claim made without it.
 
 ---
 
+## Current LOOP run — `t_9f20d120` (2026-08-11)
+
+The authoritative audit order is active. Visual directives 1–14 are already
+recorded as shipped in the prior audit/status trail, so this run takes the
+highest-impact gameplay unlock rather than churn stable card chrome.
+
+### Slice B — Recipe schema v1 (complete; preview deployed)
+
+- Material language remains the warm ivory/crimson/ink table: recipes are the
+  data behind the deck and recipe-card objects, not a new UI surface.
+- Added the framework-free serialisable `Recipe` model and pure
+  `executeRecipe` executor in `src/engine/recipes.ts`.
+- Converted Freeplay, Deal 2, Blackjack, and Poker to data definitions. The
+  `Preset` wrapper stays intentionally thin for existing UI/library callers;
+  `gameStore` now executes the recipe for new sessions and solo next hands.
+- Preserved round-robin ordering, poker setup behavior, community zone
+  creation, and the virtual-house blackjack face policy. Added five focused
+  recipe tests; the full suite is now 9 suites / 92 tests.
+- Exported bundle `entry-e27548969d40e5764fca0676daa898c1.js` is live on
+  `https://deckd-app.roxai.click`; public 375px flow, 1440px geometry, and
+  rendered screenshot smoke all pass with no console/page errors.
+
+### Next decisions already made
+
+1. `Preset` wraps `Recipe` until all UI/store callers consume recipe metadata;
+   do not break the existing pass-and-play contract during the library build.
+2. Keep the recipe executor in one `src/engine/recipes.ts` file through the
+   first four new games; split per-game definitions only when the file becomes
+   difficult to review.
+3. Monetisation, RevenueCat, Rive, and AI generation remain parked.
+
 ## Decisions (to make or confirm)
 
-1. **Recipe schema vs current Preset interface:** confirm the `Recipe` type
-   supersedes `Preset` (or that `Preset` wraps a `Recipe`). Recommendation:
-   `Preset` becomes a thin adapter over `Recipe` so existing selectors/stores
-   keep working during migration.
+1. **Recipe schema vs current Preset interface:** `Preset` wraps `Recipe` as a
+   thin adapter so existing selectors/stores keep working during migration.
 2. **Where recipes live:** single `recipes.ts` vs per-game files under
    `src/engine/recipes/`. Recommendation: per-game files once count > 4; keep a
    `recipes/index.ts` barrel.

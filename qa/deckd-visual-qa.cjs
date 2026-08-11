@@ -59,7 +59,7 @@ const BASE_URL = process.env.DECKD_QA_URL ?? 'http://127.0.0.1:8082';
     page.getByRole('button', { name: label, exact: true }),
   );
   const setupScroll = tokenButtons[0].locator(
-    'xpath=ancestor::div[contains(@class, "r-150rngu")]',
+    'xpath=ancestor::div[contains(@class, "150rngu")]',
   ).first();
   await setupScroll.hover();
   await page.mouse.wheel(0, 220);

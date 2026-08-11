@@ -1,6 +1,6 @@
 # Deckd status
 
-Last update: 2026-08-11 (solo blackjack + offline shell — `cc06d8e`, `c017844`).
+Last update: 2026-08-11 (recipe schema slice — deployed; `t_9f20d120`).
 
 ## Deployment
 
@@ -11,6 +11,11 @@ Last update: 2026-08-11 (solo blackjack + offline shell — `cc06d8e`, `c017844`
 ## Current baseline
 
 Expo SDK 57, React Native 0.86, React 19, TypeScript strict. Expo Router app with layered surfaces: `home | hub | table | lobby | pass`. Zustand + MMKV local state. Event-sourced game engine. Pass-and-play flow with privacy veil, hand fan/stack, draw/discard/flip/pass-turn. Multiplayer game-state sync over relay remains a separate paid-hosting path; pass-and-play stays inert without relay.
+
+## Recipe schema slice (2026-08-11)
+
+- `src/engine/recipes.ts` now owns the serialisable `Recipe` model and pure `executeRecipe` executor. Freeplay, Deal 2, Blackjack, and Poker are data definitions; `gameStore` executes recipes for new sessions and solo next hands while `Preset` remains a compatibility adapter.
+- Added five recipe regression tests; Jest is now **92 tests / 9 suites**. Typecheck, lint (0 errors / 0 warnings), and expo-doctor **20/20** pass. Local web proof remains green at 375×812 and 1440×900; the visual QA probe's RN-Web scroll ancestor selector was made resilient to the current `150rngu` class form.
 
 ## Product direction
 
