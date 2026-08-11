@@ -4,7 +4,10 @@ const baseUrl = process.env.DECKD_QA_URL ?? 'https://deckd-app.roxai.click/';
 
 async function exactButton(page, name, last = false) {
   const locator = page.getByRole('button', { name, exact: true });
-  await locator.first().waitFor({ state: 'attached', timeout: 30000 });
+  // Wait for visible (not just attached): the home layer's buttons exist in
+  // the DOM immediately but can be covered by a splash/loading overlay until
+  // hydration completes against the live CDN. Attached-only waits flake.
+  await locator.first().waitFor({ state: 'visible', timeout: 30000 });
   return last ? locator.last() : locator.first();
 }
 
@@ -51,12 +54,19 @@ async function waitForBody(page, predicate, timeout = 30000) {
       host.evaluate(() => localStorage.clear()),
       guest.evaluate(() => localStorage.clear()),
     ]);
+    // Wait for the JS bundle to load and the app to hydrate. 'commit' returns
+    // before the bundle downloads; the app has a 5MB bundle from the CDN. Use
+    // 'domcontentloaded' (fires reliably, unlike 'networkidle' which hangs on
+    // the persistent relay WebSocket) and let the visible-button wait below
+    // gate on hydration. If the CDN is slow the button wait fails precisely.
     await Promise.all([
-      host.reload({ waitUntil: 'commit' }),
-      guest.reload({ waitUntil: 'commit' }),
+      host.reload({ waitUntil: 'domcontentloaded', timeout: 30000 }),
+      guest.reload({ waitUntil: 'domcontentloaded', timeout: 30000 }),
     ]);
-    await host.waitForTimeout(1500);
-    await guest.waitForTimeout(1500);
+    // 3s initial wait: the live CDN occasionally needs >1.5s to hydrate the
+    // home layer. A shorter wait causes a flaky timeout on the first button.
+    await host.waitForTimeout(3000);
+    await guest.waitForTimeout(3000);
     await Promise.all([
       exactButton(host, 'Deal to friends'),
       exactButton(guest, 'Deal to friends'),
@@ -79,7 +89,20 @@ async function waitForBody(page, predicate, timeout = 30000) {
     // Host starts a Blackjack table
     await (await exactButton(host, 'Start the table')).click();
     await waitForText(host, 'Choose a recipe');
-    await host.getByRole('button', { name: /Blackjack/i }).first().click();
+    // Wait for the Blackjack recipe button to be visible and clickable.
+    // The recipe buttons share the hub with stale table-layer surfaces (all
+    // layers stay in the DOM); a direct click without a visible wait can hit
+    // a covered element and silently fail to select the preset.
+    const blackjackBtn = host.getByRole('button', { name: /Blackjack/i }).first();
+    await blackjackBtn.waitFor({ state: 'visible', timeout: 30000 });
+    await blackjackBtn.click();
+    // Wait for the preset selection to register in the store before dealing.
+    // Without this, 'Deal now' can fire before activePreset updates and create a
+    // Freeplay session (showing PASS THE TABLE instead of TWIST/STICK).
+    // 1s is needed: the Zustand set() is sync but the React re-render that
+    // updates activePreset (useMemo) takes a frame, and the hub's deal handler
+    // reads activePreset.id at click time.
+    await host.waitForTimeout(1000);
     await (await exactButton(host, 'Deal now')).click();
     await waitForBody(host, () => document.body.innerText.includes('TWIST'));
     await host.waitForTimeout(700);
