@@ -47,6 +47,12 @@ GLM-5.2 (per-game passes) in parallel lanes. Monetisation untouched.
 - Discard: short arc + 8-12° rotation into the discard pile, settle.
 - Flip: existing FlipCard, ensure used for every reveal.
 
+Foundation implementation (2026-08-12): `components/CardFlight.tsx` exposes an
+imperative `fly(card, fromXY, toXY, opts)` handle plus `deal(cards, fromXY,
+toXY)` with the required 40ms stagger. `lib/cardFlight.ts` keeps the arc and
+discard-angle math pure for deterministic tests. Reduced motion removes arcs,
+rotation, and spring overshoot and uses a short cross-fade/snap path.
+
 ### 1.3 Page transitions (one felt space)
 - Extend SurfaceMorph: hub→table (deal lands, no page swap), lobby→table,
   home→hub already exists.
