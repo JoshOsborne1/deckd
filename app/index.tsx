@@ -2,7 +2,14 @@ import React, { useEffect, useMemo } from 'react';
 import { StyleSheet, View } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Easing, useSharedValue, withTiming } from 'react-native-reanimated';
+import {
+  default as Animated,
+  Easing,
+  interpolate,
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+} from 'react-native-reanimated';
 import { HomeLayer } from '@components/layers/HomeLayer';
 import { HubLayer } from '@components/layers/HubLayer';
 import { TableLayer } from '@components/layers/TableLayer';
@@ -13,6 +20,7 @@ import {
   SurfaceMorphContext,
   type MorphDirection,
   type SurfaceMorph,
+  type SurfaceTransitionKind,
 } from '@components/layers/SurfaceMorphContext';
 import { useUiStore } from '@store/uiStore';
 import { useCosmeticsStore } from '@store/cosmeticsStore';
@@ -20,36 +28,30 @@ import { findTableThemeById } from '@engine/visuals';
 import { useMotion } from '@hooks/useMotion';
 import { alpha, colors } from '@theme';
 import { PAPER_GRAIN_PATH } from '@lib/paperGrain';
-
-/**
- * The Deckd surface. `/` is the single canvas: a persistent felt background
- * with cosmetic/home/hub/table/lobby/pass layers stacked on top, driven by
- * `uiStore.viewMode`. Transitions feel like UI chrome sliding off the core
- * game rather than hopping between menus.
- *
- * The home -> hub transition is choreographed via a single `progress` shared
- * value (0 = fully home, 1 = fully hub) published through
- * `SurfaceMorphContext`. Each Home/Hub element reads it with its own
- * `interpolate` window, producing staggered exits and entries without any
- * per-element `useEffect` chains.
- *
- * Material-emphasized easing (`cubic-bezier(0.4, 0, 0.2, 1)`) is used both
- * directions; hub -> home is a touch snappier (~380ms vs ~520ms).
- */
+import {
+  getSurfaceTransitionKind,
+  isSurfaceTableTransition,
+} from '@lib/surfaceMorph';
 
 const MATERIAL_EMPHASIZED = Easing.bezier(0.4, 0, 0.2, 1);
 const DURATION_ENTER_HUB = 520;
 const DURATION_RETURN_HOME = 380;
 const DURATION_REDUCE_MOTION = 200;
+const DURATION_TABLE_MORPH = 420;
 
 export default function Surface() {
   const insets = useSafeAreaInsets();
   const viewMode = useUiStore((s) => s.viewMode);
+  const previousMode = useUiStore((s) => s.previousMode);
   const { reduceMotion } = useMotion();
 
   const progress = useSharedValue<number>(viewMode === 'home' ? 0 : 1);
   const direction = useSharedValue<MorphDirection>(0);
   const reduceMotionSv = useSharedValue<number>(reduceMotion ? 1 : 0);
+  const transitionProgress = useSharedValue(1);
+  const transitionKind = useSharedValue<SurfaceTransitionKind>('idle');
+
+  const tableTransition = getSurfaceTransitionKind(viewMode, previousMode);
 
   useEffect(() => {
     reduceMotionSv.value = reduceMotion ? 1 : 0;
@@ -58,39 +60,49 @@ export default function Surface() {
   useEffect(() => {
     if (viewMode === 'home') {
       direction.value = -1;
-      const duration = reduceMotion
-        ? DURATION_REDUCE_MOTION
-        : DURATION_RETURN_HOME;
-      progress.value = withTiming(
-        0,
-        { duration, easing: MATERIAL_EMPHASIZED },
-        (finished) => {
-          'worklet';
-          if (finished) direction.value = 0;
-        },
-      );
+      const duration = reduceMotion ? DURATION_REDUCE_MOTION : DURATION_RETURN_HOME;
+      progress.value = withTiming(0, { duration, easing: MATERIAL_EMPHASIZED }, (finished) => {
+        'worklet';
+        if (finished) direction.value = 0;
+      });
     } else if (viewMode === 'hub') {
       direction.value = 1;
-      const duration = reduceMotion
-        ? DURATION_REDUCE_MOTION
-        : DURATION_ENTER_HUB;
-      progress.value = withTiming(
-        1,
-        { duration, easing: MATERIAL_EMPHASIZED },
-        (finished) => {
-          'worklet';
-          if (finished) direction.value = 0;
-        },
-      );
+      const duration = reduceMotion ? DURATION_REDUCE_MOTION : DURATION_ENTER_HUB;
+      progress.value = withTiming(1, { duration, easing: MATERIAL_EMPHASIZED }, (finished) => {
+        'worklet';
+        if (finished) direction.value = 0;
+      });
     }
-    // Any other viewMode (table / lobby / pass): keep progress where it is.
-    // The table/lobby/pass layers own their own whole-layer fade on top of
-    // whatever state Home+Hub settled into.
   }, [viewMode, progress, direction, reduceMotion]);
 
+  useEffect(() => {
+    const enteringTable = isSurfaceTableTransition(tableTransition);
+    transitionKind.value = tableTransition;
+    transitionProgress.value = enteringTable ? 0 : 1;
+    if (!enteringTable) return;
+
+    transitionProgress.value = withTiming(
+      1,
+      {
+        duration: reduceMotion ? DURATION_REDUCE_MOTION : DURATION_TABLE_MORPH,
+        easing: MATERIAL_EMPHASIZED,
+      },
+      (finished) => {
+        'worklet';
+        if (finished) transitionKind.value = 'idle';
+      },
+    );
+  }, [reduceMotion, tableTransition, transitionKind, transitionProgress]);
+
   const morph = useMemo<SurfaceMorph>(
-    () => ({ progress, direction, reduceMotion: reduceMotionSv }),
-    [progress, direction, reduceMotionSv],
+    () => ({
+      progress,
+      direction,
+      reduceMotion: reduceMotionSv,
+      transitionProgress,
+      transitionKind,
+    }),
+    [direction, progress, reduceMotionSv, transitionKind, transitionProgress],
   );
 
   return (
@@ -120,6 +132,7 @@ export default function Surface() {
             topInset={insets.top}
             bottomInset={insets.bottom + NAV_BAR_RESERVE}
           />
+          <TableMorphSweep />
           <PassLayer />
         </View>
       </View>
@@ -127,7 +140,31 @@ export default function Surface() {
   );
 }
 
-/** Ambient felt layer that anchors the whole surface in the game world. */
+function TableMorphSweep() {
+  const { transitionProgress, reduceMotion, transitionKind } = useSurfaceMorphUnsafe();
+  const sweepStyle = useAnimatedStyle(() => {
+    const active = transitionKind.value !== 'idle';
+    return {
+      opacity: active ? interpolate(transitionProgress.value, [0, 0.2, 0.8, 1], [1, 0.58, 0.18, 0]) : 0,
+      transform: reduceMotion.value === 1
+        ? []
+        : [{ translateY: interpolate(transitionProgress.value, [0, 1], [26, 0]) }],
+    };
+  });
+
+  return <View pointerEvents="none" style={styles.morphSweep}><View style={styles.morphSweepFelt}><AnimatedSweep style={sweepStyle} /></View></View>;
+}
+
+function useSurfaceMorphUnsafe(): SurfaceMorph {
+  const ctx = React.useContext(SurfaceMorphContext);
+  if (!ctx) throw new Error('TableMorphSweep must be rendered inside SurfaceMorphContext.Provider');
+  return ctx;
+}
+
+function AnimatedSweep({ style }: { style: ReturnType<typeof useAnimatedStyle> }) {
+  return <Animated.View style={[styles.sweepWash, style]} />;
+}
+
 function FeltBackground() {
   const themeId = useCosmeticsStore((s) => s.equippedTableThemeId);
   const tableTheme = findTableThemeById(themeId);
@@ -137,30 +174,11 @@ function FeltBackground() {
   const grainTint = tableTheme?.railColor ?? tableTheme?.glowTint ?? alpha.inkOverlay12;
   return (
     <View style={[styles.felt, { backgroundColor: base }]} pointerEvents="none">
-      {/* Radial light from the centre of the table */}
       <View style={[styles.feltGlow, { backgroundColor: well }]} />
-      {/* Rail ring */}
       <View style={[styles.tableRail, { borderColor: rail }]} />
-      {/* Inner well */}
       <View style={[styles.tableWell, { backgroundColor: well }]} />
-      {/* Non-repeating paper/felt grain, tinted by the equipped table theme */}
-      <Svg
-        width="100%"
-        height="100%"
-        viewBox="0 0 100 100"
-        preserveAspectRatio="none"
-        style={styles.tableGrain}
-        pointerEvents="none"
-      >
-        <Path
-          d={PAPER_GRAIN_PATH}
-          fill="none"
-          stroke={grainTint}
-          strokeWidth={0.55}
-          strokeLinecap="round"
-          opacity={0.22}
-          vectorEffect="non-scaling-stroke"
-        />
+      <Svg width="100%" height="100%" viewBox="0 0 100 100" preserveAspectRatio="none" style={styles.tableGrain} pointerEvents="none">
+        <Path d={PAPER_GRAIN_PATH} fill="none" stroke={grainTint} strokeWidth={0.55} strokeLinecap="round" opacity={0.22} vectorEffect="non-scaling-stroke" />
       </Svg>
       <View style={styles.feltVignetteTop} />
       <View style={styles.feltVignetteBottom} />
@@ -169,75 +187,16 @@ function FeltBackground() {
 }
 
 const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-    backgroundColor: colors.bg,
-    // The table rail intentionally extends past the canvas to create a
-    // physical oval. Clip it at the surface edge so a 375px phone never gets
-    // a horizontal document scroll from that decorative geometry.
-    overflow: 'hidden',
-  },
-  layers: {
-    flex: 1,
-    minHeight: 0,
-  },
-  felt: {
-    ...StyleSheet.absoluteFill,
-  },
-  feltGlow: {
-    position: 'absolute',
-    left: '12%',
-    right: '12%',
-    top: '18%',
-    height: '64%',
-    borderRadius: 999,
-    opacity: 0.5,
-  },
-  tableRail: {
-    position: 'absolute',
-    // Keep the ornament inside the canvas. Negative insets make the root
-    // horizontally scrollable on web, so a focused recipe card can shift the
-    // entire table layer left by the rail's overflow amount.
-    left: 0,
-    right: 0,
-    top: '23%',
-    height: '62%',
-    borderRadius: 260,
-    borderWidth: 18,
-    opacity: 0.28,
-  },
-  tableWell: {
-    position: 'absolute',
-    left: 44,
-    right: 44,
-    top: '36%',
-    height: '34%',
-    borderRadius: 190,
-    opacity: 0.34,
-  },
-  tableGrain: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    top: 0,
-    bottom: 0,
-  },
-  feltVignetteTop: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    height: 120,
-    backgroundColor: alpha.inkOverlay06,
-    opacity: 0.4,
-  },
-  feltVignetteBottom: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    height: 160,
-    backgroundColor: alpha.inkOverlay06,
-    opacity: 0.35,
-  },
+  root: { flex: 1, backgroundColor: colors.bg, overflow: 'hidden' },
+  layers: { flex: 1, minHeight: 0 },
+  felt: { ...StyleSheet.absoluteFill },
+  feltGlow: { position: 'absolute', left: '12%', right: '12%', top: '18%', height: '64%', borderRadius: 999, opacity: 0.5 },
+  tableRail: { position: 'absolute', left: 0, right: 0, top: '23%', height: '62%', borderRadius: 260, borderWidth: 18, opacity: 0.28 },
+  tableWell: { position: 'absolute', left: 44, right: 44, top: '36%', height: '34%', borderRadius: 190, opacity: 0.34 },
+  tableGrain: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0 },
+  feltVignetteTop: { position: 'absolute', top: 0, left: 0, right: 0, height: 120, backgroundColor: alpha.inkOverlay06, opacity: 0.4 },
+  feltVignetteBottom: { position: 'absolute', bottom: 0, left: 0, right: 0, height: 160, backgroundColor: alpha.inkOverlay06, opacity: 0.35 },
+  morphSweep: { ...StyleSheet.absoluteFill, zIndex: 30 },
+  morphSweepFelt: { ...StyleSheet.absoluteFill, overflow: 'hidden' },
+  sweepWash: { ...StyleSheet.absoluteFill, backgroundColor: alpha.brand10, borderTopWidth: 1, borderTopColor: alpha.brand20 },
 });

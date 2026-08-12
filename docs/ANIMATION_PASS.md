@@ -47,6 +47,12 @@ GLM-5.2 (per-game passes) in parallel lanes. Monetisation untouched.
 - Discard: short arc + 8-12° rotation into the discard pile, settle.
 - Flip: existing FlipCard, ensure used for every reveal.
 
+Foundation implementation (2026-08-12): `components/CardFlight.tsx` exposes an
+imperative `fly(card, fromXY, toXY, opts)` handle plus `deal(cards, fromXY,
+toXY)` with the required 40ms stagger. `lib/cardFlight.ts` keeps the arc and
+discard-angle math pure for deterministic tests. Reduced motion removes arcs,
+rotation, and spring overshoot and uses a short cross-fade/snap path.
+
 ### 1.3 Page transitions (one felt space)
 - Extend SurfaceMorph: hub→table (deal lands, no page swap), lobby→table,
   home→hub already exists.
@@ -54,6 +60,13 @@ GLM-5.2 (per-game passes) in parallel lanes. Monetisation untouched.
   dimmed felt, table edge visible above), NOT routes.
 - Felt-sweep kept as the direction cue; reduce-motion = cross-fade.
 - NAV reserve respected on every surface.
+
+Foundation implementation (2026-08-12): `SurfaceMorphContext` now publishes
+`transitionProgress` and `transitionKind` for `hub-table` and `lobby-table`
+handoffs. The root surface keeps the game layers mounted and adds a shared felt
+sweep rather than a route pop. `components/FeltDrawer.tsx` gives store/profile/
+settings their paper-over-felt drawer treatment while retaining the table edge
+and NAV reserve. Reduced motion collapses both treatments to cross-fades.
 
 ### 1.4 Win celebration + pass ritual
 - Win: card burst (6-10 cards fan outward from winner's pile) + banner
