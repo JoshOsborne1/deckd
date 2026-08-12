@@ -6,6 +6,7 @@ import { CardButton } from '@components/CardButton';
 import { CardSection } from '@components/CardSection';
 import { useMotion } from '@hooks/useMotion';
 import { useProfileStore } from '@store/profileStore';
+import { useUiStore } from '@store/uiStore';
 import { alpha, colors, fonts, letterSpacing, space, textStyles } from '@theme';
 
 /**
@@ -19,8 +20,8 @@ export default function SettingsScreen() {
   const networkMultiplayerEnabled = useProfileStore((s) => s.networkMultiplayerEnabled);
   const setNetworkMultiplayerEnabled = useProfileStore((s) => s.setNetworkMultiplayerEnabled);
   const hapticsEnabled = useProfileStore((s) => s.hapticsEnabled);
-  const soundEnabled = useProfileStore((s) => s.soundEnabled);
-  const setSoundEnabled = useProfileStore((s) => s.setSoundEnabled);
+  const soundEnabled = useUiStore((s) => s.soundEnabled);
+  const setSoundEnabled = useUiStore((s) => s.setSoundEnabled);
 
   const back = () => {
     if (router.canGoBack()) router.back();
