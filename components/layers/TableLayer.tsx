@@ -22,6 +22,7 @@ import { KlondikeLayout } from '@components/KlondikeLayout';
 import { HandFan } from '@components/HandFan';
 import { HandStack } from '@components/HandStack';
 import { SolitaireBoard } from '@components/SolitaireBoard';
+import { BlackjackTable } from '@components/layers/BlackjackTable';
 import { useLayerSurfaceEntrance } from '@hooks/useLayerSurfaceEntrance';
 import { useMotion } from '@hooks/useMotion';
 import { DISCARD_PULSE_SCALE } from '@lib/motion';
@@ -347,6 +348,8 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
   // --- Solitaire games render their own dedicated board (FreeCell/Pyramid only).
   // Klondike renders through KlondikeLayout (main's suit-based implementation). ---
   const isSolitaire = ['freecell', 'pyramid'].includes(state.config.presetId ?? '');
+  /** Blackjack gets its own per-game animation pass (spec 2.2). */
+  const isBlackjackTable = state.config.presetId === 'blackjack';
 
   // --- Selectors (memoized off state) ---
   const drawCount = useMemo(() => selectDrawPileCount(state), [state]);
@@ -915,6 +918,18 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
           bottomInset={bottomInset}
         />
       </Animated.View>
+    );
+  }
+
+  // --- Blackjack: dedicated per-game animation pass (twist cascade, dealer
+  // auto-play, bust shake/flash, hand-over pop). ---
+  if (isBlackjackTable && viewerId) {
+    return (
+      <BlackjackTable
+        active={active}
+        topInset={topInset}
+        bottomInset={bottomInset}
+      />
     );
   }
 
