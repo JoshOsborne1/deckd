@@ -11,12 +11,12 @@ Status legend: `queued` = ready to dispatch · `running` = a card/lane owns it �
 
 ## Game library (G1)
 
-- [ ] **War** — `running` (main card t_77691afb, 2026-08-12). Engine preset exists; needs rules actions, table UI, win state.
-- [ ] **Go Fish** — `queued`. Engine preset exists; needs `card/ask` + pair logic, rules view, win state. Source: audit dispatch #2.
-- [ ] **Old Maid** — `queued`. Engine preset exists; needs pair logic + hot-potato pass, win state. Source: audit dispatch #2.
-- [ ] **Crazy Eights** — `queued`. Engine preset exists; needs `matchRule` (suit/rank matching), draw-until-playable, win state. Source: audit dispatch #3.
-- [ ] **Sevens** — `queued`. Engine preset exists; needs sequential play, pass-if-unplayable, win state. Source: audit dispatch #3.
-- [ ] **Rules view + win states for every shipped game** — `queued`. Per-recipe rules (plain English), end-of-game flows, scoreboard, replay. Source: audit dispatch #4, G1.
+- [ ] **War** — `done` (preset, rules actions, table UI, win state; QA in deckd-library-qa).
+- [ ] **Go Fish** — `done` (books on felt, end banner, engine deadlock fix; QA deckd-gofish-qa).
+- [ ] **Old Maid** — `done` (pairs on felt, win state; library QA).
+- [ ] **Crazy Eights** — `done` (contextual draw, empty-deck fewest-cards winner, banner; QA deckd-crazy-eights-qa).
+- [ ] **Sevens** — `done` (suit-run board, pass-if-unplayable, winner banner; QA deckd-sevens + library QA).
+- [ ] **Rules view + win states for every shipped game** — `done` (shared RulesSheet per recipe + end-state round/turn readout + replay; scoreboard across rounds not built — P2 if wanted).
 - [ ] **Golf** — `queued`. Flip-and-match short rounds. Source: solo lane brief (if time).
 
 ## UX (G2, G5)
