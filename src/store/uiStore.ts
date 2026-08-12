@@ -96,6 +96,24 @@ export const useUiStore = create<UiStoreState>()(
         firstRunHintDismissed: s.firstRunHintDismissed,
         soundEnabled: s.soundEnabled,
       }),
+      onRehydrateStorage: () => (state) => {
+        // One-time adoption: the sound toggle previously lived in the
+        // profile store (`profile:local`). Adopt a muted preference so
+        // existing users don't get sound forced back on.
+        if (!state || state.soundEnabled !== true) return;
+        try {
+          const storage = createPlatformStorage();
+          const raw = (storage.getItem as (k: string) => string | null)('profile:local');
+          if (!raw) return;
+          const old = JSON.parse(raw) as { state?: { soundEnabled?: unknown } };
+          const adopted = old?.state?.soundEnabled;
+          if (typeof adopted === 'boolean' && !adopted) {
+            state.soundEnabled = false;
+          }
+        } catch {
+          // Unreadable old storage — keep the default.
+        }
+      },
     },
   ),
 );
