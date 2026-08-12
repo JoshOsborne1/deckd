@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { configureRevenueCat, isRevenueCatConfigured, Purchases } from '@lib/revenuecat';
 import { syncMasterPassFromCustomerInfo } from '@lib/entitlement';
 import { installMultiplayerBridge } from '@store/multiplayerBridge';
+import { useTableSoundBridge } from '@hooks/useTableSoundBridge';
 import { View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -19,6 +20,10 @@ SplashScreen.preventAutoHideAsync().catch(() => {
 });
 
 export default function RootLayout() {
+  // Game-event -> table-sound bridge. Subscribes to gameStore at the app
+  // root so every deal/flip/discard/pass/win (local, rule-driven, or
+  // remote) plays without layer components calling the hook themselves.
+  useTableSoundBridge();
   const [fontsLoaded, fontError] = useFonts({
     'PlusJakartaSans-Regular': require('@assets/fonts/PlusJakartaSans-Regular.ttf'),
     'PlusJakartaSans-Medium': require('@assets/fonts/PlusJakartaSans-Medium.ttf'),
