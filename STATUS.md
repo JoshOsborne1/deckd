@@ -1,6 +1,13 @@
 # Deckd status
 
-Last update: 2026-08-11 (home continuity pass — home is now the warm table surface with a physical deal deck, resume affordance, and shared-table entry; preview `entry-972c442e96ac34b4d78fa5a2f8786089.js` live; public mobile/desktop/reduced-motion QA green).
+Last update: 2026-08-12 (nav v3 lane — chips on the table edge, directive 13; branch `deckd-para-nav3`).
+
+## Nav v3 slice (2026-08-12, lane `deckd-para-nav3`, commit `4fdc3b5`)
+
+- `components/GlobalNavBar.tsx` reworked per directive 13: no nav bar. The bottom of the screen is the table's physical edge (thin felt lip, 1px crimson rule). Four flat cylinder chips (46px face, 1px rim, engraved lucide mark, tiny label) sit on the edge: Home, Store, Presets, Profile. Active chip raises 4px with crimson rim + soft shadow; press presses into the felt (scale 0.96 quick spring); settle spring on selection. Chips deal in from the edge one by one (40ms stagger); reduced motion = plain fade.
+- Deal is not a nav item: it stays the deck object (card-back stack, logo on top) center-bottom above the edge, always present.
+- `NAV_BAR_RESERVE` / `GLOBAL_NAV_HEIGHT` exports unchanged — surfaces keep their reserve.
+- QA: `qa/deckd-nav3-qa.cjs` (375 + 1440, home/hub/store/list/profile, geometry + no-overflow + chip-face probe) and `qa/deckd-nav3-reduced-qa.cjs` (reduced-motion) green; existing `deckd-responsive-reduced-motion-qa.cjs` green on the table surface. Gates: typecheck, lint (0 errors), jest 169/169, expo-doctor 20/20.
 
 ## Deployment
 
