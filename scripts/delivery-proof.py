@@ -21,6 +21,7 @@ Usage:
 import argparse
 import hashlib
 import json
+import os
 import re
 import subprocess
 import sys
@@ -251,7 +252,7 @@ def main() -> int:
             fail(f"workflow is not a file: {workflow}")
         if not str(workflow).startswith(str(repo)):
             fail("workflow must be inside the repository")
-        if str(output_dir).startswith(str(repo)):
+        if str(output_dir).startswith(str(repo) + os.sep) or output_dir == repo:
             fail("output directory must be outside the repository")
 
         output_dir.mkdir(parents=True, exist_ok=True)

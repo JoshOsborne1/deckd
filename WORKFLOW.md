@@ -70,19 +70,19 @@ review work in plain English.
   ],
   "commands": [
     {
-      "argv": ["npm", "run", "typecheck"],
+      "argv": ["npm.cmd", "run", "typecheck"],
       "timeout_seconds": 600
     },
     {
-      "argv": ["npm", "run", "lint"],
+      "argv": ["npm.cmd", "run", "lint"],
       "timeout_seconds": 600
     },
     {
-      "argv": ["npx", "jest"],
+      "argv": ["npx.cmd", "jest"],
       "timeout_seconds": 900
     },
     {
-      "argv": ["npx", "expo-doctor"],
+      "argv": ["npx.cmd", "expo-doctor"],
       "timeout_seconds": 600
     }
   ],
