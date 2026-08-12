@@ -1,63 +1,71 @@
 # Deckd LOOP plan
 
-Updated: 2026-08-12 (Old Maid slice, task t_798a1d52)
+Updated: 2026-08-12 (Crazy Eights slice, task t_c0e7d44e)
 
 ## Current read
 
-Old Maid is mostly built from the Go Fish run: recipe preset (53-card deck,
-roundRobin 27 rounds), pair/draw/end rules, rules guide copy, TableLayer
-contextual rail (PAIR UP / DRAW CARD), FeltStack pair rendering, end banner
-with pair count, HubLayer copy. Engine tests cover deal + pair + draw.
+Crazy Eights is mostly built from the Go Fish / Old Maid runs: recipe preset
+(52-card deck, roundRobin 5 rounds, max 6 players), match-suit/rank rules,
+wild eights, draw-one-then-pass, win on last card, rules guide copy, guidance
+copy in TableLayer, per-card PLAY rail.
 
 What is NOT ready (gaps vs G1/G2):
 
-1. **Winner logic bug.** `oldMaidWinner` returns the FIRST player with an
-   empty projected hand in seat order. In 3+ player games, a player who
-   emptied earlier is declared winner when someone else empties. The winner
-   must be the player who JUST emptied (current > 0, projected 0). The
-   `end`/no-target fallbacks also hardcode `state.players[0]` as winner —
-   wrong when the current player holds the maid and loses.
-2. **No maid reveal.** The payoff moment is missing: when the round ends,
-   the banner says "X takes the table" but never shows who holds the maid.
-   Old Maid's whole drama is the loser stuck with the joker.
-3. **Dead draw pile on the felt.** Old Maid deals all 53 cards, so the
-   draw pile is always 0 and rendered disabled ("0 LEFT") — a G2 dead
-   button. Go Fish keeps the pile (fishing); Old Maid should hide it.
-4. **No dedicated Old Maid QA proof.** The library probe only checks an
-   action exists. No full flow (setup → rules → pair → draw → pairs on
-   felt → end → maid reveal → replay) at 375 and desktop.
+1. **Wrong-winner on empty deck.** When no card fits and the draw pile is
+   empty, the rules rail offers FINISH and `crazyEightsApply('end')` ends the
+   session with `winnerId = viewerId` — the CURRENT (stuck) player. Classic
+   Crazy Eights ends with the fewest-cards player winning. Same bug in the
+   draw-when-deck-empty fallback (line ~736). This is the Old Maid
+   `players[0]` bug class.
+2. **Dead deck object on the felt.** Contextual games set
+   `canUseGenericHandActions = false`, so the draw-pile Pressable in the
+   generic piles branch is always disabled for crazy-eights and sevens — a G2
+   dead button (Old Maid's slice hid the pile; CE and sevens still show one).
+3. **No CE end banner copy.** Ended banner falls through to generic "takes
+   the table". CE deserves its own winner line.
+4. **Draw count disappears** once the pile is hidden; move it into the
+   readout (HAND n · TOP r · DRAW n).
+5. **No dedicated CE QA proof.** The library probe only checks an action
+   exists. No full flow (setup → rules → play match → draw-fits keeps turn →
+   draw-miss passes → end → winner banner → replay) at 375 and desktop.
 
-## Current slice — winner fix + maid reveal + dead pile + proof
+## Current slice — empty-deck winner + dead pile + CE banner + proof
 
-1. Engine (`src/engine/rules.ts`): `oldMaidWinner` picks the player who
-   just emptied (current hand > 0, projected 0), falling back to any empty
-   hand defensively. `end` and no-target fallbacks pick a non-current
-   player instead of `players[0]`. Regression tests in fish-maid.test.ts:
-   3-player game where an earlier-emptied player must NOT win; draw that
-   empties the target → target wins; pair that empties the actor → actor
-   wins.
-2. TableLayer: hide the draw pile for old-maid (keep for go-fish). Ended
-   banner: old-maid title "X dodged the maid" / "You hold the maid" when
-   the viewer is stuck; render the maid joker face-up in the banner with
-   "Maid stays with {name}" copy.
-3. QA: `qa/deckd-oldmaid-qa.cjs` — full loop at 375x812 and 1440x900:
-   start preset, read rules, PAIR UP, DRAW CARD, pairs on felt with
-   accessible label, play to end, winner banner + maid reveal, replay,
-   zero console errors, no overflow.
+1. Engine (`src/engine/rules.ts`):
+   - `crazyEightsFewestCardsWinner(state)`: winner = player with fewest hand
+     cards (seat order breaks ties). Used by `end` and the draw-when-empty
+     fallback instead of `viewerId`.
+   - Readout gains `· DRAW n` when the pile is non-empty.
+   - Regression tests in fish-maid.test.ts: draw-that-fits keeps the turn,
+     draw-that-misses passes, last-card play wins, empty-deck FINISH picks
+     fewest-cards player over the stuck current player, and a 10-seed greedy
+     termination sweep (no deadlock; winner always defined).
+2. TableLayer:
+   - Hide the draw-pile deck object for contextual games (crazy-eights,
+     sevens share the generic piles branch; go-fish/old-maid already handled).
+     The rule rail owns DRAW; the discard slot stays as the match target.
+   - Ended banner: CE title "You play out first" / "{name} plays out first".
+3. QA: `qa/deckd-crazy-eights-qa.cjs` — full loop at 375x812 and 1440x900:
+   start preset, read rules, PLAY a matching card, draw-fits keeps turn,
+   draw-miss passes, discard top visible on the felt, play to end, winner
+   banner, replay, zero console errors, no overflow.
 4. Gates (typecheck, lint, jest, expo-doctor) green, commit `[verified]`,
    deploy preview, update STATUS.md.
 
 ## Decision log
 
-- Winner rule: the player who empties their hand first wins (classic Old
-  Maid). The maid holder is the last player with cards.
-- Maid reveal is text + the joker card rendered in the end banner — no new
-  components, no new deps.
-- Draw pile hidden for old-maid only; go-fish unchanged.
+- Empty-deck end rule: fewest-cards wins, seat order breaks ties (classic
+  Crazy Eights; the deck is exhausted and play stalls).
+- No starter card on the discard: first player may play any card (matches
+  the current engine; Go Fish/Old Maid open the same way).
+- Dead draw pile hidden for ALL contextual games (crazy-eights, sevens,
+  go-fish, old-maid) — the rule rail owns the draw action; the count moves
+  into the readout instead of a dead "N LEFT" button.
+- Draw that fits keeps the turn (classic rule), draw that misses auto-passes.
 - No changes to Backlog status marks (watchdog owns them).
 
 ## Acceptance bar for this run
 
-- Old Maid plays from setup to winner with pairs on the felt, the maid
-  revealed at end, no dead draw pile, correct winner in 3+ player games.
+- Crazy Eights plays from setup to winner with a live discard target on the
+  felt, correct empty-deck winner, no dead draw pile, CE end banner, replay.
 - All four gates green; new engine tests + new QA script pass.

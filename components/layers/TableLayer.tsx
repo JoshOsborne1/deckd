@@ -1032,35 +1032,40 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
           </View>
         ) : (
           <View style={styles.tablePiles}>
-            {/* Draw pile */}
-            <Animated.View
-              style={[
-                styles.deckStack,
-                drawMotionStyle,
-                suggestedAction === 'draw' && styles.suggestedDeck,
-              ]}
-            >
-              <Pressable
-                onPress={handleDrawCard}
-                onPressIn={handleDrawPressIn}
-                onPressOut={handleDrawPressOut}
-                disabled={!isMyTurn || drawCount === 0 || !canUseGenericHandActions}
-                accessibilityRole="button"
-                accessibilityLabel={`Draw pile, ${drawCount} cards left`}
-                accessibilityHint={
-                  suggestedAction === 'draw'
-                    ? 'Suggested next move. Tap to draw a card.'
-                    : 'Tap to draw a card when it is your turn.'
-                }
+            {/* Draw pile — contextual rule games (crazy-eights, sevens)
+                draw through their action rail; a static deck object here
+                would be a dead button. The pile count lives in the
+                readout instead. */}
+            {!isContextualGame && (
+              <Animated.View
                 style={[
-                  styles.deckTrigger,
-                  (!isMyTurn || drawCount === 0 || !canUseGenericHandActions) && { opacity: 0.5 },
+                  styles.deckStack,
+                  drawMotionStyle,
+                  suggestedAction === 'draw' && styles.suggestedDeck,
                 ]}
               >
-                <PlayingCard face="down" size="md" back={equippedBackId} />
-                <Text style={styles.deckLeftText}>{drawCount} LEFT</Text>
-              </Pressable>
-            </Animated.View>
+                <Pressable
+                  onPress={handleDrawCard}
+                  onPressIn={handleDrawPressIn}
+                  onPressOut={handleDrawPressOut}
+                  disabled={!isMyTurn || drawCount === 0 || !canUseGenericHandActions}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Draw pile, ${drawCount} cards left`}
+                  accessibilityHint={
+                    suggestedAction === 'draw'
+                      ? 'Suggested next move. Tap to draw a card.'
+                      : 'Tap to draw a card when it is your turn.'
+                  }
+                  style={[
+                    styles.deckTrigger,
+                    (!isMyTurn || drawCount === 0 || !canUseGenericHandActions) && { opacity: 0.5 },
+                  ]}
+                >
+                  <PlayingCard face="down" size="md" back={equippedBackId} />
+                  <Text style={styles.deckLeftText}>{drawCount} LEFT</Text>
+                </Pressable>
+              </Animated.View>
+            )}
 
             {/* Discard slot */}
             {discardTop && discardParsed ? (
@@ -1132,6 +1137,10 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
                 ? state.winnerId === viewerId
                   ? 'You dodged the maid'
                   : `${state.players.find((p) => p.id === state.winnerId)?.name ?? 'Winner'} dodged the maid`
+                : rules.id === 'crazy-eights'
+                ? state.winnerId === viewerId
+                  ? 'You play out first'
+                  : `${state.players.find((p) => p.id === state.winnerId)?.name ?? 'Winner'} plays out first`
                 : state.winnerId
                   ? state.winnerId === viewerId
                     ? 'You take the table'
