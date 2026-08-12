@@ -1,58 +1,61 @@
-# LOOP PLAN — Sound pass (t_f8c85b8e)
+# LOOP PLAN — Nav v3: chips on the table edge (t_049705ec)
 
 ## Goal
-Take the Sound pass to the ready bar (G5: "sound with mute", audit §3.6
-"wire expo-audio: deal, flip, discard, win. Mute toggle in settings. Default
-on, subtle.").
+Take directive 13 (chips on the table edge) to the ready bar. The nav must
+read as the table's physical edge with four flat cylinder chips and a deck
+object (not a nav bar), work on ALL surfaces at 375px and desktop, respect
+reduced motion, and never collide with game surfaces.
 
 ## State on arrival (verified 2026-08-12)
-A prior lane already shipped most of the sound pass and it is merged into
-HEAD (61239e7):
+The feature itself was already shipped by the `deckd-para-nav3` lane and is
+merged into HEAD (4fdc3b5 + docs feb898a are ancestors of HEAD):
 
-- `assets/sounds/*.wav` — 5 real audible clips (deal 0.16s, flip 0.10s,
-  discard 0.13s, pass 0.20s, win 0.70s; 22.05kHz, peaks 0.4-0.5).
-- `src/hooks/useTableSound.ts` — expo-audio `createAudioPlayer`, lazy
-  player cache, per-sound low volumes (0.25-0.3), mute ref from uiStore.
-- `src/hooks/tableSoundEvents.ts` + tests — pure event→sound mapping with
-  batch priority (win > pass > deal > flip > discard) and a subscription
-  cursor (append diff, undo-safe, fresh-session aware). 10+ tests.
-- `src/hooks/useTableSoundBridge.ts` — store subscription mounted at app
-  root (`app/_layout.tsx`), one sound per store update.
-- `src/store/uiStore.ts` — `soundEnabled` (default true, persisted) +
-  `setSoundEnabled`.
-- `app/settings.tsx` — Table sounds card with the mute toggle, reachable
-  via Profile → Settings.
-- `qa/deckd-sound-qa.cjs` — toggle UI proof (default ON, flips OFF,
-  persists after reload, no 375px overflow), 375px + desktop.
+- `components/GlobalNavBar.tsx` — no bar: 6px felt lip, four 46px chips
+  (Home, Store, Presets, Profile) with 1px rims, engraved lucide marks,
+  tiny labels; active chip raises 4px with crimson rim + soft shadow;
+  press scale 0.96; 40ms deal-in stagger; reduced-motion = plain fade.
+- Deal is the deck object: two-back stack (crimson + brand), center-bottom
+  above the edge, spring deal animation on press.
+- `NAV_BAR_RESERVE` (92) / `GLOBAL_NAV_HEIGHT` exports unchanged; surfaces
+  keep their reserve.
+- QA: `qa/deckd-nav3-qa.cjs` + `qa/deckd-nav3-reduced-qa.cjs` existed but
+  only covered home/hub/store/list/profile.
 
-Gates on arrival: typecheck ✅, lint ✅ (0 errors), jest 217/217 ✅,
-expo-doctor 20/20 ✅. (node_modules junction had to be re-pointed to
-deckd-wt-ux — main checkout install is partial.)
+## Gaps found (the actual work)
+1. **Live table + pass veil never durably proven.** Directive 13 says the
+   edge is part of the table and must work on all surfaces; the lane QA
+   stopped at menu surfaces. Extended `qa/deckd-nav3-qa.cjs` with two new
+   stages per viewport:
+   - **table**: back Home → Deal 2 each → chips + deck object still on the
+     edge, action rail (PASS TURN etc.) clears the nav zone (visibility-
+     filtered: layered surfaces keep hidden hub layers in the DOM), no
+     horizontal overflow.
+   - **pass**: PASS TURN raises the privacy veil → nav stays visible and
+     unobstructed on the edge, no overflow.
+2. **Strict-mode traps in the layered surface architecture**: "Choose a
+   recipe" resolves to 2 hidden copies after navigating profile→home;
+   fixed with `.filter({ visible: true })`. railClear probe needed the same
+   visibility filter (hidden hub layer buttons were false-positive
+   collisions).
 
-## Gap found (the actual work)
-**Replay-after-finish is broken on native.** expo-audio's iOS player uses
-AVPlayer with `actionAtItemEnd = .pause` (AudioPlayer.swift play(at:)); once
-a clip finishes, `play()` alone is a silent no-op — you must seek to zero
-first. Android ExoPlayer and web HTMLAudioElement restart automatically, so
-the lane's web QA never saw it. Consequence on a phone: deal.wav plays once
-at first deal, then EVERY later sound (flips, discards, passes, wins,
-startNextHand re-deals) is dead for the whole app lifetime.
+## Verification
+- `qa/deckd-nav3-qa.cjs` green at 375×812 and 1440×900: all 7 surfaces
+  (home, hub, store, list, profile, table, pass), 5 nav controls each,
+  zero overflow, railClear = [], zero console/page errors.
+- `qa/deckd-nav3-reduced-qa.cjs` green (media: reduce, navCount 5, no
+  errors).
+- Visual pass (vision on real screenshots): chips on a thin lip, no
+  container, active raise + crimson rim, deck object overlaps lip like a
+  physical object, no clipping, pass veil ends above the nav.
+- Gates: typecheck ✅, lint ✅ (0 errors), jest 225/225 ✅, expo-doctor
+  20/20 ✅.
 
-## Fix
-1. `src/hooks/tableSoundPlayer.ts` — pure `playSoundEffect(player)` helper:
-   if the player has finished (duration > 0 && currentTime >= duration),
-   `await seekTo(0)` then `play()`. Minimal ReplayablePlayer interface so
-   it unit-tests with fakes.
-2. `src/hooks/tableSoundPlayer.test.ts` — fresh player, finished player,
-   mid-play (no seek), duration-0 not-yet-loaded player.
-3. `src/hooks/useTableSound.ts` — route `play()` through the helper.
-4. `qa/deckd-sound-qa.cjs` — extend to PROVE playback, not just the
-   toggle: deal a session, assert an expo-audio `<audio>` element actually
-   advances/plays; mute OFF → deal → assert no playing audio. Keep the
-   toggle checks.
-
-## Gates per slice
-npm run typecheck, npm run lint, npx jest, npx expo-doctor — all green.
+## Decisions
+- No app code changed: the lane's implementation already meets directive
+  13; the only gap was proof coverage, so the slice is QA-only.
+- Table/lobby/pass are layered surfaces inside `app/index.tsx`; the nav is
+  globally mounted in `_layout.tsx`, so lobby/pass were implicitly covered
+  by the table stage (verified via probe before extending QA).
 
 ## Deliver
 Commit slice → run proof script → attach proof → request review

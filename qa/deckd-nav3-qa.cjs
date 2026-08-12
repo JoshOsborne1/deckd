@@ -182,9 +182,77 @@ async function chipFaceProbe(page) {
       entry.screens.profile = true;
       entry.profile = { boxes: profileBoxes, widths: profileWidths };
 
+      // Live table: back to Home first (matches the proven hub flow), then
+      // deal 2 each. Chips + deck object must stay on the edge and the action
+      // rail must clear the nav zone (the edge is part of the table).
+      await page.getByRole('button', { name: 'Home', exact: true }).last().click();
+      await page.waitForTimeout(1500);
+      await page.getByRole('button', { name: 'Deal the deck', exact: true }).last().click();
+      await page
+        .getByText('Choose a recipe', { exact: true })
+        .filter({ visible: true })
+        .first()
+        .waitFor({ state: 'visible', timeout: 30000 });
+      await page.waitForTimeout(600);
+      await page.getByText('Deal 2 each', { exact: true }).first().click().catch(() => {});
+      await page.waitForTimeout(400);
+      const dealNow = page.getByRole('button', { name: /Deal now/i });
+      if (await dealNow.count()) await dealNow.first().click();
+      await page.waitForTimeout(1800);
+      const tableBoxes = await visibleButtons(page, NAV_LABELS);
+      assertNav('table', pickNavButtons(tableBoxes), vp);
+      const tableWidths = await scrollWidths(page);
+      // The action rail (PASS TURN etc.) must sit ABOVE the nav zone so the
+      // edge stays clear of table controls.
+      const railClear = await page.evaluate(() => {
+        const navTop = window.innerHeight - 92;
+        return [...document.querySelectorAll('button')]
+          .map((b) => {
+            const label = b.getAttribute('aria-label') || b.textContent?.trim().slice(0, 24) || '';
+            const r = b.getBoundingClientRect();
+            const style = window.getComputedStyle(b);
+            return {
+              label,
+              bottom: r.bottom,
+              // The layered-surface architecture keeps hidden hub layers
+              // mounted in the DOM; only VISIBLE controls can collide.
+              visible:
+                r.width > 0 &&
+                r.height > 0 &&
+                Number(style.opacity) > 0.01 &&
+                style.visibility !== 'hidden' &&
+                style.pointerEvents !== 'none',
+            };
+          })
+          .filter((b) => b.visible && b.bottom > navTop && b.bottom <= window.innerHeight)
+          .filter((b) => !['Home', 'Store', 'Presets', 'Profile', 'Deal the deck'].includes(b.label))
+          .map((b) => b.label);
+      });
+      if (railClear.length > 0) {
+        throw new Error(`${vp.name} table: controls collide with the nav edge: ${JSON.stringify(railClear)}`);
+      }
+      await page.screenshot({ path: `.qa-nav3-table-${vp.name}.png`, fullPage: false });
+      entry.screens.table = true;
+      entry.table = { boxes: tableBoxes, widths: tableWidths, railClear };
+
+      // Pass veil: PASS TURN raises the privacy veil; the nav stays on the
+      // edge so the pass ritual never traps the player.
+      const passTurn = page.getByRole('button', { name: /PASS TURN/i });
+      if (await passTurn.count()) {
+        await passTurn.first().click();
+        await page.waitForTimeout(1200);
+      }
+      const passBoxes = await visibleButtons(page, NAV_LABELS);
+      assertNav('pass', pickNavButtons(passBoxes), vp);
+      const passWidths = await scrollWidths(page);
+      await page.screenshot({ path: `.qa-nav3-pass-${vp.name}.png`, fullPage: false });
+      entry.screens.pass = true;
+      entry.pass = { boxes: passBoxes, widths: passWidths };
+
       // No horizontal overflow on any surface.
       for (const [name, widths] of Object.entries({
         home: homeWidths, hub: hubWidths, store: storeWidths, list: listWidths, profile: profileWidths,
+        table: tableWidths, pass: passWidths,
       })) {
         if (widths.scrollWidth !== vp.width || widths.bodyScrollWidth !== vp.width) {
           throw new Error(`${vp.name} ${name}: horizontal overflow ${JSON.stringify(widths)}`);
