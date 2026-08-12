@@ -1,6 +1,10 @@
 # Deckd status
 
-Last update: 2026-08-12 (Sound pass — native replay fix + playback-proof QA; branch `wt/deckd-loop`).
+Last update: 2026-08-12 (Nav v3 ready-bar slice — live table + pass veil proof; branch `wt/deckd-loop`).
+
+## Nav v3 slice (2026-08-12, task t_049705ec, commit `bad3dfd`)
+
+- Feature already merged from the nav3 lane (4fdc3b5): chips on the table edge per directive 13. This slice closes the proof gap: `qa/deckd-nav3-qa.cjs` now covers ALL 7 surfaces (home, hub, store, list, profile, live table, pass veil) at 375×812 and 1440×900 — chips + deck object present, action rail clears the nav zone, zero overflow, zero errors. Reduced-motion QA stays green. Gates: typecheck, lint 0 errors, jest 225/225, expo-doctor 20/20.
 
 ## Sound pass slice (2026-08-12, task t_f8c85b8e, commit `80c3f63`)
 
