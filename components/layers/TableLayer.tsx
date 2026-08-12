@@ -24,6 +24,7 @@ import { HandStack } from '@components/HandStack';
 import { SolitaireBoard } from '@components/SolitaireBoard';
 import { BlackjackTable } from '@components/layers/BlackjackTable';
 import { SevensTable } from '@components/layers/SevensTable';
+import { PokerTable } from '@components/layers/PokerTable';
 import { useLayerSurfaceEntrance } from '@hooks/useLayerSurfaceEntrance';
 import { useMotion } from '@hooks/useMotion';
 import { DISCARD_PULSE_SCALE } from '@lib/motion';
@@ -354,6 +355,8 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
   const isBlackjackTable = state.config.presetId === 'blackjack';
   /** Sevens gets its own per-game animation pass (spec 2.8). */
   const isSevensTable = state.config.presetId === 'sevens';
+  /** Poker gets its own per-game animation pass (spec 2.3). */
+  const isPokerTable = state.config.presetId === 'poker';
 
   // --- Selectors (memoized off state) ---
   const drawCount = useMemo(() => selectDrawPileCount(state), [state]);
@@ -942,6 +945,18 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
   if (isBlackjackTable && viewerId) {
     return (
       <BlackjackTable
+        active={active}
+        topInset={topInset}
+        bottomInset={bottomInset}
+      />
+    );
+  }
+
+  // --- Poker: dedicated per-game animation pass (burn slide, flop fan,
+  // turn/river settle, showdown cascade, pot pulse). ---
+  if (isPokerTable && viewerId) {
+    return (
+      <PokerTable
         active={active}
         topInset={topInset}
         bottomInset={bottomInset}
