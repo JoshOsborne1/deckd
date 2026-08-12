@@ -11,6 +11,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { CardButton } from '@components/CardButton';
 import { CardSection } from '@components/CardSection';
+import { FeltDrawer } from '@components/FeltDrawer';
 import { FlipCard } from '@components/FlipCard';
 import { PlayingCard } from '@components/PlayingCard';
 import { useMotion } from '@hooks/useMotion';
@@ -161,7 +162,7 @@ export default function StoreScreen() {
   };
 
   return (
-    <View style={styles.container}>
+    <FeltDrawer>
       <ScrollView
         contentContainerStyle={[
           styles.scrollContent,
@@ -334,7 +335,7 @@ export default function StoreScreen() {
           />
         </Pressable>
       )}
-    </View>
+    </FeltDrawer>
   );
 }
 

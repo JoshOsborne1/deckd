@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AvatarPlaceholder } from '@components/AvatarPlaceholder';
 import { CardButton } from '@components/CardButton';
 import { CardSection } from '@components/CardSection';
+import { FeltDrawer } from '@components/FeltDrawer';
 import { useMotion } from '@hooks/useMotion';
 import { useProfileStore } from '@store/profileStore';
 import { useSessionHistoryStore } from '@store/sessionHistoryStore';
@@ -69,7 +70,7 @@ export default function ProfileScreen() {
   };
 
   return (
-    <View style={styles.container}>
+    <FeltDrawer>
       <ScrollView
         contentContainerStyle={[
           styles.scrollContent,
@@ -268,7 +269,7 @@ export default function ProfileScreen() {
           </CardButton>
         </CardSection>
       </ScrollView>
-    </View>
+    </FeltDrawer>
   );
 }
 

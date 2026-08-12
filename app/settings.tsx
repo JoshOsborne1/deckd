@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Bluetooth, Home, Volume2, Wifi } from 'lucide-react-native';
 import { CardButton } from '@components/CardButton';
 import { CardSection } from '@components/CardSection';
+import { FeltDrawer } from '@components/FeltDrawer';
 import { useMotion } from '@hooks/useMotion';
 import { useProfileStore } from '@store/profileStore';
 import { useUiStore } from '@store/uiStore';
@@ -29,7 +30,7 @@ export default function SettingsScreen() {
   };
 
   return (
-    <View style={styles.root}>
+    <FeltDrawer>
       <ScrollView
         contentContainerStyle={[
           styles.scroll,
@@ -123,7 +124,7 @@ export default function SettingsScreen() {
           <Text style={styles.profileLinkText}>Player identity & haptics → Profile</Text>
         </CardButton>
       </ScrollView>
-    </View>
+    </FeltDrawer>
   );
 }
 

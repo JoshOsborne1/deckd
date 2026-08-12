@@ -61,6 +61,13 @@ rotation, and spring overshoot and uses a short cross-fade/snap path.
 - Felt-sweep kept as the direction cue; reduce-motion = cross-fade.
 - NAV reserve respected on every surface.
 
+Foundation implementation (2026-08-12): `SurfaceMorphContext` now publishes
+`transitionProgress` and `transitionKind` for `hub-table` and `lobby-table`
+handoffs. The root surface keeps the game layers mounted and adds a shared felt
+sweep rather than a route pop. `components/FeltDrawer.tsx` gives store/profile/
+settings their paper-over-felt drawer treatment while retaining the table edge
+and NAV reserve. Reduced motion collapses both treatments to cross-fades.
+
 ### 1.4 Win celebration + pass ritual
 - Win: card burst (6-10 cards fan outward from winner's pile) + banner
   spring; haptic 'success'. Per-game variant hooks (see per-game).
