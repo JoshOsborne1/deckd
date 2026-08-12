@@ -2,7 +2,7 @@ import { buildDeck, mulberry32, shuffleInPlace } from './deck';
 import { eventId, type GameEvent } from './events';
 import { foldEvents } from './state';
 import { executeRecipe } from './recipes';
-import { getGameRules, type GameAction, type PrimitiveEvent } from './rules';
+import { getGameRules, sevensRunLayout, type GameAction, type PrimitiveEvent } from './rules';
 import { crazyEightsPreset, goFishPreset, oldMaidPreset, sevensPreset } from './presets';
 import { handZoneId, tableZoneId, ZONE_DRAW, type GameState, type Player, type SessionConfig } from './types';
 
@@ -619,5 +619,140 @@ describe('Crazy Eights and Sevens recipe and rules', () => {
     );
     expect(second.state.zones['communal:0']?.cardIds).toEqual(['H-7', 'H-8']);
     expect(second.state.currentPlayerId).toBe('p1');
+  });
+
+  it('passes when no card can legally extend a run and passes the turn', () => {
+    const config: SessionConfig = { ...goFishConfig, presetId: 'sevens' };
+    // Fully controlled deck: p1 holds H-7 plus the other three 7s and duds;
+    // p2 holds only duds (no 7s, no H-6/H-8), so after the 7 opens p2 must
+    // pass. All 7s live in p1's hand (p1 already used their turn).
+    const duds = [
+      'H-A', 'H-2', 'H-3', 'H-4', 'H-5', 'H-6', 'H-8', 'H-9', 'H-10', 'H-J', 'H-Q', 'H-K',
+      'C-A', 'C-2', 'C-3', 'C-4', 'C-5', 'C-6', 'C-8', 'C-9', 'C-10', 'C-J', 'C-Q', 'C-K',
+      'S-A', 'S-2', 'S-3', 'S-4', 'S-5', 'S-6', 'S-8', 'S-9', 'S-10', 'S-J', 'S-Q', 'S-K',
+      'D-A', 'D-2', 'D-3', 'D-4', 'D-5', 'D-6', 'D-8', 'D-9', 'D-10', 'D-J', 'D-Q', 'D-K',
+    ];
+    const p1Hand = ['H-7', 'C-7', 'S-7', 'D-7', ...duds.slice(0, 22)];
+    const p2Hand = duds.slice(22, 48);
+    const deckOrder: string[] = [];
+    for (let i = 0; i < 26; i += 1) {
+      deckOrder.push(p1Hand[i]!, p2Hand[i]!);
+    }
+    const started = startSession(sevensPreset, config, deckOrder);
+    const rules = getGameRules('sevens');
+
+    const first = appendPrimitives(
+      started.events,
+      rules.apply('play:H-7', started.state, 'p1') ?? [],
+      'p1',
+      started.nextSeq,
+    );
+    expect(rules.actions(first.state, 'p2').map((a) => a.id)).toEqual(['pass']);
+    const passed = appendPrimitives(
+      first.events,
+      rules.apply('pass', first.state, 'p2') ?? [],
+      'p2',
+      first.nextSeq,
+    );
+    expect(passed.state.currentPlayerId).toBe('p1');
+  });
+
+  it('ends the session when the last card is played', () => {
+    const config: SessionConfig = { ...goFishConfig, presetId: 'sevens' };
+    // p1 holds a hand that sheds completely in legal sequence: all 13 hearts
+    // plus the 7/6/8/5/9 of the other suits. p2 holds the 26 remaining cards
+    // (no sevens, no heart neighbours), so p2 must pass every turn and p1
+    // plays every other turn. After 25 plays p1 holds one card; the 26th
+    // play is the last card and must end the session with p1 as winner.
+    const p1Hand = [
+      'H-7', 'H-6', 'H-8', 'H-5', 'H-9', 'H-4', 'H-10', 'H-3', 'H-J', 'H-2', 'H-Q', 'H-A', 'H-K',
+      'C-7', 'C-6', 'C-8', 'C-5', 'C-9',
+      'S-7', 'S-6', 'S-8', 'S-5', 'S-9',
+      'D-7', 'D-6', 'D-8',
+    ];
+    const p2Hand = [
+      'C-A', 'C-2', 'C-3', 'C-4', 'C-10', 'C-J', 'C-Q', 'C-K',
+      'S-A', 'S-2', 'S-3', 'S-4', 'S-10', 'S-J', 'S-Q', 'S-K',
+      'D-A', 'D-2', 'D-3', 'D-4', 'D-5', 'D-9', 'D-10', 'D-J', 'D-Q', 'D-K',
+    ];
+    const deckOrder: string[] = [];
+    for (let i = 0; i < 26; i += 1) {
+      deckOrder.push(p1Hand[i]!, p2Hand[i]!);
+    }
+    const started = startSession(sevensPreset, config, deckOrder);
+    const rules = getGameRules('sevens');
+
+    let { state, events, nextSeq } = started;
+    let played = 0;
+    while (state.phase === 'playing') {
+      const current = state.currentPlayerId;
+      const actions = rules.actions(state, current);
+      if (current === 'p1') {
+        const play = actions.find((a) => a.id.startsWith('play:'));
+        expect(play).toBeDefined();
+        const applied = appendPrimitives(events, rules.apply(play!.id, state, current) ?? [], current, nextSeq);
+        state = applied.state;
+        events = applied.events;
+        nextSeq = applied.nextSeq;
+        played += 1;
+      } else {
+        // p2 only ever plays when p1 exposes a run boundary (e.g. C-4 after
+        // C-5). It passes otherwise; either action is legal — the invariant
+        // under test is that p1 never passes and empties their hand first.
+        const play = actions.find((a) => a.id.startsWith('play:'));
+        const action = play ? play.id : 'pass';
+        const applied = appendPrimitives(events, rules.apply(action, state, current) ?? [], current, nextSeq);
+        state = applied.state;
+        events = applied.events;
+        nextSeq = applied.nextSeq;
+      }
+    }
+    expect(played).toBe(26);
+    expect(state.phase).toBe('ended');
+    expect(state.winnerId).toBe('p1');
+  });
+
+  it('terminates with a winner on every seed (greedy play-or-pass sweep)', () => {
+    const seeds = ['test', 'alpha', 'beta', 'gamma', 'delta', 'epsilon', 'zeta', 'eta', 'theta', 'iota'];
+    for (const seed of seeds) {
+      const deckOrder = buildDeck({ includeJokers: false }).map((card) => card.id);
+      const rng = mulberry32(seed);
+      shuffleInPlace(deckOrder, rng);
+      const config: SessionConfig = { ...goFishConfig, presetId: 'sevens' };
+      let { state, events, nextSeq } = startSession(sevensPreset, config, deckOrder, players, seed);
+      const rules = getGameRules('sevens');
+      let turns = 0;
+      const maxTurns = 1000;
+      while (state.phase === 'playing' && turns < maxTurns) {
+        const current = state.currentPlayerId;
+        const actions = rules.actions(state, current);
+        // Greedy: play the first legal card, else pass. Every play shrinks a
+        // hand and every pass advances the turn, so the game must end.
+        const action = actions.find((a) => a.id.startsWith('play:')) ?? actions.find((a) => a.id === 'pass');
+        if (!action) break;
+        const applied = appendPrimitives(events, rules.apply(action.id, state, current) ?? [], current, nextSeq);
+        state = applied.state;
+        events = applied.events;
+        nextSeq = applied.nextSeq;
+        turns += 1;
+      }
+      expect(state.phase).toBe('ended');
+      expect(turns).toBeLessThan(maxTurns);
+      expect(state.winnerId).toBeDefined();
+    }
+  });
+
+  it('groups played cards into per-suit runs ordered low to high', () => {
+    const layout = sevensRunLayout(['C-9', 'H-8', 'H-7', 'S-7', 'C-8', 'H-9']);
+    const hearts = layout.find((run) => run.suit === 'hearts');
+    const spades = layout.find((run) => run.suit === 'spades');
+    const clubs = layout.find((run) => run.suit === 'clubs');
+    expect(hearts?.cardIds).toEqual(['H-7', 'H-8', 'H-9']);
+    expect(spades?.cardIds).toEqual(['S-7']);
+    expect(clubs?.cardIds).toEqual(['C-8', 'C-9']);
+    // Suit order is fixed so the table renders stable lanes.
+    expect(layout.map((run) => run.suit)).toEqual(['hearts', 'diamonds', 'spades', 'clubs']);
+    // Jokers are ignored (Sevens uses the standard 52).
+    expect(sevensRunLayout(['JK-RED', 'H-7']).find((run) => run.suit === 'hearts')?.cardIds).toEqual(['H-7']);
   });
 });
