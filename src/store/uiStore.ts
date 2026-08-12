@@ -27,6 +27,8 @@ export interface UiStoreState {
   /** Whether the first-run hint has been dismissed. Persisted so it only
    *  shows once across app launches. */
   firstRunHintDismissed: boolean;
+  /** Table sound effects (deal/flip/discard/pass/win). Default on, subtle. */
+  soundEnabled: boolean;
 
   setViewMode: (mode: ViewMode) => void;
   openPass: (ctx: PassContext) => void;
@@ -36,6 +38,8 @@ export interface UiStoreState {
   toggleHandSortMode: () => void;
   /** Mark the first-run hint as dismissed (persists across launches). */
   dismissFirstRunHint: () => void;
+  /** Set the table-sound mute toggle (persists across launches). */
+  setSoundEnabled: (v: boolean) => void;
 }
 
 export const useUiStore = create<UiStoreState>()(
@@ -46,6 +50,7 @@ export const useUiStore = create<UiStoreState>()(
       passContext: null,
       handSortMode: 'rank',
       firstRunHintDismissed: false,
+      soundEnabled: true,
 
       setViewMode: (mode) =>
         set((s) => ({
@@ -78,6 +83,8 @@ export const useUiStore = create<UiStoreState>()(
         set((s) => ({ handSortMode: s.handSortMode === 'rank' ? 'suit' : 'rank' })),
 
       dismissFirstRunHint: () => set({ firstRunHintDismissed: true }),
+
+      setSoundEnabled: (v) => set({ soundEnabled: v }),
     }),
     {
       name: 'ui:view',
@@ -87,6 +94,7 @@ export const useUiStore = create<UiStoreState>()(
         viewMode: s.viewMode === 'pass' ? 'home' : s.viewMode,
         handSortMode: s.handSortMode,
         firstRunHintDismissed: s.firstRunHintDismissed,
+        soundEnabled: s.soundEnabled,
       }),
     },
   ),
