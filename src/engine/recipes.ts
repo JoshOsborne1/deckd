@@ -10,6 +10,7 @@ import {
 } from './types';
 import {
   buildFreeCellLayout,
+  buildGolfLayout,
   buildPyramidLayout,
 } from './solitaire';
 
@@ -72,7 +73,7 @@ export interface Recipe {
   turnPolicy: RecipeTurnPolicy;
   winCondition: RecipeWinCondition;
   /** Optional layout family for recipes with more than hand/table zones. */
-  layout?: 'klondike' | 'freecell' | 'pyramid';
+  layout?: 'klondike' | 'freecell' | 'pyramid' | 'golf';
   helpers?: RecipeHelpers;
   variants?: RecipeVariants;
 }
@@ -210,6 +211,10 @@ export function executeRecipe(recipe: Recipe, input: RecipeSetupInput): RecipeSe
   }
   if (recipe.layout === 'pyramid') {
     const layout = buildPyramidLayout(input.deckOrder, input.players[0]!.id);
+    return { zones: layout.zones, initialDeals: layout.initialDeals };
+  }
+  if (recipe.layout === 'golf') {
+    const layout = buildGolfLayout(input.deckOrder, input.players[0]!.id);
     return { zones: layout.zones, initialDeals: layout.initialDeals };
   }
 

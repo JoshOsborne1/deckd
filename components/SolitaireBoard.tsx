@@ -28,6 +28,11 @@ import {
   isPyramidWon,
   isPyramidCardFree,
   tableauRun,
+  GOLF_STOCK,
+  GOLF_WASTE,
+  golfTableauZoneId,
+  golfPlaysOnWaste,
+  isGolfWon,
 } from '@engine/solitaire';
 import {
   getGameRules,
@@ -55,12 +60,13 @@ export interface SolitaireBoardProps {
   bottomInset: number;
 }
 
-type SolitaireGame = 'klondike' | 'freecell' | 'pyramid';
+type SolitaireGame = 'klondike' | 'freecell' | 'pyramid' | 'golf';
 
 function solitaireGameId(presetId: string | null): SolitaireGame | null {
   if (presetId === 'klondike') return 'klondike';
   if (presetId === 'freecell') return 'freecell';
   if (presetId === 'pyramid') return 'pyramid';
+  if (presetId === 'golf') return 'golf';
   return null;
 }
 
@@ -188,6 +194,8 @@ export function SolitaireBoard({ state, viewerId, topInset, bottomInset }: Solit
     ? isFreeCellWon(state)
     : game === 'pyramid'
     ? isPyramidWon(state)
+    : game === 'golf'
+    ? isGolfWon(state)
     : false;
 
   if (!game) return null;
@@ -208,7 +216,7 @@ export function SolitaireBoard({ state, viewerId, topInset, bottomInset }: Solit
           <Text style={styles.backText}>Hub</Text>
         </CardButton>
         <Text style={styles.eyebrow}>
-          {state.phase === 'ended' ? 'COMPLETE' : game === 'klondike' ? 'KLONDIKE' : game === 'freecell' ? 'FREECELL' : 'PYRAMID'}
+          {state.phase === 'ended' ? 'COMPLETE' : game === 'klondike' ? 'KLONDIKE' : game === 'freecell' ? 'FREECELL' : game === 'pyramid' ? 'PYRAMID' : 'GOLF'}
         </Text>
         <View style={styles.headerActions}>
           {state.phase !== 'ended' && (
@@ -272,6 +280,12 @@ export function SolitaireBoard({ state, viewerId, topInset, bottomInset }: Solit
             onCycleStock={() => handleAction('cycleStock')}
           />
         )}
+        {game === 'golf' && (
+          <GolfBoard
+            state={state}
+            onPlayColumn={(index) => handleAction(`play:${index}` as GameAction)}
+          />
+        )}
       </ScrollView>
 
       {/* Action bar (stock draw / finish) */}
@@ -290,7 +304,9 @@ export function SolitaireBoard({ state, viewerId, topInset, bottomInset }: Solit
                   ? 'You built the foundations'
                   : game === 'freecell'
                   ? 'You cleared the board'
-                  : 'You dismantled the pyramid'
+                  : game === 'pyramid'
+                  ? 'You dismantled the pyramid'
+                  : 'You cleared the tableau'
                 : 'No more moves'}
             </Text>
             <Text style={styles.winMeta}>
@@ -647,6 +663,89 @@ function PyramidBoard({
 }
 
 // ---------------------------------------------------------------------------
+// Golf board
+// ---------------------------------------------------------------------------
+
+function GolfBoard({
+  state,
+  onPlayColumn,
+}: {
+  state: GameState;
+  onPlayColumn: (index: number) => void;
+}) {
+  const stockZone = state.zones[GOLF_STOCK];
+  const wasteZone = state.zones[GOLF_WASTE];
+  const stockCount = stockZone?.cardIds.length ?? 0;
+  const wasteTop = wasteZone?.cardIds[wasteZone.cardIds.length - 1] ?? null;
+  const wasteCard = wasteTop ? state.cards[wasteTop] : null;
+
+  return (
+    <View style={styles.golfBoard}>
+      {/* Stock + waste */}
+      <View style={styles.golfTopRow}>
+        <View style={styles.pileSlot}>
+          {stockCount > 0 ? (
+            <View>
+              <PlayingCard face="down" size="sm" />
+              <Text style={styles.pileCount}>{stockCount}</Text>
+            </View>
+          ) : (
+            <EmptySlot label="STOCK" />
+          )}
+        </View>
+        <View style={styles.pileSlot}>
+          {wasteCard ? (
+            <MiniCard cardId={wasteTop!} face={wasteCard.face} size="sm" />
+          ) : (
+            <EmptySlot label="WASTE" />
+          )}
+        </View>
+      </View>
+
+      {/* Tableau: 7 columns of 5, only the top card plays */}
+      <View style={styles.golfTableau}>
+        {Array.from({ length: 7 }, (_, col) => {
+          const zone = state.zones[golfTableauZoneId(col)];
+          const cards = zone?.cardIds ?? [];
+          const topCardId = cards[cards.length - 1] ?? null;
+          const legal = topCardId ? golfPlaysOnWaste(topCardId, wasteTop ?? undefined) : false;
+          return (
+            <Pressable
+              key={col}
+              onPress={() => topCardId && onPlayColumn(col)}
+              disabled={!topCardId}
+              accessibilityRole="button"
+              accessibilityLabel={`Play column ${col + 1}`}
+              style={styles.golfColumn}
+            >
+              {cards.length === 0 ? (
+                <View style={styles.golfEmptySlot} />
+              ) : (
+                cards.map((cardId, idx) => {
+                  const card = state.cards[cardId];
+                  if (!card) return null;
+                  const isTop = idx === cards.length - 1;
+                  return (
+                    <View key={cardId} style={[styles.golfCardPos, { top: idx * 12 }]}>
+                      <MiniCard
+                        cardId={cardId}
+                        face={card.face}
+                        size="xs"
+                        highlight={isTop && legal}
+                      />
+                    </View>
+                  );
+                })
+              )}
+            </Pressable>
+          );
+        })}
+      </View>
+    </View>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Action bar (stock draw + finish)
 // ---------------------------------------------------------------------------
 
@@ -873,6 +972,41 @@ const styles = StyleSheet.create({
     gap: space.lg,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+
+  // Golf
+  golfBoard: {
+    gap: space.xl,
+  },
+  golfTopRow: {
+    flexDirection: 'row',
+    gap: space.xl,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  golfTableau: {
+    flexDirection: 'row',
+    gap: space.xs,
+    justifyContent: 'center',
+    alignItems: 'flex-start',
+  },
+  golfColumn: {
+    width: 36,
+    minHeight: 140,
+    position: 'relative',
+    borderRadius: radii.card,
+  },
+  golfCardPos: {
+    position: 'absolute',
+    left: 0,
+  },
+  golfEmptySlot: {
+    width: 36,
+    height: 50,
+    borderRadius: radii.card,
+    borderWidth: 1.5,
+    borderStyle: 'dashed',
+    borderColor: alpha.inkOverlay12,
   },
 
   // Action bar

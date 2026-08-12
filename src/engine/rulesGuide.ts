@@ -160,6 +160,19 @@ export const RULES_GUIDES: Record<string, RulesGuide> = {
     win: 'Clear all 28 cards from the pyramid.',
     tableNote: 'The stock and waste are always available; pyramid cards must be uncovered.',
   },
+  golf: {
+    id: 'golf',
+    title: 'Golf Solitaire',
+    summary: 'Flip and match — play cards one rank up or down from the waste.',
+    steps: [
+      'Tap DRAW to flip the top stock card onto the waste.',
+      'Tap the top card of any column whose rank is one above or one below the waste top.',
+      'Ace and King wrap around each other; Kings can never be played.',
+      'Keep matching until the tableau is empty or no move is left.',
+    ],
+    win: 'Clear all 35 tableau cards before the stock runs dry.',
+    tableNote: 'Only the top card of a column can play, and the waste must be open before any card can follow it.',
+  },
 };
 
 export function getRulesGuide(presetId: string | null | undefined): RulesGuide {

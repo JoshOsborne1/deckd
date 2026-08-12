@@ -160,6 +160,13 @@ Expo SDK 57, React Native 0.86, React 19, TypeScript strict. Expo Router app wit
 2. Run a native device touch/safe-area/reduced-motion pass (physical iPhone + Android).
 3. Keep RevenueCat product/key work, Rive, and solitaire/premium-library expansion behind the gameplay-first priority.
 
+## Golf solitaire slice (2026-08-12, branch `wt/deckd-loop`)
+
+- Added Golf as the final queued solo-pillar game: 7×5 face-up tableau, 17-card stock, waste drawn from stock, ±1 rank plays with A/K wrap, Kings dead, win on clearing the tableau.
+- Engine: `buildGolfLayout` + win/legality helpers in `src/engine/solitaire.ts`, `layout: 'golf'` recipe dispatch, `golfPreset` in `builtinPresets`, pure `golfActions`/`golfApply`/`golfReadout` in `GAME_RULES`, rules guide entry, `back-brand` card-back mapping, and forced 52-card deck (jokers off) in `orderedDeckForPreset`.
+- UI: `SolitaireBoard` now routes Golf to a new `GolfBoard` (stock/waste row, 7 tap-to-play columns with legal-move highlight); `TableLayer` solitaire dispatch and `HubLayer` `PRESET_OUTCOMES`/`SOLO_PRESETS`/kicker copy include Golf. Library and setup lists render it automatically from `builtinPresets`.
+- Verification: full typecheck, lint (0 errors), 217 Jest tests (21 suites) and Expo Doctor 20/20 all green; Golf covered by 8 new rules tests plus a store-path deal test.
+
 ## Parked tracks
 
 - BLE proof matrix and diagnostics (dropped from v1 scope).

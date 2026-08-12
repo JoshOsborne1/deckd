@@ -308,6 +308,26 @@ export const pyramidPreset = makePreset({
   layout: 'pyramid',
 });
 
+export const golfPreset = makePreset({
+  id: 'golf',
+  name: 'Golf',
+  oneLiner: 'Flip and match — play cards one rank up or down from the waste.',
+  minPlayers: 1,
+  maxPlayers: 1,
+  backs: ['back-brand'],
+  deal: { pattern: 'none', rounds: 0, face: 'down', to: 'table' },
+  actionPolicy: {
+    allowDraw: true,
+    allowDiscard: false,
+    allowFlip: false,
+    allowPassTurn: false,
+    allowPlay: true,
+  },
+  turnPolicy: 'free',
+  winCondition: 'scoreTarget',
+  layout: 'golf',
+});
+
 export const builtinPresets: Preset[] = [
   freeplayPreset,
   dealTwoEachPreset,
@@ -321,6 +341,7 @@ export const builtinPresets: Preset[] = [
   pokerStylePreset,
   freeCellPreset,
   pyramidPreset,
+  golfPreset,
 ];
 
 export function findPreset(id: string | null | undefined): Preset {

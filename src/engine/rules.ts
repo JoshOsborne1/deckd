@@ -19,6 +19,9 @@ import {
 } from './types';
 import { parseCardId, parseJokerId } from './selectors';
 import {
+  GOLF_STOCK,
+  GOLF_TABLEAU_COUNT,
+  GOLF_WASTE,
   PYRAMID_STOCK,
   PYRAMID_WASTE,
   PYRAMID_ZONE,
@@ -29,7 +32,10 @@ import {
   foundationZoneId,
   freeCellZoneId,
   freeCellTableauZoneId,
+  golfPlaysOnWaste,
+  golfTableauZoneId,
   isFreeCellWon,
+  isGolfWon,
   isKing,
   isPyramidCardFree,
   isPyramidWon,
@@ -1781,6 +1787,95 @@ function pyramidReadout(state: GameState, _playerId: PlayerId): string | null {
 }
 
 // ---------------------------------------------------------------------------
+// Golf solitaire
+// ---------------------------------------------------------------------------
+
+/**
+ * Golf play action: `play:<columnIndex>` (0-6). The card must be the top of its
+ * tableau column, the waste must be open, and the ranks must be adjacent (A-K
+ * wrap). Kings never play.
+ */
+function golfCardId(state: GameState, token: string): string | null {
+  const idx = Number(token);
+  if (Number.isNaN(idx)) return null;
+  const zone = state.zones[golfTableauZoneId(idx)];
+  if (!zone) return null;
+  return zone.cardIds[zone.cardIds.length - 1] ?? null;
+}
+
+/** Golf: is there at least one legal tableau play onto the waste? */
+function golfHasLegalPlay(state: GameState): boolean {
+  const wasteTop = state.zones[GOLF_WASTE]?.cardIds[state.zones[GOLF_WASTE]!.cardIds.length - 1];
+  if (!wasteTop) return false;
+  for (let i = 0; i < GOLF_TABLEAU_COUNT; i += 1) {
+    const zone = state.zones[golfTableauZoneId(i)];
+    const top = zone?.cardIds[zone.cardIds.length - 1];
+    if (top && golfPlaysOnWaste(top, wasteTop)) return true;
+  }
+  return false;
+}
+
+function golfActions(state: GameState, _viewerId: PlayerId): GameActionSpec[] {
+  if (state.phase !== 'playing') return [];
+  const specs: GameActionSpec[] = [];
+  if (isGolfWon(state)) {
+    specs.push({ id: 'end', label: 'FINISH', hint: 'You cleared the tableau', kind: 'table' });
+    return specs;
+  }
+  const stockCount = state.zones[GOLF_STOCK]?.cardIds.length ?? 0;
+  if (stockCount > 0) {
+    specs.push({ id: 'draw', label: 'DRAW', hint: 'Flip a card to the waste', kind: 'table' });
+  }
+  if (stockCount === 0 && !golfHasLegalPlay(state)) {
+    specs.push({ id: 'end', label: 'END TABLE', hint: 'No more moves — the round is over', kind: 'table' });
+  }
+  return specs;
+}
+
+function golfApply(action: GameAction, state: GameState, viewerId: PlayerId): PrimitiveEvent[] | null {
+  if (state.phase !== 'playing') return null;
+  if (action === 'end') {
+    const stockEmpty = (state.zones[GOLF_STOCK]?.cardIds.length ?? 0) === 0;
+    return isGolfWon(state) || (stockEmpty && !golfHasLegalPlay(state))
+      ? [{ type: 'session/end', winnerId: viewerId }]
+      : null;
+  }
+  if (action === 'draw') {
+    const stock = state.zones[GOLF_STOCK];
+    if (!stock || stock.cardIds.length === 0) return null;
+    const top = stock.cardIds[stock.cardIds.length - 1]!;
+    return [{ type: 'card/move', cardId: top, toZoneId: GOLF_WASTE, face: 'up' }];
+  }
+  if (action === 'restart') {
+    // No-op here; restart is handled by the store's startNextHand.
+    return null;
+  }
+  if (!action.startsWith('play:')) return null;
+  const token = action.slice('play:'.length);
+  const cardId = golfCardId(state, token);
+  if (!cardId) return null;
+  // Only the top card of a column plays.
+  const zone = state.zones[golfTableauZoneId(Number(token))];
+  if (!zone || zone.cardIds[zone.cardIds.length - 1] !== cardId) return null;
+  const wasteTop = state.zones[GOLF_WASTE]?.cardIds[state.zones[GOLF_WASTE]!.cardIds.length - 1];
+  if (!golfPlaysOnWaste(cardId, wasteTop)) return null;
+  const events: PrimitiveEvent[] = [{ type: 'card/move', cardId, toZoneId: GOLF_WASTE, face: 'up' }];
+  if (isGolfWon({ ...state, zones: { ...state.zones, [zone.id]: { ...zone, cardIds: zone.cardIds.slice(0, -1) } } })) {
+    events.push({ type: 'session/end', winnerId: viewerId });
+  }
+  return events;
+}
+
+function golfReadout(state: GameState, _playerId: PlayerId): string | null {
+  let tableauCount = 0;
+  for (let i = 0; i < GOLF_TABLEAU_COUNT; i += 1) {
+    tableauCount += state.zones[golfTableauZoneId(i)]?.cardIds.length ?? 0;
+  }
+  const stock = state.zones[GOLF_STOCK]?.cardIds.length ?? 0;
+  return `TABLEAU ${tableauCount}/35 · STOCK ${stock}`;
+}
+
+// ---------------------------------------------------------------------------
 // Registry
 // ---------------------------------------------------------------------------
 
@@ -1854,6 +1949,12 @@ export const GAME_RULES: Record<string, GameRules> = {
     actions: pyramidActions,
     apply: pyramidApply,
     readout: pyramidReadout,
+  },
+  golf: {
+    id: 'golf',
+    actions: golfActions,
+    apply: golfApply,
+    readout: golfReadout,
   },
 };
 

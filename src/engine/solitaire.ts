@@ -81,6 +81,20 @@ export const PYRAMID_STOCK: ZoneId = 'pyramid:stock';
 /** Pyramid: the waste pile. */
 export const PYRAMID_WASTE: ZoneId = 'pyramid:waste';
 
+/** Golf: 7 tableau columns (each holds up to 5 cards). */
+export const GOLF_TABLEAU_COUNT = 7;
+/** Golf: cards per tableau column. */
+export const GOLF_COLUMN_DEPTH = 5;
+/** Golf: the stock pile. */
+export const GOLF_STOCK: ZoneId = 'golf:stock';
+/** Golf: the waste pile (cards are played onto this from the tableau). */
+export const GOLF_WASTE: ZoneId = 'golf:waste';
+
+/** Golf: tableau column zone id. */
+export function golfTableauZoneId(index: number): ZoneId {
+  return `golf-tableau:${index}`;
+}
+
 // ---------------------------------------------------------------------------
 // Card values
 // ---------------------------------------------------------------------------
@@ -500,4 +514,84 @@ export function isKing(cardId: string): boolean {
 export function isPyramidWon(state: GameState): boolean {
   const zone = state.zones[PYRAMID_ZONE];
   return !zone || zone.cardIds.every((id) => !id);
+}
+
+// ---------------------------------------------------------------------------
+// Golf setup
+// ---------------------------------------------------------------------------
+
+export interface GolfLayout {
+  zones: Zone[];
+  initialDeals: { cardId: string; toZoneId: ZoneId; face: 'up' | 'down' }[];
+}
+
+/**
+ * Build the Golf layout. 35 cards in a 7x5 face-up tableau, the remaining
+ * 17 cards form the face-down stock. The waste starts empty.
+ */
+export function buildGolfLayout(deckOrder: string[], playerId: PlayerId): GolfLayout {
+  const zones: Zone[] = [
+    { id: handZoneId(playerId), label: 'Your hand', visibility: { kind: 'private', ownerId: playerId }, ownerId: playerId, cardIds: [] },
+    { id: tableZoneId(playerId), label: 'Your table', visibility: { kind: 'public' }, ownerId: playerId, cardIds: [] },
+    { id: communalZoneId(0), label: 'Community', visibility: { kind: 'public' }, cardIds: [] },
+    { id: ZONE_DRAW, label: 'Draw', visibility: { kind: 'hidden' }, cardIds: [] },
+    { id: GOLF_STOCK, label: 'Stock', visibility: { kind: 'hidden' }, cardIds: [] },
+    { id: GOLF_WASTE, label: 'Waste', visibility: { kind: 'public' }, cardIds: [] },
+    { id: ZONE_MUCK, label: 'Muck', visibility: { kind: 'hidden' }, cardIds: [] },
+  ];
+  for (let i = 0; i < GOLF_TABLEAU_COUNT; i += 1) {
+    zones.push({
+      id: golfTableauZoneId(i),
+      label: `Column ${i + 1}`,
+      visibility: { kind: 'public' },
+      cardIds: [],
+    });
+  }
+
+  const initialDeals: GolfLayout['initialDeals'] = [];
+  let cursor = 0;
+  for (let col = 0; col < GOLF_TABLEAU_COUNT; col += 1) {
+    for (let row = 0; row < GOLF_COLUMN_DEPTH; row += 1) {
+      const cardId = deckOrder[cursor++];
+      if (!cardId) continue;
+      initialDeals.push({ cardId, toZoneId: golfTableauZoneId(col), face: 'up' });
+    }
+  }
+  while (cursor < deckOrder.length) {
+    const cardId = deckOrder[cursor++];
+    if (!cardId) continue;
+    initialDeals.push({ cardId, toZoneId: GOLF_STOCK, face: 'down' });
+  }
+  return { zones: applyDealsToZones(zones, initialDeals), initialDeals };
+}
+
+// ---------------------------------------------------------------------------
+// Golf win detection + move legality
+// ---------------------------------------------------------------------------
+
+/** Golf is won when every tableau column is empty. */
+export function isGolfWon(state: GameState): boolean {
+  for (let i = 0; i < GOLF_TABLEAU_COUNT; i += 1) {
+    const zone = state.zones[golfTableauZoneId(i)];
+    if (!zone || zone.cardIds.length > 0) return false;
+  }
+  return true;
+}
+
+/** Golf card-value (A=1 ... Q=12, K=13). */
+function golfCardValue(cardId: string): number {
+  const parsed = parseCardId(cardId);
+  if (!parsed) return 0;
+  return rankValue(parsed.rank);
+}
+
+/** Can `cardId` play onto the current waste top? Adjacent rank, with A-K wrap. */
+export function golfPlaysOnWaste(cardId: string, wasteTopId: string | undefined): boolean {
+  if (!wasteTopId) return false; // the waste must be opened by a stock draw
+  const card = golfCardValue(cardId);
+  const top = golfCardValue(wasteTopId);
+  if (card === 0 || top === 0) return false;
+  if (card === 13 || top === 13) return false; // Kings never play
+  const diff = Math.abs(card - top);
+  return diff === 1 || diff === 12; // adjacent, or A-K wrap
 }

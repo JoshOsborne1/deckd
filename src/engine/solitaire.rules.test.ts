@@ -3,7 +3,7 @@ import { foldEvents } from './state';
 import { eventId } from './events';
 import type { GameEvent } from './events';
 import { ZONE_DRAW } from './types';
-import { freeCellPreset, pyramidPreset } from './presets';
+import { freeCellPreset, golfPreset, pyramidPreset } from './presets';
 import { getGameRules, encodeMoveAction } from './rules';
 import {
   PYRAMID_ZONE,
@@ -13,16 +13,19 @@ import {
   freeCellZoneId,
   pyramidPairMatches,
   freePyramidIndices,
+  GOLF_STOCK,
+  GOLF_WASTE,
+  golfTableauZoneId,
 } from './solitaire';
 import type { GameState } from './types';
 
-function buildSolitaireEvents(presetId: 'freecell' | 'pyramid', seed = 'test-solitaire-seed'): { events: GameEvent[]; state: GameState } {
+function buildSolitaireEvents(presetId: 'freecell' | 'pyramid' | 'golf', seed = 'test-solitaire-seed'): { events: GameEvent[]; state: GameState } {
   const deckOrder = shuffleInPlace(
     buildDeck({ includeJokers: false }).map((c) => c.id),
     mulberry32(seed),
   );
   const playerObjs = [{ id: 'you', name: 'You', seat: 0, avatarSeed: 's' }];
-  const preset = presetId === 'freecell' ? freeCellPreset : pyramidPreset;
+  const preset = presetId === 'freecell' ? freeCellPreset : presetId === 'pyramid' ? pyramidPreset : golfPreset;
   const setup = preset.setup({
     players: playerObjs,
     config: { includeJokers: false, fanStyle: 'wide', autoReshuffleDiscard: true, presetId },
@@ -208,5 +211,127 @@ describe('Pyramid rules', () => {
     expect(afterPyramid[kingIdx]).toBeFalsy(); // the King's slot is empty
     // The card is now in the muck.
     expect(after.zones['muck']!.cardIds).toContain(pyramid.cardIds[kingIdx]);
+  });
+});
+
+describe('Golf rules', () => {
+  test('deals 35 tableau cards (7x5) and 17 stock through the preset path', () => {
+    const { state } = buildSolitaireEvents('golf');
+    let tableau = 0;
+    for (let i = 0; i < 7; i += 1) {
+      const zone = state.zones[golfTableauZoneId(i)]!;
+      expect(zone.cardIds).toHaveLength(5);
+      tableau += zone.cardIds.length;
+    }
+    expect(tableau).toBe(35);
+    expect(state.zones[GOLF_STOCK]!.cardIds).toHaveLength(17);
+    expect(state.zones[GOLF_WASTE]!.cardIds).toHaveLength(0);
+  });
+
+  test('draw moves the stock top to the waste face-up', () => {
+    const { state } = buildSolitaireEvents('golf');
+    const rules = getGameRules('golf');
+    const stockBefore = state.zones[GOLF_STOCK]!.cardIds;
+    const result = rules.apply('draw', state, 'you');
+    expect(result).not.toBeNull();
+    expect(result![0]!.type).toBe('card/move');
+    expect(result![0]!.toZoneId).toBe(GOLF_WASTE);
+    expect(result![0]!.face).toBe('up');
+    expect(stockBefore).toHaveLength(17); // pure: state unchanged
+  });
+
+  test('a tableau card cannot open the waste (no legal play before first draw)', () => {
+    const { state } = buildSolitaireEvents('golf');
+    const rules = getGameRules('golf');
+    const top0 = state.zones[golfTableauZoneId(0)]!.cardIds[4]!;
+    const result = rules.apply(`play:0`, state, 'you');
+    // If the top of column 0 happens to pair with itself's rank... it cannot:
+    // the waste is empty, so golfPlaysOnWaste rejects every play.
+    expect(result).toBeNull();
+    expect(top0).toBeTruthy();
+  });
+
+  test('actions expose DRAW while stock remains, END TABLE only when stuck', () => {
+    const { state } = buildSolitaireEvents('golf');
+    const rules = getGameRules('golf');
+    const actions = rules.actions(state, 'you');
+    expect(actions.map((a) => a.id)).toContain('draw');
+    expect(actions.map((a) => a.id)).not.toContain('end');
+  });
+
+  test('a legal adjacent-rank play moves the top card to the waste', () => {
+    const { state, events } = buildSolitaireEvents('golf');
+    const rules = getGameRules('golf');
+    // Open the waste.
+    const draw = rules.apply('draw', state, 'you')!;
+    const afterDraw = foldEvents([...events, ...draw.map((p, i) => ({
+      type: 'card/move' as const,
+      id: eventId(events.length + i + 1),
+      ts: Date.now(),
+      actorId: 'system' as const,
+      seq: events.length + i + 1,
+      cardId: p.cardId!,
+      toZoneId: p.toZoneId! as never,
+      face: p.face ?? 'up' as const,
+    }))]);
+    const wasteTop = afterDraw.zones[GOLF_WASTE]!.cardIds[0]!;
+    // Find a tableau top that plays onto it.
+    let played = false;
+    for (let i = 0; i < 7 && !played; i += 1) {
+      const zone = afterDraw.zones[golfTableauZoneId(i)]!;
+      const top = zone.cardIds[zone.cardIds.length - 1]!;
+      const r1 = Number(top.split('-')[1]);
+      const r2 = Number(wasteTop.split('-')[1]);
+      const diff = Math.abs(r1 - r2);
+      if ((diff === 1 || diff === 12) && r1 !== 13 && r2 !== 13) {
+        const result = rules.apply(`play:${i}`, afterDraw, 'you');
+        expect(result).not.toBeNull();
+        expect(result![0]!.cardId).toBe(top);
+        expect(result![0]!.toZoneId).toBe(GOLF_WASTE);
+        played = true;
+      }
+    }
+    expect(played).toBe(true); // seed must give at least one legal follow-up
+  });
+
+  test('Kings never play, including against an Ace', () => {
+    const { state } = buildSolitaireEvents('golf');
+    // Open the waste with a draw, then force the waste top to an Ace and a King.
+    const rules = getGameRules('golf');
+    // Craft a state directly: waste top = Ace of spades.
+    const aceId = 'spades-A';
+    const kingId = 'hearts-K';
+    const withWaste: GameState = {
+      ...state,
+      zones: {
+        ...state.zones,
+        [GOLF_WASTE]: { ...state.zones[GOLF_WASTE]!, cardIds: [aceId] },
+      },
+    };
+    // King onto Ace: rejected.
+    expect(rules.apply(`play:0`, { ...withWaste, zones: { ...withWaste.zones, [golfTableauZoneId(0)]: { ...withWaste.zones[golfTableauZoneId(0)]!, cardIds: [kingId] } } }, 'you')).toBeNull();
+    // King onto King waste: rejected.
+    const withKingWaste: GameState = {
+      ...state,
+      zones: {
+        ...state.zones,
+        [GOLF_WASTE]: { ...state.zones[GOLF_WASTE]!, cardIds: [kingId] },
+      },
+    };
+    expect(rules.apply(`play:0`, { ...withKingWaste, zones: { ...withKingWaste.zones, [golfTableauZoneId(0)]: { ...withKingWaste.zones[golfTableauZoneId(0)]!, cardIds: [kingId] } } }, 'you')).toBeNull();
+  });
+
+  test('end returns null when the tableau is not cleared and moves remain', () => {
+    const { state } = buildSolitaireEvents('golf');
+    const rules = getGameRules('golf');
+    expect(rules.apply('end', state, 'you')).toBeNull();
+  });
+
+  test('readout reports tableau and stock counts', () => {
+    const { state } = buildSolitaireEvents('golf');
+    const rules = getGameRules('golf');
+    const readout = rules.readout!(state, 'you');
+    expect(readout).toContain('TABLEAU 35/35');
+    expect(readout).toContain('STOCK 17');
   });
 });

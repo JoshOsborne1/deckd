@@ -17,4 +17,5 @@ export const PRESET_BACKS: Record<string, string> = {
   poker: 'back-crimson',
   freecell: 'back-noir',
   pyramid: 'back-crimson',
+  golf: 'back-brand',
 };

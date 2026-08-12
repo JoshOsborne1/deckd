@@ -348,9 +348,9 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
       : hostPlayerId;
   const hasSession = events.length > 0 && state.phase !== 'idle';
 
-  // --- Solitaire games render their own dedicated board (FreeCell/Pyramid only).
+  // --- Solitaire games render their own dedicated board (FreeCell/Pyramid/Golf).
   // Klondike renders through KlondikeLayout (main's suit-based implementation). ---
-  const isSolitaire = ['freecell', 'pyramid'].includes(state.config.presetId ?? '');
+  const isSolitaire = ['freecell', 'pyramid', 'golf'].includes(state.config.presetId ?? '');
   /** Blackjack gets its own per-game animation pass (spec 2.2). */
   const isBlackjackTable = state.config.presetId === 'blackjack';
   /** Sevens gets its own per-game animation pass (spec 2.8). */

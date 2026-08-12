@@ -100,10 +100,10 @@ function makeEvent(payload: EventPayload, seq: number): GameEvent {
 
 function orderedDeckForPreset(seed: string, includeJokers: boolean, presetId?: string): CardId[] {
   const needsOldMaidJoker = presetId === 'old-maid';
-  // FreeCell/Pyramid layouts are hardcoded to 52 cards; jokers would silently
-  // drop 2 cards from the deal. Force them off at the deck level so no
+  // FreeCell/Pyramid/Golf layouts are hardcoded to 52 cards; jokers would
+  // silently drop 2 cards from the deal. Force them off at the deck level so no
   // session (UI, deep link, or API) can build an unsupported 54-card deck.
-  const layoutFixed52 = presetId === 'freecell' || presetId === 'pyramid';
+  const layoutFixed52 = presetId === 'freecell' || presetId === 'pyramid' || presetId === 'golf';
   const deck = buildDeck({ includeJokers: (includeJokers && !layoutFixed52) || needsOldMaidJoker })
     .filter((card) => !needsOldMaidJoker || card.id !== 'JK-BLACK');
   const rng = mulberry32(seed);

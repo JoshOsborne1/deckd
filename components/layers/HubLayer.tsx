@@ -59,10 +59,11 @@ const PRESET_OUTCOMES: Record<string, string> = {
   poker: 'Hole cards, then community play',
   freecell: 'Every card face-up · four free cells · solo',
   pyramid: 'Pair to thirteen · dismantle the pyramid · solo',
+  golf: 'Flip and match · clear the tableau · solo',
 };
 
 /** Presets that are solo-only (1 player, no pass-and-play). */
-const SOLO_PRESETS = new Set(['klondike', 'freecell', 'pyramid']);
+const SOLO_PRESETS = new Set(['klondike', 'freecell', 'pyramid', 'golf']);
 
 /** Progress threshold above which Hub accepts taps. */
 const HUB_INTERACTIVE_THRESHOLD = 0.85;
@@ -595,7 +596,9 @@ export function HubLayer({
                   ? 'Solo · build the four foundations'
                   : activePreset.id === 'freecell'
                     ? 'Solo · every card face-up'
-                    : 'Solo · pair to thirteen'
+                    : activePreset.id === 'pyramid'
+                      ? 'Solo · pair to thirteen'
+                      : 'Solo · flip and match'
                 : playerCount === 1
                 ? 'Solo blackjack against the house'
                 : activePreset.id === 'go-fish'

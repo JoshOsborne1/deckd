@@ -2,9 +2,9 @@ import { buildDeck, mulberry32, shuffleInPlace } from './deck';
 import { foldEvents } from './state';
 import { eventId } from './events';
 import type { GameEvent } from './events';
-import { freeCellPreset, pyramidPreset } from './presets';
+import { freeCellPreset, golfPreset, pyramidPreset } from './presets';
 import { getGameRules } from './rules';
-import { freeCellTableauZoneId, freeCellZoneId, PYRAMID_ZONE, PYRAMID_STOCK } from './solitaire';
+import { freeCellTableauZoneId, freeCellZoneId, PYRAMID_ZONE, PYRAMID_STOCK, GOLF_STOCK, golfTableauZoneId } from './solitaire';
 
 describe('store-path solitaire verification (rejection fix)', () => {
   // Mirrors gameStore.createSession: preset.setup -> executeRecipe(preset.recipe).
@@ -58,5 +58,15 @@ describe('store-path solitaire verification (rejection fix)', () => {
       expect(state.zones[freeCellZoneId(i)]).toBeDefined();
       expect(state.zones[freeCellZoneId(i)]!.cardIds).toHaveLength(0);
     }
+  });
+
+  test('Golf deals 35 tableau + 17 stock through the store path', () => {
+    const state = storePathSession(golfPreset);
+    const cols = [0, 1, 2, 3, 4, 5, 6].map((i) => state.zones[golfTableauZoneId(i)]?.cardIds.length ?? 0);
+    expect(cols).toEqual([5, 5, 5, 5, 5, 5, 5]);
+    expect(state.zones[GOLF_STOCK]!.cardIds).toHaveLength(17);
+    const rules = getGameRules('golf');
+    expect(rules.actions(state, 'you').map((a) => a.id)).toContain('draw');
+    expect(rules.readout!(state, 'you')).toContain('TABLEAU 35/35');
   });
 });
