@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef } from 'react';
 import { createAudioPlayer, type AudioPlayer } from 'expo-audio';
 import { useUiStore } from '@store/uiStore';
 import type { SoundName } from './tableSoundEvents';
+import { playSoundEffect } from './tableSoundPlayer';
 
 import dealWav from '@assets/sounds/deal.wav';
 import flipWav from '@assets/sounds/flip.wav';
@@ -82,7 +83,7 @@ export function useTableSound(): TableSoundApi {
     const player = getPlayer(name);
     if (!player) return;
     try {
-      player.play();
+      void playSoundEffect(player);
     } catch {
       // Autoplay blocked or player not ready — skip silently.
     }

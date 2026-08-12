@@ -91,6 +91,95 @@ const SHOT_DIR = path.resolve('.qa-shots');
     await page.close();
   }
 
+  // --- Playback proof: sounds actually fire, not just the toggle ---
+  // expo-audio web creates DETACHED `new Audio()` elements (never in the
+  // DOM), so querySelectorAll('audio') is useless. Instrument the prototype
+  // instead: record every play() call with its source.
+  const instrument = (p) =>
+    p.addInitScript(() => {
+      window.__audioPlays = [];
+      const orig = HTMLAudioElement.prototype.play;
+      HTMLAudioElement.prototype.play = function patchedPlay() {
+        window.__audioPlays.push({
+          // In headless the src can be a blob/data URI (expo-audio web
+          // preloads assets) — record both forms for the detail line.
+          src: String(this.src || '').split('/').pop(),
+          currentSrc: String(this.currentSrc || '').split('/').pop(),
+          at: Date.now(),
+        });
+        return orig.apply(this, arguments);
+      };
+    });
+  const plays = (p) => p.evaluate(() => window.__audioPlays || []);
+
+  const page = await browser.newPage({ viewport: { width: 375, height: 812 } });
+  await instrument(page);
+  page.on('pageerror', (e) => errors.push(`[playback] pageerror: ${e.message}`));
+  page.on('console', (m) => {
+    if (m.type() === 'error') errors.push(`[playback] console: ${m.text()}`);
+  });
+
+  await page.goto(`${BASE_URL}/`, { waitUntil: 'commit', timeout: 60000 });
+  await page.evaluate(() => localStorage.clear());
+  await page.reload({ waitUntil: 'commit', timeout: 60000 });
+
+  // Prime the browser audio pipeline with a real user gesture (autoplay policy).
+  await page.waitForTimeout(500);
+  await page.mouse.click(180, 400).catch(() => {});
+  await page.waitForTimeout(300);
+
+  // Deal a session through the real UI: Home → deal → preset → deal now.
+  // "Deal 2 each" actually deals cards at start (freeplay keeps 52 in the
+  // pile, so it correctly plays no deal sound).
+  await page.getByRole('button', { name: 'Deal the deck', exact: true }).last().click();
+  await page.getByText('Choose a recipe', { exact: true }).waitFor({ state: 'visible', timeout: 30000 });
+  await page.getByRole('button', { name: /^Deal 2 each\./ }).last().click();
+  await page.getByRole('button', { name: 'Deal now', exact: true }).last().click();
+  await page.waitForTimeout(1500);
+
+  const dealPlays = await plays(page);
+  check(
+    'playback: deal sound actually plays after dealing',
+    dealPlays.length > 0,
+    JSON.stringify(dealPlays.slice(0, 3)),
+  );
+  await page.screenshot({ path: path.join(SHOT_DIR, 'sound-playback-deal.png') });
+  await page.close();
+
+  // Mute OFF → deal again → no playback starts.
+  const mutedPage = await browser.newPage({ viewport: { width: 375, height: 812 } });
+  await instrument(mutedPage);
+  mutedPage.on('pageerror', (e) => errors.push(`[muted] pageerror: ${e.message}`));
+  mutedPage.on('console', (m) => {
+    if (m.type() === 'error') errors.push(`[muted] console: ${m.text()}`);
+  });
+
+  await mutedPage.goto(`${BASE_URL}/settings`, { waitUntil: 'commit', timeout: 60000 });
+  await mutedPage.evaluate(() => localStorage.clear());
+  await mutedPage.reload({ waitUntil: 'commit', timeout: 60000 });
+  await mutedPage.getByText('Table sounds', { exact: true }).waitFor({ state: 'visible', timeout: 60000 });
+  const toggle = mutedPage.getByRole('switch').first();
+  await toggle.waitFor({ state: 'visible', timeout: 15000 });
+  if (await toggle.isChecked()) await toggle.click();
+  await mutedPage.waitForTimeout(300);
+
+  await mutedPage.goto(`${BASE_URL}/`, { waitUntil: 'commit', timeout: 60000 });
+  await mutedPage.mouse.click(180, 400).catch(() => {});
+  await mutedPage.getByRole('button', { name: 'Deal the deck', exact: true }).last().click();
+  await mutedPage.getByText('Choose a recipe', { exact: true }).waitFor({ state: 'visible', timeout: 30000 });
+  await mutedPage.getByRole('button', { name: /^Deal 2 each\./ }).last().click();
+  await mutedPage.getByRole('button', { name: 'Deal now', exact: true }).last().click();
+  await mutedPage.waitForTimeout(1500);
+
+  const mutedPlays = await plays(mutedPage);
+  check(
+    'playback: muted table stays silent after dealing',
+    mutedPlays.length === 0,
+    JSON.stringify(mutedPlays.slice(0, 3)),
+  );
+  await mutedPage.screenshot({ path: path.join(SHOT_DIR, 'sound-playback-muted.png') });
+  await mutedPage.close();
+
   await browser.close();
   console.log(results.join('\n'));
   if (errors.length) {

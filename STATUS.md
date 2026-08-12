@@ -1,6 +1,12 @@
 # Deckd status
 
-Last update: 2026-08-12 (Sevens ready-bar slice — suit-run table board, winner banner, engine tests; branch `wt/deckd-loop`).
+Last update: 2026-08-12 (Sound pass — native replay fix + playback-proof QA; branch `wt/deckd-loop`).
+
+## Sound pass slice (2026-08-12, task t_f8c85b8e, commit `80c3f63`)
+
+- Native replay fix: expo-audio iOS (AVPlayer `actionAtItemEnd=.pause`) does not restart a finished clip — `play()` alone was a silent no-op after the first sound, so every later deal/flip/discard/win was dead for the whole app lifetime on phones. New pure `tableSoundPlayer.ts` (needsRewind/playSoundEffect) seeks to zero before replay; wired through `useTableSound`. Android/web auto-restart, which is why web QA never caught it.
+- `qa/deckd-sound-qa.cjs` now PROVES playback, not just the toggle: instruments `HTMLAudioElement.prototype.play` (expo-audio web creates detached Audio elements — DOM queries return []), deals via "Deal 2 each", asserts `deal.wav` fires; muted run asserts zero play() calls. Toggle checks at 375px + desktop kept.
+- Gates: review gate passed, typecheck, lint 0 errors, jest 225/225 (8 new tableSoundPlayer tests), expo-doctor 20/20, live QA ALL PASSED.
 
 ## Sevens slice (2026-08-12, task t_f92aa485, commit `a50520a`)
 
