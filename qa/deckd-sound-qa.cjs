@@ -21,7 +21,7 @@ function loadPlaywright() {
 const { chromium } = loadPlaywright();
 
 const BASE_URL = process.env.DECKD_QA_URL ?? 'http://127.0.0.1:8081';
-const SHOT_DIR = path.join(__dirname, '..', '.qa-shots');
+const SHOT_DIR = path.resolve('.qa-shots');
 
 (async () => {
   const fs = require('fs');
