@@ -16,7 +16,7 @@ import Animated, {
 import { PlayingCard } from '@components/PlayingCard';
 import { useMotion } from '@hooks/useMotion';
 import { useUiStore } from '@store/uiStore';
-import { alpha, colors, fonts, motion, shadow, space } from '@theme';
+import { alpha, colors, fonts, motion, space } from '@theme';
 
 type NavIcon = React.ComponentType<{
   size?: number;
@@ -44,6 +44,11 @@ const navItems: NavConfig[] = [
 /** Backwards-compatible name used by layered surfaces. */
 export const GLOBAL_NAV_HEIGHT = NAV_BAR_RESERVE;
 
+/** Chips deal in from the edge one by one with this stagger between neighbours. */
+const CHIP_STAGGER_MS = 40;
+/** Active chip raises this far above the felt. */
+const CHIP_RAISE = 4;
+
 function isActivePath(pathname: string, href: string): boolean {
   if (href === '/') {
     return pathname === '/' || pathname === '/index';
@@ -51,6 +56,13 @@ function isActivePath(pathname: string, href: string): boolean {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
+/**
+ * Nav v3 (directive 13): chips on the table edge. There is no nav bar — the
+ * bottom of the screen is the table's physical edge (a thin felt lip) and the
+ * four destinations are flat cylinder chips sitting on it. Deal is not a nav
+ * item: it is the deck object (a small stack of card backs) sitting on the
+ * table, center-bottom above the edge.
+ */
 export const GlobalNavBar: React.FC = () => {
   const router = useRouter();
   const pathname = usePathname() ?? '/';
@@ -145,12 +157,13 @@ export const GlobalNavBar: React.FC = () => {
         <View pointerEvents="none" style={[styles.edgeLip, { bottom: bottomPad + 8 }]} />
         <View style={styles.row}>
           {navItems.slice(0, 2).map((item, index) => (
-            <NavItem
+            <NavChip
               key={item.id}
               item={item}
               index={index}
               reduceMotion={reduceMotion}
               pathname={pathname}
+              haptic={haptic}
               activeOverride={item.id === 'home' ? (onRoot && viewMode === 'home') : undefined}
               onPress={() => go(item.href)}
             />
@@ -159,12 +172,13 @@ export const GlobalNavBar: React.FC = () => {
           <DealButton reduceMotion={reduceMotion} onPress={onDeal} />
 
           {navItems.slice(2).map((item, index) => (
-            <NavItem
+            <NavChip
               key={item.id}
               item={item}
               index={index + 2}
               reduceMotion={reduceMotion}
               pathname={pathname}
+              haptic={haptic}
               activeOverride={item.id === 'home' ? (onRoot && viewMode === 'home') : undefined}
               onPress={() => go(item.href)}
             />
@@ -175,13 +189,14 @@ export const GlobalNavBar: React.FC = () => {
   );
 };
 
-function NavItem({
+function NavChip({
   item,
   index,
   pathname,
   activeOverride,
   onPress,
   reduceMotion,
+  haptic,
 }: {
   item: NavConfig;
   index: number;
@@ -189,31 +204,46 @@ function NavItem({
   activeOverride?: boolean;
   onPress: () => void;
   reduceMotion: boolean;
+  haptic: () => void;
 }) {
   const active = activeOverride ?? isActivePath(pathname, String(item.href));
   const color = active ? colors.brand : colors.inkMuted;
   const Icon = item.icon;
   const entry = useSharedValue(reduceMotion ? 1 : 0);
   const press = useSharedValue(0);
+  const raised = useSharedValue(active ? 1 : 0);
 
+  // Deal-in from the edge: one chip at a time, 40ms stagger, spring.
+  // Reduced motion: plain fade, no physics.
   useEffect(() => {
     cancelAnimation(entry);
     if (reduceMotion) {
-      entry.value = 1;
+      entry.value = withTiming(1, { duration: motion.duration.fast });
       return;
     }
-    entry.value = withDelay(index * 42, withSpring(1, motion.spring.layerSoft));
+    entry.value = withDelay(index * CHIP_STAGGER_MS, withSpring(1, motion.spring.layerSoft));
     return () => cancelAnimation(entry);
   }, [entry, index, reduceMotion]);
 
-  const itemMotion = useAnimatedStyle(() => ({
+  // Settle spring on selection: the active chip raises off the felt.
+  useEffect(() => {
+    cancelAnimation(raised);
+    if (reduceMotion) {
+      raised.value = withTiming(active ? 1 : 0, { duration: motion.duration.fast });
+      return;
+    }
+    raised.value = withSpring(active ? 1 : 0, motion.spring.layerSoft);
+    return () => cancelAnimation(raised);
+  }, [raised, active, reduceMotion]);
+
+  const chipMotion = useAnimatedStyle(() => ({
     opacity: interpolate(entry.value, [0, 1], [0, 1]),
     transform: [
       {
         translateY:
-          interpolate(entry.value, [0, 1], [8, 0]) +
-          interpolate(press.value, [0, 1], [0, 1]) +
-          (active ? -4 : 0),
+          interpolate(entry.value, [0, 1], [16, 0]) +
+          interpolate(raised.value, [0, 1], [0, -CHIP_RAISE]) +
+          interpolate(press.value, [0, 1], [0, 1]),
       },
       { scale: interpolate(press.value, [0, 1], [1, 0.96]) },
     ],
@@ -227,25 +257,28 @@ function NavItem({
   };
 
   return (
-    <Animated.View style={[styles.itemSlot, active && styles.itemSlotActive, itemMotion]}>
+    <Animated.View style={[styles.chipSlot, active && styles.chipSlotActive, chipMotion]}>
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={item.label}
+        accessibilityState={{ selected: active }}
         onPress={onPress}
-        onPressIn={() => setPressed(true)}
+        onPressIn={() => {
+          haptic();
+          setPressed(true);
+        }}
         onPressOut={() => setPressed(false)}
         style={({ pressed }) => [
-          styles.itemButton,
-          active && styles.itemButtonActive,
-          pressed && styles.itemButtonPressed,
+          styles.chipButton,
+          pressed && styles.chipButtonPressed,
         ]}
       >
-        <View style={styles.itemIcon}>
+        <View style={[styles.chipFace, active && styles.chipFaceActive]}>
           {Icon ? (
             <Icon size={19} color={color} strokeWidth={active ? 2.2 : 1.8} />
           ) : null}
         </View>
-        <Text style={[styles.itemLabel, { color }]}>{item.label}</Text>
+        <Text style={[styles.chipLabel, { color }]}>{item.label}</Text>
       </Pressable>
     </Animated.View>
   );
@@ -363,49 +396,49 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     maxWidth: 420,
     paddingHorizontal: space.sm,
-    gap: space.xs,
+    gap: space.sm,
     width: '100%',
     zIndex: 1,
   },
-  itemSlot: {
-    flex: 1,
-    minWidth: 0,
-    maxWidth: 70,
-    minHeight: 52,
+  chipSlot: {
+    width: 54,
+    minHeight: 60,
     alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent: 'flex-end',
   },
-  itemSlotActive: {
+  chipSlotActive: {
     zIndex: 2,
-    ...shadow.navActive,
   },
-  itemButton: {
-    width: '100%',
-    maxWidth: 70,
-    minHeight: 48,
+  chipButton: {
+    minWidth: 54,
+    minHeight: 60,
     alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 5,
-    paddingVertical: 4,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: alpha.inkOverlay12,
-    backgroundColor: alpha.inkOverlay02,
+    justifyContent: 'flex-end',
+    paddingHorizontal: 4,
   },
-  itemButtonPressed: {
-    backgroundColor: alpha.inkOverlay06,
+  chipButtonPressed: {
     transform: [{ scale: 0.96 }],
   },
-  itemButtonActive: {
-    backgroundColor: colors.surface,
-    borderColor: colors.brand,
-  },
-  itemIcon: {
-    height: 21,
+  chipFace: {
+    width: 46,
+    height: 46,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
+    backgroundColor: colors.surfaceAlt,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  itemLabel: {
+  chipFaceActive: {
+    borderColor: colors.brand,
+    backgroundColor: colors.surface,
+    shadowColor: colors.ink,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.16,
+    shadowRadius: 5,
+    elevation: 4,
+  },
+  chipLabel: {
     marginTop: 3,
     fontFamily: fonts.semibold,
     fontSize: 9,
@@ -447,15 +480,6 @@ const styles = StyleSheet.create({
     top: 0,
     left: 0,
     transform: [{ rotate: '-8deg' }, { scale: 1.8 }],
-  },
-  dealLabel: {
-    marginTop: 1,
-    fontFamily: fonts.bold,
-    fontSize: 9,
-    lineHeight: 11,
-    color: colors.brand,
-    letterSpacing: 0.5,
-    textTransform: 'uppercase',
   },
 });
 
