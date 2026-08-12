@@ -403,6 +403,15 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
     () => (viewerId ? selectGuidanceState(state, viewerId) : 'waiting'),
     [state, viewerId],
   );
+  // --- Old Maid: who is stuck with the maid joker at the end? ---
+  const maidHolder = useMemo(() => {
+    if (rules.id !== 'old-maid' || state.phase !== 'ended') return null;
+    for (const player of state.players) {
+      const hand = state.zones[handZoneId(player.id)]?.cardIds ?? [];
+      if (hand.some((cardId) => parseJokerId(cardId) !== null)) return player;
+    }
+    return null;
+  }, [rules.id, state.phase, state.players, state.zones]);
   const nextPlayerId = useMemo(() => selectNextPlayerId(state), [state]);
   const isHost = Boolean(hostPlayerId && viewerId === hostPlayerId);
   const isPassMode = state.meta.mode === 'pass';
@@ -988,35 +997,38 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
               })}
             </ScrollView>
 
-            {/* Draw pile */}
-            <Animated.View
-              style={[
-                styles.deckStack,
-                drawMotionStyle,
-                suggestedAction === 'draw' && styles.suggestedDeck,
-              ]}
-            >
-              <Pressable
-                onPress={handleDrawCard}
-                onPressIn={handleDrawPressIn}
-                onPressOut={handleDrawPressOut}
-                disabled={!isMyTurn || drawCount === 0 || !canUseGenericHandActions}
-                accessibilityRole="button"
-                accessibilityLabel={`Draw pile, ${drawCount} cards left`}
-                accessibilityHint={
-                  suggestedAction === 'draw'
-                    ? 'Suggested next move. Tap to draw a card.'
-                    : 'Tap to draw a card when it is your turn.'
-                }
+            {/* Draw pile — Old Maid deals the whole deck, so there is no
+                pile to draw from; hide it instead of showing a dead button */}
+            {rules.id !== 'old-maid' && (
+              <Animated.View
                 style={[
-                  styles.deckTrigger,
-                  (!isMyTurn || drawCount === 0 || !canUseGenericHandActions) && { opacity: 0.5 },
+                  styles.deckStack,
+                  drawMotionStyle,
+                  suggestedAction === 'draw' && styles.suggestedDeck,
                 ]}
               >
-                <PlayingCard face="down" size="md" back={equippedBackId} />
-                <Text style={styles.deckLeftText}>{drawCount} LEFT</Text>
-              </Pressable>
-            </Animated.View>
+                <Pressable
+                  onPress={handleDrawCard}
+                  onPressIn={handleDrawPressIn}
+                  onPressOut={handleDrawPressOut}
+                  disabled={!isMyTurn || drawCount === 0 || !canUseGenericHandActions}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Draw pile, ${drawCount} cards left`}
+                  accessibilityHint={
+                    suggestedAction === 'draw'
+                      ? 'Suggested next move. Tap to draw a card.'
+                      : 'Tap to draw a card when it is your turn.'
+                  }
+                  style={[
+                    styles.deckTrigger,
+                    (!isMyTurn || drawCount === 0 || !canUseGenericHandActions) && { opacity: 0.5 },
+                  ]}
+                >
+                  <PlayingCard face="down" size="md" back={equippedBackId} />
+                  <Text style={styles.deckLeftText}>{drawCount} LEFT</Text>
+                </Pressable>
+              </Animated.View>
+            )}
           </View>
         ) : (
           <View style={styles.tablePiles}>
@@ -1116,12 +1128,24 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
                 ? state.winnerId === viewerId
                   ? 'You beat the house'
                   : 'House wins this hand'
+                : rules.id === 'old-maid'
+                ? state.winnerId === viewerId
+                  ? 'You dodged the maid'
+                  : `${state.players.find((p) => p.id === state.winnerId)?.name ?? 'Winner'} dodged the maid`
                 : state.winnerId
                   ? state.winnerId === viewerId
                     ? 'You take the table'
                     : `${state.players.find((p) => p.id === state.winnerId)?.name ?? 'Winner'} takes the table`
                   : 'Table cleared'}
             </Text>
+            {rules.id === 'old-maid' && maidHolder && (
+              <View style={styles.maidReveal} accessible accessibilityRole="text" accessibilityLabel={`The maid stays with ${maidHolder.name}`}>
+                <PlayingCard jokerColor="red" face="up" size="sm" />
+                <Text style={styles.maidRevealText}>
+                  {maidHolder.id === viewerId ? 'You hold the maid' : `The maid stays with ${maidHolder.name}`}
+                </Text>
+              </View>
+            )}
             <Text style={styles.endedMeta}>
               {isPoker ? `Pot ${state.game?.pot ?? 0} chips · ` : ''}
               {rules.id === 'go-fish' && state.winnerId
@@ -1859,6 +1883,23 @@ const styles = StyleSheet.create({
     fontSize: fontSizes.caption,
     fontFamily: fonts.semibold,
     color: colors.inkMuted,
+    letterSpacing: letterSpacing.cap,
+    textTransform: 'uppercase',
+  },
+  maidReveal: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.sm,
+    marginBottom: space.md,
+    paddingHorizontal: space.md,
+    paddingVertical: space.xs,
+    borderRadius: radii.md,
+    backgroundColor: alpha.inkOverlay06,
+  },
+  maidRevealText: {
+    fontSize: fontSizes.caption,
+    fontFamily: fonts.semibold,
+    color: colors.ink,
     letterSpacing: letterSpacing.cap,
     textTransform: 'uppercase',
   },

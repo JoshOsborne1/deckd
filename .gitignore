@@ -39,3 +39,4 @@ yarn-error.*
 
 # Local QA artifacts (screenshots, probes)
 .qa-*
+qa/oldmaid-qa-out.json

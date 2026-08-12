@@ -17,7 +17,7 @@ import {
   klondikeFoundationZoneId,
   tableZoneId,
 } from './types';
-import { parseCardId } from './selectors';
+import { parseCardId, parseJokerId } from './selectors';
 import {
   PYRAMID_STOCK,
   PYRAMID_WASTE,
@@ -558,13 +558,44 @@ function pairCardIds(cardIds: string[]): string[] {
   return [...byRank.values()].flatMap((cards) => cards.slice(0, cards.length - (cards.length % 2)));
 }
 
-function oldMaidWinner(state: GameState, projected: Map<PlayerId, number>): PlayerId | undefined {
+function oldMaidWinner(
+  state: GameState,
+  projected: Map<PlayerId, number>,
+  justEmptied?: PlayerId,
+): PlayerId | undefined {
+  // The player who just emptied their hand wins. In 3+ player games an
+  // earlier-emptied player must not be declared winner when someone else
+  // empties, so prefer the explicit candidate and only fall back to the
+  // first empty hand defensively (e.g. the current player holds the maid).
+  if (justEmptied && (projected.get(justEmptied) ?? 0) === 0) return justEmptied;
   return state.players.find((player) => (projected.get(player.id) ?? 0) === 0)?.id;
+}
+
+/** The first player other than `excluded` — the maid holder loses, so the
+ * winner is whoever is NOT stuck with the maid. */
+function firstOtherPlayer(state: GameState, excluded: PlayerId): PlayerId | undefined {
+  return state.players.find((player) => player.id !== excluded)?.id;
+}
+
+/** A player left holding ONLY the joker has lost — the round ends with
+ * them stuck with the maid. Without this rule the 2-player endgame can
+ * cycle forever: when 3 cards remain (joker + two unpaired orphans) the
+ * current player always holds exactly one card, so the draw never empties
+ * the other hand and the joker never settles. */
+function maidOnlyPlayerId(state: GameState): PlayerId | undefined {
+  for (const player of state.players) {
+    const hand = state.zones[handZoneId(player.id)]?.cardIds ?? [];
+    if (hand.length === 1 && parseJokerId(hand[0] ?? '') !== null) return player.id;
+  }
+  return undefined;
 }
 
 function oldMaidActions(state: GameState, viewerId: PlayerId): GameActionSpec[] {
   if (state.phase !== 'playing' || state.currentPlayerId !== viewerId) return [];
   const hand = state.zones[handZoneId(viewerId)]?.cardIds ?? [];
+  if (hand.length === 1 && parseJokerId(hand[0] ?? '') !== null) {
+    return [{ id: 'end', label: 'FINISH', hint: 'You hold the maid — end the round', kind: 'table' }];
+  }
   if (pairCardIds(hand).length > 0) {
     return [{ id: 'pair', label: 'PAIR UP', hint: 'Lay down every matching pair', kind: 'table' }];
   }
@@ -581,7 +612,7 @@ function oldMaidApply(
   viewerId: PlayerId,
 ): PrimitiveEvent[] | null {
   if (state.phase !== 'playing' || state.currentPlayerId !== viewerId) return null;
-  if (action === 'end') return [{ type: 'session/end', winnerId: state.players[0]?.id }];
+  if (action === 'end') return [{ type: 'session/end', winnerId: firstOtherPlayer(state, viewerId) }];
 
   const currentHand = state.zones[handZoneId(viewerId)]?.cardIds ?? [];
   const pairIds = action === 'pair' ? pairCardIds(currentHand) : [];
@@ -594,7 +625,14 @@ function oldMaidApply(
     const projected = projectedHandSizes(state, new Map([[viewerId, -pairIds.length]]));
     const nonEmptyPlayers = [...projected.values()].filter((count) => count > 0).length;
     if (nonEmptyPlayers <= 1) {
-      events.push({ type: 'session/end', winnerId: oldMaidWinner(state, projected) });
+      events.push({ type: 'session/end', winnerId: oldMaidWinner(state, projected, viewerId) });
+      return events;
+    }
+    // Pairing can leave the actor holding only the joker — they are stuck
+    // with the maid; end the round rather than passing a hopeless turn.
+    const maidOnly = maidOnlyPlayerId(state);
+    if (maidOnly) {
+      events.push({ type: 'session/end', winnerId: firstOtherPlayer(state, maidOnly) });
       return events;
     }
     const next = nextActivePlayer(state, viewerId, projected);
@@ -604,8 +642,21 @@ function oldMaidApply(
 
   if (action !== 'draw') return null;
   const target = nextPlayerWithCards(state, viewerId);
-  const cardId = target ? state.zones[handZoneId(target.id)]?.cardIds.at(-1) : undefined;
-  if (!target || !cardId) return [{ type: 'session/end', winnerId: state.players[0]?.id }];
+  const targetHand = target ? state.zones[handZoneId(target.id)]?.cardIds ?? [] : [];
+  // Classic Old Maid draws a card from the fan, not always the top. Always
+  // taking the last card makes 2-player games deadlock: the drawn card lands
+  // at the end of the drawer's hand, so the same card bounces back and forth
+  // forever. Any deterministic pick (last card, seeded index, composition
+  // hash) can also cycle: the state space is finite, so a deterministic map
+  // eventually repeats — observed live with 6 of 10 seeds deadlocking on a
+  // composition-seeded index. A random fan draw terminates with probability
+  // 1, and replay stays deterministic because the store persists the event
+  // log (the card/move event records the actual pick) and rehydrates by
+  // folding events.
+  const cardId = target && targetHand.length > 0
+    ? targetHand[Math.floor(Math.random() * targetHand.length)] ?? null
+    : null;
+  if (!target || !cardId) return [{ type: 'session/end', winnerId: firstOtherPlayer(state, viewerId) }];
   const events: PrimitiveEvent[] = [{
     type: 'card/move', cardId, toZoneId: handZoneId(viewerId), face: 'down',
   }];
@@ -615,7 +666,14 @@ function oldMaidApply(
   ]));
   const nonEmptyPlayers = [...projected.values()].filter((count) => count > 0).length;
   if (nonEmptyPlayers <= 1) {
-    events.push({ type: 'session/end', winnerId: oldMaidWinner(state, projected) });
+    events.push({ type: 'session/end', winnerId: oldMaidWinner(state, projected, target.id) });
+    return events;
+  }
+  // The draw may leave the TARGET holding only the joker — the maid has
+  // settled; end the round with the drawer as winner.
+  const maidOnly = maidOnlyPlayerId(state);
+  if (maidOnly) {
+    events.push({ type: 'session/end', winnerId: firstOtherPlayer(state, maidOnly) });
     return events;
   }
   const next = nextActivePlayer(state, viewerId, projected);

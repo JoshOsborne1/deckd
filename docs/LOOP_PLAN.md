@@ -1,63 +1,63 @@
 # Deckd LOOP plan
 
-Updated: 2026-08-12 (Go Fish slice, task t_8b3ac033)
+Updated: 2026-08-12 (Old Maid slice, task t_798a1d52)
 
 ## Current read
 
-Go Fish is mostly built already: recipe preset, ask/books/win rules
-(`src/engine/rules.ts` goFish*), rules guide copy, `gameStore.gameAction`
-routing for `card/ask`, and the TableLayer rule-action rail with ASK buttons,
-contextual guidance, and a `BOOKS n · HAND n` readout. Engine tests cover
-deals, asks, hits, book collection, and turn retention.
+Old Maid is mostly built from the Go Fish run: recipe preset (53-card deck,
+roundRobin 27 rounds), pair/draw/end rules, rules guide copy, TableLayer
+contextual rail (PAIR UP / DRAW CARD), FeltStack pair rendering, end banner
+with pair count, HubLayer copy. Engine tests cover deal + pair + draw.
 
 What is NOT ready (gaps vs G1/G2):
 
-1. **Books are invisible on the felt.** Books land in the public
-   `table:<player>` zone but TableLayer renders nothing there. Cards vanish
-   from the hand with only a numeric readout — a "silent" game state change,
-   exactly the class G2 bans. Old Maid pairs have the same gap.
-2. **Deadlock when the draw pile empties.** With an empty deck and remaining
-   hands holding only distinct ranks, every ask misses and `turn/end` cycles
-   forever — no FINISH action is offered (it only appears with an empty hand
-   or no target). Classic Go Fish ends the round on a miss with an empty
-   deck. No engine test covers this.
-3. **No dedicated Go Fish QA proof.** The library probe only checks that an
-   ASK button exists and a BOOKS readout appears. No full flow (setup →
-   rules → ask → hit/miss → book on felt → end → replay) at 375 and desktop.
+1. **Winner logic bug.** `oldMaidWinner` returns the FIRST player with an
+   empty projected hand in seat order. In 3+ player games, a player who
+   emptied earlier is declared winner when someone else empties. The winner
+   must be the player who JUST emptied (current > 0, projected 0). The
+   `end`/no-target fallbacks also hardcode `state.players[0]` as winner —
+   wrong when the current player holds the maid and loses.
+2. **No maid reveal.** The payoff moment is missing: when the round ends,
+   the banner says "X takes the table" but never shows who holds the maid.
+   Old Maid's whole drama is the loser stuck with the joker.
+3. **Dead draw pile on the felt.** Old Maid deals all 53 cards, so the
+   draw pile is always 0 and rendered disabled ("0 LEFT") — a G2 dead
+   button. Go Fish keeps the pile (fishing); Old Maid should hide it.
+4. **No dedicated Old Maid QA proof.** The library probe only checks an
+   action exists. No full flow (setup → rules → pair → draw → pairs on
+   felt → end → maid reveal → replay) at 375 and desktop.
 
-## Current slice — Books on the felt + deadlock fix + proof
+## Current slice — winner fix + maid reveal + dead pile + proof
 
-1. Engine: in `goFishApply`, when the ask misses AND the draw pile is empty,
-   end the round with the book winner instead of cycling the turn. Add
-   regression tests (empty-deck miss ends round; hit with empty deck keeps
-   the turn; normal miss still passes).
-2. TableLayer: render `table:<player>` zones on the felt for Go Fish (books
-   of 4) and Old Maid (pairs of 2) — face-up mini card groups labelled per
-   player, horizontally scrollable at 375px, accessible labels for QA.
-   Go Fish keeps the draw pile visible (fishing); discard slot is unused for
-   these games and stays as-is.
-3. End banner: Go Fish winner copy shows the winning book count when known.
-4. QA: `qa/deckd-gofish-qa.cjs` — full Go Fish loop at 375x812 and 1440x900
-   against the local dev server: start preset, read rules, ASK a held rank,
-   verify a book appears on the felt with an accessible label, end the round,
-   verify winner banner + replay, zero console errors, no overflow.
-5. Gates (typecheck, lint, jest, expo-doctor) green, commit `[verified]`,
+1. Engine (`src/engine/rules.ts`): `oldMaidWinner` picks the player who
+   just emptied (current hand > 0, projected 0), falling back to any empty
+   hand defensively. `end` and no-target fallbacks pick a non-current
+   player instead of `players[0]`. Regression tests in fish-maid.test.ts:
+   3-player game where an earlier-emptied player must NOT win; draw that
+   empties the target → target wins; pair that empties the actor → actor
+   wins.
+2. TableLayer: hide the draw pile for old-maid (keep for go-fish). Ended
+   banner: old-maid title "X dodged the maid" / "You hold the maid" when
+   the viewer is stuck; render the maid joker face-up in the banner with
+   "Maid stays with {name}" copy.
+3. QA: `qa/deckd-oldmaid-qa.cjs` — full loop at 375x812 and 1440x900:
+   start preset, read rules, PAIR UP, DRAW CARD, pairs on felt with
+   accessible label, play to end, winner banner + maid reveal, replay,
+   zero console errors, no overflow.
+4. Gates (typecheck, lint, jest, expo-doctor) green, commit `[verified]`,
    deploy preview, update STATUS.md.
 
 ## Decision log
 
-- Scope: Go Fish to the ready bar, plus the shared Old Maid pair rendering
-  (same `table:<player>` gap, one component fixes both). No changes to
-  Backlog status marks (watchdog owns them).
-- No pass-ritual veil work here: the turn-swap UX for contextual games is
-  already shipped and QA-probed; the pass ritual + hold-to-peek is its own
-  queued slice (directive 19, backlog UX). Not duplicated.
-- Deadlock rule chosen: miss + empty deck ends the round (classic Go Fish).
-  This is deadlock-free: after the deck empties, the first miss ends play.
+- Winner rule: the player who empties their hand first wins (classic Old
+  Maid). The maid holder is the last player with cards.
+- Maid reveal is text + the joker card rendered in the end banner — no new
+  components, no new deps.
+- Draw pile hidden for old-maid only; go-fish unchanged.
+- No changes to Backlog status marks (watchdog owns them).
 
 ## Acceptance bar for this run
 
-- Go Fish plays from setup to winner with books visibly on the felt at
-  375px and desktop; no deadlock with an empty draw pile.
-- Old Maid pairs visible on the felt.
+- Old Maid plays from setup to winner with pairs on the felt, the maid
+  revealed at end, no dead draw pile, correct winner in 3+ player games.
 - All four gates green; new engine tests + new QA script pass.
