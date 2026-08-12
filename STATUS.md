@@ -1,6 +1,14 @@
 # Deckd status
 
-Last update: 2026-08-12 (Go Fish ready-bar slice — books on the felt, empty-deck round end; branch `wt/deckd-loop`).
+Last update: 2026-08-12 (Crazy Eights ready-bar slice — empty-deck fewest-cards winner, contextual draw, CE banner; branch `wt/deckd-loop`).
+
+## Crazy Eights slice (2026-08-12, task t_c0e7d44e, commit `799fc5f`)
+
+- Empty-deck deadlock now crowns the player with the fewest cards (classic rule) instead of the stuck current player; contextual draw keeps the turn when the drawn card is playable.
+- Dead generic draw pile removed from the felt for contextual games (crazy-eights, sevens) — drawing lives on the action rail; readout carries remaining draw count so the info isn't lost.
+- Dedicated Crazy Eights end banner ("plays out first" winner copy).
+- `qa/deckd-crazy-eights-qa.cjs` proves the full loop at 375×812 and 1440×900: play, draw, empty-deck end state, winner copy, replay, zero console errors, no overflow. `qa/deckd-library-qa.cjs` re-run green for all five library games (no sibling regression from the shared pile branch).
+- Gates: typecheck, lint 0 errors, jest 192/192 (6 new CE tests), expo-doctor 20/20, review gate passed.
 
 ## Go Fish slice (2026-08-12, task t_8b3ac033, commit `9492b33`)
 
