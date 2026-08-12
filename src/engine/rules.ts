@@ -704,6 +704,22 @@ function crazyEightPlayable(cardId: string, topCardId: string | null): boolean {
   return card.rank === '8' || top.rank === '8' || card.rank === top.rank || card.suit === top.suit;
 }
 
+/** The player holding the fewest cards wins when the round stalls with an
+ * empty draw pile (classic Crazy Eights). Seat order breaks ties. The
+ * current player being stuck must NOT win just because they are current. */
+function crazyEightsFewestCardsWinner(state: GameState): PlayerId | undefined {
+  let best: PlayerId | undefined;
+  let bestCount = Number.POSITIVE_INFINITY;
+  for (const player of state.players) {
+    const count = state.zones[handZoneId(player.id)]?.cardIds.length ?? 0;
+    if (count < bestCount) {
+      best = player.id;
+      bestCount = count;
+    }
+  }
+  return best;
+}
+
 function crazyEightsActions(state: GameState, viewerId: PlayerId): GameActionSpec[] {
   if (state.phase !== 'playing' || state.currentPlayerId !== viewerId) return [];
   const hand = state.zones[handZoneId(viewerId)]?.cardIds ?? [];
@@ -730,10 +746,10 @@ function crazyEightsApply(
 ): PrimitiveEvent[] | null {
   if (state.phase !== 'playing' || state.currentPlayerId !== viewerId) return null;
   const hand = state.zones[handZoneId(viewerId)]?.cardIds ?? [];
-  if (action === 'end') return [{ type: 'session/end', winnerId: viewerId }];
+  if (action === 'end') return [{ type: 'session/end', winnerId: crazyEightsFewestCardsWinner(state) }];
   if (action === 'draw') {
     const cardId = state.zones[ZONE_DRAW]?.cardIds[0];
-    if (!cardId) return [{ type: 'session/end', winnerId: viewerId }];
+    if (!cardId) return [{ type: 'session/end', winnerId: crazyEightsFewestCardsWinner(state) }];
     const events: PrimitiveEvent[] = [{
       type: 'card/deal', cardId, toZoneId: handZoneId(viewerId), face: 'down',
     }];
@@ -760,7 +776,10 @@ function crazyEightsApply(
 function crazyEightsReadout(state: GameState, playerId: PlayerId): string | null {
   const handSize = state.zones[handZoneId(playerId)]?.cardIds.length ?? 0;
   const top = discardTopId(state);
-  return `HAND ${handSize}${top ? ` · TOP ${parseCardId(top)?.rank ?? 'JOKER'}` : ''}`;
+  const drawCount = state.zones[ZONE_DRAW]?.cardIds.length ?? 0;
+  const topLabel = top ? ` · TOP ${parseCardId(top)?.rank ?? 'JOKER'}` : '';
+  const drawLabel = drawCount > 0 ? ` · DRAW ${drawCount}` : '';
+  return `HAND ${handSize}${topLabel}${drawLabel}`;
 }
 
 // ---------------------------------------------------------------------------

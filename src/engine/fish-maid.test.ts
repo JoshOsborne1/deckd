@@ -2,7 +2,7 @@ import { buildDeck, mulberry32, shuffleInPlace } from './deck';
 import { eventId, type GameEvent } from './events';
 import { foldEvents } from './state';
 import { executeRecipe } from './recipes';
-import { getGameRules, type PrimitiveEvent } from './rules';
+import { getGameRules, type GameAction, type PrimitiveEvent } from './rules';
 import { crazyEightsPreset, goFishPreset, oldMaidPreset, sevensPreset } from './presets';
 import { handZoneId, tableZoneId, ZONE_DRAW, type GameState, type Player, type SessionConfig } from './types';
 
@@ -427,6 +427,173 @@ describe('Crazy Eights and Sevens recipe and rules', () => {
     );
     expect(second.state.zones.discard?.cardIds).toEqual(['H-A', 'H-2']);
     expect(second.state.zones[handZoneId('p1')]?.cardIds).toHaveLength(4);
+  });
+
+  it('keeps the turn when the drawn card fits and offers the new play', () => {
+    // Alternating deal: p1 gets 5 hearts, p2 gets 5 spades (no eights — an
+    // eight is wild and would always be playable). p1 opens with H-A; p2
+    // cannot match, so the rail offers DRAW; the drawn H-K matches hearts,
+    // so the turn stays with p2 and the new card becomes playable.
+    const deckOrder = orderedWithPrefix(['H-A', 'S-9', 'H-2', 'S-10', 'H-3', 'S-J', 'H-4', 'S-Q', 'H-5', 'S-K', 'H-K']);
+    const config: SessionConfig = { ...goFishConfig, presetId: 'crazy-eights' };
+    const started = startSession(crazyEightsPreset, config, deckOrder);
+    const rules = getGameRules('crazy-eights');
+
+    const p1Played = appendPrimitives(
+      started.events,
+      rules.apply('play:H-A', started.state, 'p1') ?? [],
+      'p1',
+      started.nextSeq,
+    );
+    expect(p1Played.state.currentPlayerId).toBe('p2');
+    expect(rules.actions(p1Played.state, 'p2').map((action) => action.id)).toEqual(['draw']);
+
+    const p2Drew = appendPrimitives(
+      p1Played.events,
+      rules.apply('draw', p1Played.state, 'p2') ?? [],
+      'p2',
+      p1Played.nextSeq,
+    );
+    expect(p2Drew.state.zones[handZoneId('p2')]?.cardIds).toContain('H-K');
+    expect(p2Drew.state.currentPlayerId).toBe('p2');
+    expect(rules.actions(p2Drew.state, 'p2').map((action) => action.id)).toContain('play:H-K');
+  });
+
+  it('passes the turn when the drawn card does not fit', () => {
+    // Same alternating deal; p2 draws D-2 which matches neither the H-A top
+    // nor any rank, so the turn passes back to p1.
+    const deckOrder = orderedWithPrefix(['H-A', 'S-9', 'H-2', 'S-10', 'H-3', 'S-J', 'H-4', 'S-Q', 'H-5', 'S-K', 'D-2']);
+    const config: SessionConfig = { ...goFishConfig, presetId: 'crazy-eights' };
+    const started = startSession(crazyEightsPreset, config, deckOrder);
+    const rules = getGameRules('crazy-eights');
+
+    const p1Played = appendPrimitives(
+      started.events,
+      rules.apply('play:H-A', started.state, 'p1') ?? [],
+      'p1',
+      started.nextSeq,
+    );
+    const p2Drew = appendPrimitives(
+      p1Played.events,
+      rules.apply('draw', p1Played.state, 'p2') ?? [],
+      'p2',
+      p1Played.nextSeq,
+    );
+    expect(p2Drew.state.zones[handZoneId('p2')]?.cardIds).toContain('D-2');
+    expect(p2Drew.state.currentPlayerId).toBe('p1');
+  });
+
+  it('ends with the player who plays their last card winning', () => {
+    // Alternating deal; p2 can never match hearts (no eights — wild), so
+    // every p2 turn is a miss-draw that passes back. p1 plays down to the
+    // final heart and the last-card play must end the round with p1 as
+    // winner.
+    const deckOrder = ['H-A', 'S-9', 'H-2', 'S-10', 'H-3', 'S-J', 'H-4', 'S-Q', 'H-5', 'S-K', 'D-2', 'D-3', 'D-4', 'D-5'];
+    const config: SessionConfig = { ...goFishConfig, presetId: 'crazy-eights' };
+    const started = startSession(crazyEightsPreset, config, deckOrder);
+    const rules = getGameRules('crazy-eights');
+
+    let { state, events, nextSeq } = started;
+    const hearts = ['H-A', 'H-2', 'H-3', 'H-4', 'H-5'];
+    const misses = ['D-2', 'D-3', 'D-4', 'D-5'];
+    for (let index = 0; index < hearts.length; index += 1) {
+      const applied = appendPrimitives(events, rules.apply(`play:${hearts[index]}`, state, 'p1') ?? [], 'p1', nextSeq);
+      state = applied.state;
+      events = applied.events;
+      nextSeq = applied.nextSeq;
+      if (index < hearts.length - 1) {
+        // p2 cannot match; draws a diamond that does not fit and passes back.
+        const p2Turn = appendPrimitives(events, rules.apply('draw', state, 'p2') ?? [], 'p2', nextSeq);
+        state = p2Turn.state;
+        events = p2Turn.events;
+        nextSeq = p2Turn.nextSeq;
+        expect(state.zones[handZoneId('p2')]?.cardIds).toContain(misses[index]);
+        expect(state.currentPlayerId).toBe('p1');
+      }
+    }
+    expect(state.phase).toBe('ended');
+    expect(state.winnerId).toBe('p1');
+  });
+
+  it('crowns the fewest-cards player when the deck empties, not the stuck current player', () => {
+    // Regression: FINISH used to end with winnerId = the CURRENT player even
+    // though they were stuck with 7 cards while p1 held 2. Classic Crazy
+    // Eights ends with the fewest-cards player winning.
+    // Alternating deal: p1 five hearts, p2 five spades (no eights — wild),
+    // draw D-2 + D-4. p2's drawn cards never match the hearts p1 keeps
+    // playing, so when the pile empties p2 (7 cards) must lose to p1 (2
+    // cards).
+    const deckOrder = ['H-A', 'S-9', 'H-2', 'S-10', 'H-3', 'S-J', 'H-4', 'S-Q', 'H-5', 'S-K', 'D-2', 'D-4'];
+    const config: SessionConfig = { ...goFishConfig, presetId: 'crazy-eights' };
+    const started = startSession(crazyEightsPreset, config, deckOrder);
+    const rules = getGameRules('crazy-eights');
+    expect(started.state.zones['draw']?.cardIds).toEqual(['D-2', 'D-4']);
+
+    // p1 opens with H-A; p2 draws D-2 (miss) -> p1; p1 plays H-2; p2 draws
+    // D-4 (miss) -> p1; p1 plays H-3. Draw pile is now empty and p2 is stuck.
+    let { state, events, nextSeq } = started;
+    const plays: [GameAction, string, string][] = [
+      ['play:H-A', 'p1', 'p2'],
+      ['draw', 'p2', 'p1'],
+      ['play:H-2', 'p1', 'p2'],
+      ['draw', 'p2', 'p1'],
+      ['play:H-3', 'p1', 'p2'],
+    ];
+    for (const [action, actor, nextPlayer] of plays) {
+      const applied = appendPrimitives(events, rules.apply(action, state, actor) ?? [], actor, nextSeq);
+      state = applied.state;
+      events = applied.events;
+      nextSeq = applied.nextSeq;
+      expect(state.currentPlayerId).toBe(nextPlayer);
+    }
+    expect(state.zones['draw']?.cardIds).toHaveLength(0);
+    expect(state.zones[handZoneId('p1')]?.cardIds).toHaveLength(2);
+    expect(state.zones[handZoneId('p2')]?.cardIds).toHaveLength(7);
+    expect(rules.actions(state, 'p2').map((action) => action.id)).toEqual(['end']);
+
+    const finished = appendPrimitives(events, rules.apply('end', state, 'p2') ?? [], 'p2', nextSeq);
+    expect(finished.state.phase).toBe('ended');
+    expect(finished.state.winnerId).toBe('p1');
+  });
+
+  it('terminates: a full 2-player Crazy Eights game with greedy play never deadlocks', () => {
+    // Greedy policy: play the first matching card, else draw from the pile,
+    // else FINISH. Every play shrinks a hand and every draw shrinks the
+    // pile, so the game must end with a defined winner on every seed.
+    const seeds = ['test', 'alpha', 'beta', 'gamma', 'delta', 'epsilon', 'zeta', 'eta', 'theta', 'iota'];
+    for (const seed of seeds) {
+      const deckOrder = buildDeck({ includeJokers: false }).map((card) => card.id);
+      const rng = mulberry32(seed);
+      shuffleInPlace(deckOrder, rng);
+      const config: SessionConfig = { ...goFishConfig, presetId: 'crazy-eights' };
+      let { state, events, nextSeq } = startSession(crazyEightsPreset, config, deckOrder, players, seed);
+      const rules = getGameRules('crazy-eights');
+      let turns = 0;
+      const maxTurns = 1000;
+      while (state.phase === 'playing' && turns < maxTurns) {
+        const current = state.currentPlayerId;
+        const actions = rules.actions(state, current);
+        const action = actions.find((a) => a.id.startsWith('play:')) ?? actions.find((a) => a.id === 'draw') ?? actions[0];
+        if (!action) break;
+        const applied = appendPrimitives(events, rules.apply(action.id, state, current) ?? [], current, nextSeq);
+        state = applied.state;
+        events = applied.events;
+        nextSeq = applied.nextSeq;
+        turns += 1;
+      }
+      expect(state.phase).toBe('ended');
+      expect(turns).toBeLessThan(maxTurns);
+      expect(state.winnerId).toBeDefined();
+    }
+  });
+
+  it('surfaces the draw count in the Crazy Eights readout', () => {
+    const config: SessionConfig = { ...goFishConfig, presetId: 'crazy-eights' };
+    const started = startSession(crazyEightsPreset, config, orderedWithPrefix(['H-A', 'H-2']));
+    const rules = getGameRules('crazy-eights');
+    const readout = rules.readout?.(started.state, 'p1');
+    expect(readout).toContain('HAND 5');
+    expect(readout).toContain('DRAW 42');
   });
 
   it('opens Sevens with a seven and grows the same-suit run', () => {
