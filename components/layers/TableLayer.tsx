@@ -57,10 +57,12 @@ import {
   type CardFace,
   type CardId,
   type CardInstance,
+  type GameState,
 } from '@engine/types';
 import type { GuidancePhase, TableAction } from '@engine/selectors';
 import {
   getGameRules,
+  sevensRunLayout,
   type GameAction,
   type GameActionSpec,
 } from '@engine/rules';
@@ -225,6 +227,61 @@ function CommunityStreetCard({ card, delay, reduceMotion }: CommunityStreetCardP
         size="xs"
       />
     </Animated.View>
+  );
+}
+
+const SEVENS_SUIT_GLYPHS: Record<string, string> = {
+  hearts: '♥',
+  diamonds: '♦',
+  spades: '♠',
+  clubs: '♣',
+};
+
+/**
+ * Sevens (Fan Tan) board: the four suit runs growing outward from the 7s.
+ * Each lane is a row of xs cards anchored by its 7, so the run structure is
+ * readable at a glance instead of a flat pile. Cards land with the same
+ * settle entrance as the community row; reduced motion = plain fade.
+ */
+function SevensRuns({ tableCardIds, state, reduceMotion }: { tableCardIds: string[]; state: GameState; reduceMotion: boolean }) {
+  const runs = useMemo(() => sevensRunLayout(tableCardIds), [tableCardIds]);
+  const played = tableCardIds.length;
+  if (played === 0) return null;
+
+  return (
+    <View
+      style={styles.sevensBoard}
+      accessible
+      accessibilityRole="text"
+      accessibilityLabel={`${played} cards played across four suit runs`}
+    >
+      {runs.map((run) => {
+        const glyph = SEVENS_SUIT_GLYPHS[run.suit] ?? run.suit;
+        return (
+          <View key={run.suit} style={styles.sevensLane}>
+            <Text style={styles.sevensLaneSuit}>{glyph}</Text>
+            <View style={styles.sevensLaneCards}>
+              {run.cardIds.length === 0 ? (
+                <Text style={styles.sevensLaneEmpty}>—</Text>
+              ) : (
+                run.cardIds.map((cid, index) => {
+                  const card = state.cards[cid];
+                  if (!card) return null;
+                  return (
+                    <CommunityStreetCard
+                      key={cid}
+                      card={card}
+                      delay={index * motion.stagger.deal}
+                      reduceMotion={reduceMotion}
+                    />
+                  );
+                })
+              )}
+            </View>
+          </View>
+        );
+      })}
+    </View>
   );
 }
 
@@ -973,6 +1030,8 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
           </View>
         ) : isKlondike ? (
           <KlondikeLayout state={state} onAction={handleGameAction} back={equippedBackId} />
+        ) : rules.id === 'sevens' ? (
+          <SevensRuns tableCardIds={communityCards} state={state} reduceMotion={reduceMotion} />
         ) : rules.id === 'go-fish' || rules.id === 'old-maid' ? (
           <View style={styles.contextualPiles}>
             {/* Books (Go Fish) / pairs (Old Maid) collected on the felt */}
@@ -996,7 +1055,6 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
                 );
               })}
             </ScrollView>
-
             {/* Draw pile — Old Maid deals the whole deck, so there is no
                 pile to draw from; hide it instead of showing a dead button */}
             {rules.id !== 'old-maid' && (
@@ -1095,8 +1153,8 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
           </View>
         )}
 
-        {/* Community cards (poker flop/turn/river) */}
-        {communityCards.length > 0 && (
+        {/* Community cards (poker flop/turn/river) — Sevens renders its own suit runs */}
+        {communityCards.length > 0 && rules.id !== 'sevens' && (
           <View style={styles.communityRow} pointerEvents="none">
             <Text style={styles.communityLabel}>{streetLabel}</Text>
             <View style={styles.communityCards}>
@@ -1138,6 +1196,10 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
                   ? 'You dodged the maid'
                   : `${state.players.find((p) => p.id === state.winnerId)?.name ?? 'Winner'} dodged the maid`
                 : rules.id === 'crazy-eights'
+                ? state.winnerId === viewerId
+                  ? 'You play out first'
+                  : `${state.players.find((p) => p.id === state.winnerId)?.name ?? 'Winner'} plays out first`
+                : rules.id === 'sevens'
                 ? state.winnerId === viewerId
                   ? 'You play out first'
                   : `${state.players.find((p) => p.id === state.winnerId)?.name ?? 'Winner'} plays out first`
@@ -1721,6 +1783,37 @@ const styles = StyleSheet.create({
   communityCards: {
     flexDirection: 'row',
     gap: space.xs,
+  },
+  sevensBoard: {
+    flexDirection: 'column',
+    alignItems: 'center',
+    gap: space.sm,
+    width: '100%',
+    paddingHorizontal: space.md,
+  },
+  sevensLane: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.sm,
+    minHeight: 22,
+  },
+  sevensLaneSuit: {
+    fontSize: 13,
+    fontFamily: fonts.bold,
+    color: colors.inkSubtle,
+    width: 16,
+    textAlign: 'center',
+  },
+  sevensLaneCards: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.xxs,
+    minHeight: 22,
+  },
+  sevensLaneEmpty: {
+    fontSize: 11,
+    fontFamily: fonts.regular,
+    color: alpha.inkOverlay20,
   },
   guidance: {
     position: 'absolute',

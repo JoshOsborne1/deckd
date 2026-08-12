@@ -850,6 +850,38 @@ function sevensReadout(state: GameState, playerId: PlayerId): string | null {
   return `PLAYED ${played} · HAND ${handSize}`;
 }
 
+/** Fixed suit order for the Sevens table board. */
+const SEVENS_SUIT_ORDER: Suit[] = ['hearts', 'diamonds', 'spades', 'clubs'];
+
+export interface SevensRun {
+  suit: Suit;
+  /** Played card ids of this suit, ordered low rank to high rank. */
+  cardIds: string[];
+}
+
+/**
+ * Group the played communal cards into per-suit runs ordered low to high.
+ * Jokers are ignored (Sevens deals the standard 52). The table renders one
+ * lane per suit so the Fan Tan structure is readable instead of a flat pile.
+ */
+export function sevensRunLayout(tableCardIds: string[]): SevensRun[] {
+  const runs = new Map<Suit, string[]>(SEVENS_SUIT_ORDER.map((suit) => [suit, []]));
+  for (const cardId of tableCardIds) {
+    const parsed = parseCardId(cardId);
+    if (!parsed) continue;
+    runs.get(parsed.suit)?.push(cardId);
+  }
+  for (const suit of SEVENS_SUIT_ORDER) {
+    const run = runs.get(suit) ?? [];
+    run.sort((a, b) => {
+      const ra = parseCardId(a) ? SEVENS_RANK_ORDER.indexOf(parseCardId(a)!.rank) : -1;
+      const rb = parseCardId(b) ? SEVENS_RANK_ORDER.indexOf(parseCardId(b)!.rank) : -1;
+      return ra - rb;
+    });
+  }
+  return SEVENS_SUIT_ORDER.map((suit) => ({ suit, cardIds: runs.get(suit) ?? [] }));
+}
+
 /** Dealer plays to 17 after every player has stuck. Returns events. */
 export function blackjackDealerPlay(state: GameState): PrimitiveEvent[] {
   const dealer = state.players[state.players.length - 1];
