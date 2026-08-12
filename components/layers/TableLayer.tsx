@@ -22,6 +22,7 @@ import { KlondikeLayout } from '@components/KlondikeLayout';
 import { HandFan } from '@components/HandFan';
 import { HandStack } from '@components/HandStack';
 import { SolitaireBoard } from '@components/SolitaireBoard';
+import { SevensTable } from '@components/layers/SevensTable';
 import { useLayerSurfaceEntrance } from '@hooks/useLayerSurfaceEntrance';
 import { useMotion } from '@hooks/useMotion';
 import { DISCARD_PULSE_SCALE } from '@lib/motion';
@@ -47,7 +48,9 @@ import {
   selectOpponents,
   selectSuggestedAction,
   sortHandCards,
+  type GuidancePhase,
   type HandSortMode,
+  type TableAction,
 } from '@engine/selectors';
 import {
   ZONE_DISCARD,
@@ -59,7 +62,6 @@ import {
   type CardInstance,
   type GameState,
 } from '@engine/types';
-import type { GuidancePhase, TableAction } from '@engine/selectors';
 import {
   getGameRules,
   sevensRunLayout,
@@ -347,6 +349,8 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
   // --- Solitaire games render their own dedicated board (FreeCell/Pyramid only).
   // Klondike renders through KlondikeLayout (main's suit-based implementation). ---
   const isSolitaire = ['freecell', 'pyramid'].includes(state.config.presetId ?? '');
+  /** Sevens gets its own per-game animation pass (spec 2.8). */
+  const isSevensTable = state.config.presetId === 'sevens';
 
   // --- Selectors (memoized off state) ---
   const drawCount = useMemo(() => selectDrawPileCount(state), [state]);
@@ -899,6 +903,18 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
   // --- Discard top parsed ---
   const discardParsed = discardTop ? parseCardId(discardTop.id) : null;
   const discardJoker = discardTop ? parseJokerId(discardTop.id) : null;
+
+  // --- Sevens: dedicated per-game animation pass (ring pulse, 90ms snake,
+  // pass chip slide, drag & drop plays). ---
+  if (isSevensTable && viewerId) {
+    return (
+      <SevensTable
+        active={active}
+        topInset={topInset}
+        bottomInset={bottomInset}
+      />
+    );
+  }
 
   // --- Solitaire games: render the dedicated solitaire board ---
   if (isSolitaire && viewerId) {

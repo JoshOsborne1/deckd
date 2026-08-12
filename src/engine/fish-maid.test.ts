@@ -621,6 +621,21 @@ describe('Crazy Eights and Sevens recipe and rules', () => {
     expect(second.state.currentPlayerId).toBe('p1');
   });
 
+  it('marks Sevens plays as drag actions targeting the communal run board', () => {
+    const config: SessionConfig = { ...goFishConfig, presetId: 'sevens' };
+    const started = startSession(sevensPreset, config, orderedWithPrefix(['H-7', 'H-8', 'S-7', 'C-7']));
+    const rules = getGameRules('sevens');
+
+    const playSpec = rules.actions(started.state, 'p1').find((action) => action.id === 'play:H-7');
+    expect(playSpec).toBeDefined();
+    expect(playSpec?.canDrag).toBe(true);
+    expect(playSpec?.targetZones).toEqual(['communal:0']);
+
+    // Non-card actions (pass) stay plain buttons.
+    const passSpec = rules.actions(started.state, 'p1').find((action) => action.id === 'pass');
+    expect(passSpec?.canDrag ?? false).toBe(false);
+  });
+
   it('passes when no card can legally extend a run and passes the turn', () => {
     const config: SessionConfig = { ...goFishConfig, presetId: 'sevens' };
     // Fully controlled deck: p1 holds H-7 plus the other three 7s and duds;

@@ -84,6 +84,25 @@ export interface GameActionSpec {
   label: string;
   hint: string;
   kind: 'table' | 'hand' | 'host' | 'bet';
+  /** Card-based actions can be offered as drag & drop instead of buttons. */
+  canDrag?: boolean;
+  /** Drop target zone ids for drag & drop (absolute zone ids, e.g. 'communal:0'). */
+  targetZones?: string[];
+}
+
+/**
+ * Per-card drag metadata for card-based actions (sevens plays, klondike /
+ * freecell moves, golf flips). The table surface measures the target zones
+ * and offers a CardDrag handle on each listed card; dropping dispatches the
+ * matching game action. `runCardIds` names the cards that move together with
+ * the dragged card (klondike/freecell run tails) so the lift reads as a unit.
+ */
+export interface CardDragSpec {
+  cardId: string;
+  /** Zone ids that accept this card (or run). */
+  targetZones: string[];
+  /** Card ids that move together with this card (run tail). */
+  runCardIds?: string[];
 }
 
 export interface PrimitiveEvent {
@@ -814,6 +833,10 @@ function sevensActions(state: GameState, viewerId: PlayerId): GameActionSpec[] {
       label: `PLAY ${parseCardId(cardId)?.rank ?? 'CARD'}`,
       hint: tableCards.length === 0 ? 'Open the table with a seven' : 'Play one card next to its suit run',
       kind: 'table',
+      // Card-based action: the table offers a drag handle on the card and
+      // drops it onto the communal run board (spec 2.8).
+      canDrag: true,
+      targetZones: [communalZoneId(0)],
     }));
   }
   if (hand.length === 0) return [{ id: 'end', label: 'FINISH', hint: 'You have played every card', kind: 'table' }];
