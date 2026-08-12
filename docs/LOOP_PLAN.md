@@ -29,9 +29,9 @@ Goal: Sevens to the ready bar (G1/G2/G8) — playable, readable, verified at 375
 
 ## Slices
 
-1. Engine: `sevensRunLayout` helper + tests (pass/win/termination/layout/readout).
-2. Table: SevensRuns render + end banner copy. Verify at 375px via QA.
-3. QA script green → gates (typecheck, lint, jest, expo-doctor) → commit → proof.
+1. Engine: `sevensRunLayout` helper + tests (pass/win/termination/layout/readout). DONE (a50520a).
+2. Table: SevensRuns render + end banner copy. DONE (a50520a). Verified at 375px via QA + screenshots.
+3. QA script green → gates → commit → proof. QA green; proof + review pending.
 
 ## Decisions
 

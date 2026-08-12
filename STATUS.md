@@ -1,6 +1,13 @@
 # Deckd status
 
-Last update: 2026-08-12 (Crazy Eights ready-bar slice — empty-deck fewest-cards winner, contextual draw, CE banner; branch `wt/deckd-loop`).
+Last update: 2026-08-12 (Sevens ready-bar slice — suit-run table board, winner banner, engine tests; branch `wt/deckd-loop`).
+
+## Sevens slice (2026-08-12, task t_f92aa485, commit `a50520a`)
+
+- Sevens now renders as four suit runs on the felt (`SevensRuns`, via new `sevensRunLayout` engine helper): per-suit lanes anchored on the 7s, xs cards low→high, suit glyph labels, settle entrance, reduced-motion fade. The flat overflow-prone community pile is suppressed for sevens.
+- Sevens end banner copy ("You play out first" family). Engine tests: pass-only forced hand, last-card win play-out, 10-seed termination sweep, run layout ordering + joker ignore. Jest 200/200.
+- `qa/deckd-sevens-qa.cjs` proves the full loop at 375×812 and 1440×900: rules sheet, readout, no dead pile, PLAY+PASS to end, winner banner, replay, zero console errors, no overflow. `qa/deckd-library-qa.cjs` re-run green for all five library games.
+- Gates: typecheck, lint 0 errors, jest 200/200, expo-doctor 20/20, review gate passed.
 
 ## Crazy Eights slice (2026-08-12, task t_c0e7d44e, commit `799fc5f`)
 
