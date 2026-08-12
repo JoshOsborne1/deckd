@@ -1,40 +1,63 @@
 # Deckd LOOP plan
 
-Updated: 2026-08-11
+Updated: 2026-08-12 (Go Fish slice, task t_8b3ac033)
 
 ## Current read
 
-- The integration branch is clean at `d29cfe5`, with Hold'em betting, staged streets, guest-safe mirrors, Klondike draw-one, rules/replay, physical draw/discard motion, and the home continuity slice deployed.
-- Home now reads as the table's quiet top-down entry point. The next non-parallel, highest-impact continuity gap is the setup → table handoff: `HubLayer.handleStart` creates the session and swaps layers immediately, so the deal object does not get a physical launch moment.
-- `LOOP_DIRECTIVES.md` §18 says not to duplicate the solo, UX-pass, or multiplayer-E2E lanes. This slice stays in `HubLayer.tsx` plus focused QA/docs updates; no engine-rule, monetisation, Rive, or native-device work is in scope.
+Go Fish is mostly built already: recipe preset, ask/books/win rules
+(`src/engine/rules.ts` goFish*), rules guide copy, `gameStore.gameAction`
+routing for `card/ask`, and the TableLayer rule-action rail with ASK buttons,
+contextual guidance, and a `BOOKS n · HAND n` readout. Engine tests cover
+deals, asks, hits, book collection, and turn retention.
 
-## Completed before this run
+What is NOT ready (gaps vs G1/G2):
 
-- `HandFan` gives every mounted card one deck-line arrival and settles it into the measured fan; opening cards keep their stagger and later draws do not replay it.
-- A new discard lands with bounded translate/rotate/settle motion while retaining pulse feedback; reduced motion uses a plain fade/settle.
-- Hold'em has blinds, betting chips, pot accounting, street progression, showdown winner copy, and live public QA. Klondike is routed through the recipe executor and has a table-native layout.
-- Home is now a warm table-native deal surface with a canonical deck object, first-run hint, resume slip, and shared-table entry; old store/Master marketing chrome is removed.
-- Quality gates and live preview were green on the prior verified motion deploy. This run must re-run them against the Home change and publish a fresh bundle.
+1. **Books are invisible on the felt.** Books land in the public
+   `table:<player>` zone but TableLayer renders nothing there. Cards vanish
+   from the hand with only a numeric readout — a "silent" game state change,
+   exactly the class G2 bans. Old Maid pairs have the same gap.
+2. **Deadlock when the draw pile empties.** With an empty deck and remaining
+   hands holding only distinct ranks, every ask misses and `turn/end` cycles
+   forever — no FINISH action is offered (it only appears with an empty hand
+   or no target). Classic Go Fish ends the round on a miss with an empty
+   deck. No engine test covers this.
+3. **No dedicated Go Fish QA proof.** The library probe only checks that an
+   ASK button exists and a BOOKS readout appears. No full flow (setup →
+   rules → ask → hit/miss → book on felt → end → replay) at 375 and desktop.
 
-## Current slice — Setup → table deal handoff
+## Current slice — Books on the felt + deadlock fix + proof
 
-1. Keep the existing session creation and online guest/host behavior, but route successful setup actions through a short, bounded deal-object launch animation before entering the table.
-2. Use the existing Reanimated motion tokens and the shared reduced-motion preference; do not add a route-wide page flip or change engine state.
-3. Reset the launch value when Hub becomes inactive so returning to setup always shows a fresh deal object.
-4. Verify Home → setup → Deal now → table at 375×812 and 1440×900, including the real table milestone and no browser/page errors.
-5. Commit with `[verified]`, export/deploy the preview, confirm the new hashed entry bundle is served, then update `STATUS.md` with the narrow result.
+1. Engine: in `goFishApply`, when the ask misses AND the draw pile is empty,
+   end the round with the book winner instead of cycling the turn. Add
+   regression tests (empty-deck miss ends round; hit with empty deck keeps
+   the turn; normal miss still passes).
+2. TableLayer: render `table:<player>` zones on the felt for Go Fish (books
+   of 4) and Old Maid (pairs of 2) — face-up mini card groups labelled per
+   player, horizontally scrollable at 375px, accessible labels for QA.
+   Go Fish keeps the draw pile visible (fishing); discard slot is unused for
+   these games and stays as-is.
+3. End banner: Go Fish winner copy shows the winning book count when known.
+4. QA: `qa/deckd-gofish-qa.cjs` — full Go Fish loop at 375x812 and 1440x900
+   against the local dev server: start preset, read rules, ASK a held rank,
+   verify a book appears on the felt with an accessible label, end the round,
+   verify winner banner + replay, zero console errors, no overflow.
+5. Gates (typecheck, lint, jest, expo-doctor) green, commit `[verified]`,
+   deploy preview, update STATUS.md.
 
-## Re-plan rule
+## Decision log
 
-- After this slice, inspect the remaining ready-bar gap. Do not start hold-to-peek while the parallel lanes described in §18 still have unmerged work, and do not duplicate their files.
-- If the handoff is clean, choose the next highest-impact continuity or physical-table gap from the audit rather than polishing parked monetisation surfaces.
+- Scope: Go Fish to the ready bar, plus the shared Old Maid pair rendering
+  (same `table:<player>` gap, one component fixes both). No changes to
+  Backlog status marks (watchdog owns them).
+- No pass-ritual veil work here: the turn-swap UX for contextual games is
+  already shipped and QA-probed; the pass ritual + hold-to-peek is its own
+  queued slice (directive 19, backlog UX). Not duplicated.
+- Deadlock rule chosen: miss + empty deck ends the round (classic Go Fish).
+  This is deadlock-free: after the deck empties, the first miss ends play.
 
 ## Acceptance bar for this run
 
-- No new dependencies, no raw colours outside `src/lib/theme.ts`, and no engine-rule changes.
-- Home reads as one warm ivory/crimson/ink table, with the deck object carrying the deal action rather than a marketing hero.
-- Home → setup remains a shared surface morph, and setup → table gets a physical deal-object launch without a route-wide page flip or page-pop.
-- Primary and navigation controls are reachable at 375×812 and 1440×900, with no document/body horizontal overflow.
-- `npm run typecheck`, `npm run lint`, `npx jest --runInBand`, and `npx expo-doctor` pass, followed by fresh public visual proof.
-
-Material language: warm ivory paper stock, deterministic grain, crimson ink, warm black linework, one-pixel rules, restrained depth, and physical card objects instead of UI chrome.
+- Go Fish plays from setup to winner with books visibly on the felt at
+  375px and desktop; no deadlock with an empty draw pile.
+- Old Maid pairs visible on the felt.
+- All four gates green; new engine tests + new QA script pass.

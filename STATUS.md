@@ -1,6 +1,13 @@
 # Deckd status
 
-Last update: 2026-08-12 (nav v3 lane — chips on the table edge, directive 13; branch `deckd-para-nav3`).
+Last update: 2026-08-12 (Go Fish ready-bar slice — books on the felt, empty-deck round end; branch `wt/deckd-loop`).
+
+## Go Fish slice (2026-08-12, task t_8b3ac033, commit `9492b33`)
+
+- Go Fish books and Old Maid pairs now render on the felt as face-up card fans per player (accessible labels), instead of vanishing into a numeric readout. End banner shows the winner's book/pair count.
+- Engine deadlock fix: Go Fish ends the round on a miss when the draw pile is empty (classic rules) instead of cycling turns forever between hands holding only distinct ranks. Hits with an empty deck still keep the turn.
+- `qa/deckd-gofish-qa.cjs` proves the full loop at 375×812 and 1440×900: rules sheet, ASK rail, book on felt, winner + book count, replay, zero console errors, no overflow.
+- Gates: typecheck, lint 0 errors, jest 182/182 (3 new engine tests), expo-doctor 20/20, review gate passed.
 
 ## Nav v3 slice (2026-08-12, lane `deckd-para-nav3`, commit `4fdc3b5`)
 

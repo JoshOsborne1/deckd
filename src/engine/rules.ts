@@ -525,7 +525,14 @@ function goFishApply(
 
   const drawMatched = drawnCardId !== undefined && parseCardId(drawnCardId)?.rank === rank;
   if (matching.length === 0 && !drawMatched) {
-    events.push({ type: 'turn/end', playerId: viewerId });
+    // Classic Go Fish: a miss with an empty draw pile ends the round.
+    // Without this the turn would cycle forever between hands holding only
+    // distinct ranks after the deck runs out.
+    if (drawnCardId === undefined && (state.zones[ZONE_DRAW]?.cardIds.length ?? 0) === 0) {
+      events.push({ type: 'session/end', winnerId: goFishWinner(state, viewerId, books.length / 4) });
+    } else {
+      events.push({ type: 'turn/end', playerId: viewerId });
+    }
   }
   return events;
 }

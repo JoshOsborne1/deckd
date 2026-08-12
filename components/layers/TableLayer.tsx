@@ -105,6 +105,79 @@ interface CommunityStreetCardProps {
   reduceMotion: boolean;
 }
 
+interface FeltStackProps {
+  playerName: string;
+  cards: CardInstance[];
+  /** Label shown under the stack, e.g. "BOOK" for four-of-a-kind. */
+  kindLabel: string;
+  back: string;
+  reduceMotion: boolean;
+}
+
+/** Max cards shown in the fan. Books are exactly 4; pairs grow (2 per pair). */
+const FELT_FAN_CAP = 8;
+
+/**
+ * A player's collected books (Go Fish) or pairs (Old Maid) sitting on the
+ * felt. Cards are laid face-up in a fan so the rank is readable; the label
+ * names the pile so QA and assistive tech can find it. Grouped per player so
+ * the table shows whose collection is whose at a glance.
+ */
+function FeltStack({ playerName, cards, kindLabel, back, reduceMotion }: FeltStackProps) {
+  const opacity = useSharedValue(reduceMotion ? 1 : 0);
+  const translateY = useSharedValue(reduceMotion ? 0 : 12);
+
+  useEffect(() => {
+    cancelAnimation(opacity);
+    cancelAnimation(translateY);
+    if (reduceMotion) {
+      opacity.value = withTiming(1, { duration: motion.duration.fast });
+      translateY.value = 0;
+      return;
+    }
+    opacity.value = withTiming(1, { duration: motion.duration.base });
+    translateY.value = withSpring(0, motion.spring.card);
+  }, [cards.length, opacity, reduceMotion, translateY]);
+
+  const motionStyle = useAnimatedStyle(() => ({
+    opacity: opacity.value,
+    transform: reduceMotion ? [] : [{ translateY: translateY.value }],
+  }));
+
+  if (cards.length === 0) return null;
+
+  return (
+    <Animated.View
+      style={[styles.feltStack, motionStyle]}
+      accessible
+      accessibilityRole="text"
+      accessibilityLabel={`${playerName}, ${cards.length} ${kindLabel} cards on the felt`}
+    >
+      <View style={styles.feltStackFan}>
+        {cards.slice(0, FELT_FAN_CAP).map((card, index) => {
+          const parsed = parseCardId(card.id);
+          if (!parsed) return null;
+          return (
+            <View
+              key={card.id}
+              style={[styles.feltStackCard, { transform: [{ rotate: `${(index - (Math.min(cards.length, FELT_FAN_CAP) - 1) / 2) * 4}deg` }, { translateX: index * 9 }] }]}
+            >
+              <PlayingCard
+                rank={parsed.rank}
+                suit={parsed.suit}
+                face="up"
+                size="xs"
+                back={back}
+              />
+            </View>
+          );
+        })}
+      </View>
+      <Text style={styles.feltStackLabel}>{playerName.toUpperCase()} · {kindLabel}</Text>
+    </Animated.View>
+  );
+}
+
 /**
  * A street card lands from the deck line instead of appearing as a static
  * row. Each keyed card owns its entrance so a later turn/river card settles
@@ -891,6 +964,60 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
           </View>
         ) : isKlondike ? (
           <KlondikeLayout state={state} onAction={handleGameAction} back={equippedBackId} />
+        ) : rules.id === 'go-fish' || rules.id === 'old-maid' ? (
+          <View style={styles.contextualPiles}>
+            {/* Books (Go Fish) / pairs (Old Maid) collected on the felt */}
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.feltStacks}
+            >
+              {state.players.map((player) => {
+                const collected = state.zones[tableZoneId(player.id)]?.cardIds ?? [];
+                if (collected.length === 0) return null;
+                return (
+                  <FeltStack
+                    key={player.id}
+                    playerName={player.name}
+                    cards={collected.map((cardId) => state.cards[cardId]).filter((card): card is CardInstance => Boolean(card))}
+                    kindLabel={rules.id === 'go-fish' ? 'BOOK' : 'PAIRS'}
+                    back={equippedBackId}
+                    reduceMotion={reduceMotion}
+                  />
+                );
+              })}
+            </ScrollView>
+
+            {/* Draw pile */}
+            <Animated.View
+              style={[
+                styles.deckStack,
+                drawMotionStyle,
+                suggestedAction === 'draw' && styles.suggestedDeck,
+              ]}
+            >
+              <Pressable
+                onPress={handleDrawCard}
+                onPressIn={handleDrawPressIn}
+                onPressOut={handleDrawPressOut}
+                disabled={!isMyTurn || drawCount === 0 || !canUseGenericHandActions}
+                accessibilityRole="button"
+                accessibilityLabel={`Draw pile, ${drawCount} cards left`}
+                accessibilityHint={
+                  suggestedAction === 'draw'
+                    ? 'Suggested next move. Tap to draw a card.'
+                    : 'Tap to draw a card when it is your turn.'
+                }
+                style={[
+                  styles.deckTrigger,
+                  (!isMyTurn || drawCount === 0 || !canUseGenericHandActions) && { opacity: 0.5 },
+                ]}
+              >
+                <PlayingCard face="down" size="md" back={equippedBackId} />
+                <Text style={styles.deckLeftText}>{drawCount} LEFT</Text>
+              </Pressable>
+            </Animated.View>
+          </View>
         ) : (
           <View style={styles.tablePiles}>
             {/* Draw pile */}
@@ -997,6 +1124,11 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
             </Text>
             <Text style={styles.endedMeta}>
               {isPoker ? `Pot ${state.game?.pot ?? 0} chips · ` : ''}
+              {rules.id === 'go-fish' && state.winnerId
+                ? `${Math.floor((state.zones[tableZoneId(state.winnerId)]?.cardIds.length ?? 0) / 4)} books · `
+                : rules.id === 'old-maid'
+                  ? `${Math.floor((state.zones[tableZoneId(state.winnerId ?? '')]?.cardIds.length ?? 0) / 2)} pairs · `
+                  : ''}
               Round complete · {state.turn} {state.turn === 1 ? 'turn' : 'turns'}
             </Text>
             {state.meta.mode === 'pass' ? (
@@ -1428,6 +1560,40 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: space.xxl,
+  },
+  contextualPiles: {
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: space.md,
+    width: '100%',
+  },
+  feltStacks: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'center',
+    gap: space.lg,
+    paddingHorizontal: space.md,
+  },
+  feltStack: {
+    alignItems: 'center',
+    maxWidth: 120,
+  },
+  feltStackFan: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    height: 26,
+  },
+  feltStackCard: {
+    marginLeft: -6,
+  },
+  feltStackLabel: {
+    marginTop: space.xs,
+    fontSize: 9,
+    fontFamily: fonts.bold,
+    color: colors.inkMuted,
+    letterSpacing: letterSpacing.caps,
+    textAlign: 'center',
   },
   warPiles: {
     flexDirection: 'row',

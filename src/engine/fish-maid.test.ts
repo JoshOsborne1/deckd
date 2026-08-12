@@ -4,7 +4,7 @@ import { foldEvents } from './state';
 import { executeRecipe } from './recipes';
 import { getGameRules, type PrimitiveEvent } from './rules';
 import { crazyEightsPreset, goFishPreset, oldMaidPreset, sevensPreset } from './presets';
-import { handZoneId, tableZoneId, type GameState, type Player, type SessionConfig } from './types';
+import { handZoneId, tableZoneId, ZONE_DRAW, type GameState, type Player, type SessionConfig } from './types';
 
 const players: Player[] = [
   { id: 'p1', name: 'One', seat: 0, avatarSeed: 'one' },
@@ -113,6 +113,79 @@ describe('Go Fish recipe and rules', () => {
     expect(result.state.zones[tableZoneId('p1')]?.cardIds).toHaveLength(4);
     expect(result.state.zones[handZoneId('p2')]?.cardIds).toHaveLength(3);
     expect(rules.readout?.(result.state, 'p1')).toContain('BOOKS 1');
+  });
+});
+
+describe('Go Fish empty draw pile', () => {
+  /**
+   * Craft a two-player session where the 10-card deal exhausts the deck
+   * (draw pile empty) with hand contents chosen per test.
+   * Deck order: round-robin 5 rounds, so p1 takes indices 0,2,4,6,8 and
+   * p2 takes 1,3,5,7,9.
+   */
+  function craftHands(p1Cards: string[], p2Cards: string[]) {
+    const order: string[] = [];
+    for (let i = 0; i < 5; i += 1) {
+      order.push(p1Cards[i]!, p2Cards[i]!);
+    }
+    const started = startSession(goFishPreset, goFishConfig, order);
+    expect(started.state.zones[ZONE_DRAW]?.cardIds).toHaveLength(0);
+    return started;
+  }
+
+  it('ends the round on a miss when the draw pile is empty instead of cycling the turn', () => {
+    // p1 holds four aces plus a two; p2 holds kings plus a three and a four.
+    // No rank in p1's hand exists in p2's hand, so the ask must miss and the
+    // draw pile is already empty: the round ends (classic Go Fish).
+    const started = craftHands(['H-A', 'D-A', 'S-A', 'C-A', 'D-2'], ['H-K', 'D-K', 'S-K', 'C-K', 'H-3']);
+    const rules = getGameRules('go-fish');
+    expect(rules.actions(started.state, 'p1').map((action) => action.id)).toContain('ask:p2:A');
+
+    const result = appendPrimitives(
+      started.events,
+      rules.apply('ask:p2:A', started.state, 'p1') ?? [],
+      'p1',
+      started.nextSeq,
+    );
+
+    expect(result.events.some((event) => event.type === 'turn/end')).toBe(false);
+    expect(result.state.phase).toBe('ended');
+    expect(result.state.winnerId).toBe('p1');
+  });
+
+  it('still ends the round when the only legal ask misses with an empty deck', () => {
+    // p1 holds a single queen; p2 holds distinct ranks. With the deck empty
+    // the round must not deadlock.
+    const started = craftHands(['H-Q', 'D-Q', 'S-Q', 'C-Q', 'H-2'], ['H-K', 'D-K', 'S-K', 'C-K', 'H-3']);
+    const rules = getGameRules('go-fish');
+    const result = appendPrimitives(
+      started.events,
+      rules.apply('ask:p2:Q', started.state, 'p1') ?? [],
+      'p1',
+      started.nextSeq,
+    );
+
+    expect(result.state.phase).toBe('ended');
+    expect(result.state.winnerId).toBeDefined();
+  });
+
+  it('keeps the turn on a hit with an empty deck and lays the book on the felt', () => {
+    // p1 holds three aces plus two fillers; p2 holds the fourth ace. The hit
+    // makes four aces, lays the book, and p1 keeps the turn even though the
+    // draw pile is empty.
+    const started = craftHands(['H-A', 'D-A', 'S-A', 'D-2', 'D-3'], ['C-A', 'H-K', 'D-K', 'S-K', 'C-K']);
+    const rules = getGameRules('go-fish');
+    const result = appendPrimitives(
+      started.events,
+      rules.apply('ask:p2:A', started.state, 'p1') ?? [],
+      'p1',
+      started.nextSeq,
+    );
+
+    expect(result.state.phase).toBe('playing');
+    expect(result.state.currentPlayerId).toBe('p1');
+    expect(result.state.zones[tableZoneId('p1')]?.cardIds).toHaveLength(4);
+    expect(result.state.zones[handZoneId('p1')]?.cardIds).toHaveLength(2);
   });
 });
 
