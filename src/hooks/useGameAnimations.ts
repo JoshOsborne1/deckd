@@ -30,11 +30,12 @@ export type GameBatch =
   | { kind: 'deal-to-hand'; key: string; cardIds: string[]; zoneId: string }
   | { kind: 'dealer-play'; key: string; revealIds: string[]; dealIds: string[] }
   | { kind: 'move'; key: string; cardIds: string[]; toZoneId: string }
-  | { kind: 'street'; key: string; street: number }
+  | { kind: 'street'; key: string; street: number; cardIds: string[] }
+  | { kind: 'burn'; key: string; cardIds: string[] }
   | { kind: 'bet'; key: string; action: string; amount: number }
   | { kind: 'ask'; key: string; targetPlayerId: string; rank: string; found: boolean }
   | { kind: 'reveal'; key: string; cardIds: string[] }
-  | { kind: 'session-end'; key: string; winnerId: string | null }
+  | { kind: 'session-end'; key: string; winnerId: string | null; cardIds: string[] }
   | { kind: 'other'; key: string };
 
 export interface GameAnimations {
@@ -86,6 +87,8 @@ function classifyEvent(
       return 'ask';
     case 'game/street':
       return 'street';
+    case 'game/burn':
+      return 'burn';
     case 'game/bet':
       return 'bet';
     default:
@@ -168,6 +171,18 @@ export function useGameAnimations(viewerId?: PlayerId | null): GameAnimations {
           kind: 'street',
           key,
           street: last.type === 'game/street' ? last.street : 0,
+          cardIds: fresh
+            .filter((event): event is Extract<GameEvent, { type: 'card/deal' }> => event.type === 'card/deal')
+            .map((event) => event.cardId),
+        };
+        break;
+      case 'burn':
+        classified = {
+          kind: 'burn',
+          key,
+          cardIds: fresh
+            .filter((event): event is Extract<GameEvent, { type: 'card/move' }> => event.type === 'card/move')
+            .map((event) => event.cardId),
         };
         break;
       case 'bet':
@@ -198,7 +213,16 @@ export function useGameAnimations(viewerId?: PlayerId | null): GameAnimations {
         break;
       case 'session-end': {
         const winnerId = last.type === 'session/end' ? (last.winnerId ?? null) : null;
-        classified = { kind: 'session-end', key, winnerId };
+        classified = {
+          kind: 'session-end',
+          key,
+          winnerId,
+          // Showdown reveals land in the same dispatch as the end; carry
+          // them so the winner's hand can cascade its flips.
+          cardIds: fresh
+            .filter((event): event is Extract<GameEvent, { type: 'card/reveal' }> => event.type === 'card/reveal')
+            .map((event) => event.cardId),
+        };
         if (viewerId && winnerId === viewerId) {
           haptic('success');
         }
