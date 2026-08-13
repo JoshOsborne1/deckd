@@ -17,27 +17,27 @@ Status legend: `queued` = ready to dispatch · `running` = a card/lane owns it �
 - [ ] **Crazy Eights** — `done` (contextual draw, empty-deck fewest-cards winner, banner; QA deckd-crazy-eights-qa).
 - [ ] **Sevens** — `done` (suit-run board, pass-if-unplayable, winner banner; QA deckd-sevens + library QA).
 - [ ] **Rules view + win states for every shipped game** — `done` (shared RulesSheet per recipe + end-state round/turn readout + replay; scoreboard across rounds not built — P2 if wanted).
-- [ ] **Golf** — `queued`. Flip-and-match short rounds. Source: solo lane brief (if time).
+- [ ] **Golf** — `done` (engine, rules, board UI, QA — commit 61239e7, merged + live).
 
 ## UX (G2, G5)
 
-- [ ] **Hold-to-peek** — `queued` P0. Josh: "Hell yeah!" (directive 19, 2026-08-11). Long-press to peek your hand, release to re-veil. TableLayer interaction + motion. Next slice after current pillars.
-- [ ] **Nav v3: chips on the table edge** — `queued` P0. Josh: nav bar STILL BAD (directive 13, supersedes 11). Chips sitting on the table rail, not a bar. GlobalNavBar + HomeLayer + theme.
-- [ ] **Sound pass** — `queued`. expo-audio: deal, flip, discard, win sounds + mute toggle in settings. useTableSound.ts exists (require() style, needs rework). Source: audit dispatch #9.
-- [ ] **Undo for freeplay-family games** — `queued`. Source: audit dispatch #9, G2.
-- [ ] **Confirm dialogs** — `queued`. End-session, reset, destructive actions. Source: audit dispatch #9.
-- [ ] **Hand sort** — `queued`. Sort by suit/rank toggle. Source: audit dispatch #9.
-- [ ] **First-run hints** — `queued`. One-time coach marks on first session. Source: audit dispatch #9.
+- [ ] **Hold-to-peek** — `queued` P0. Josh: "Hell yeah!" (directive 19, 2026-08-11). Long-press to peek your hand, release to re-veil. TableLayer interaction + motion. NOT YET STARTED (was never dispatched).
+- [ ] **Nav v3: chips on the table edge** — `done` (lane deckd-para-nav3, commit 4fdc3b5 + proof bad3dfd; live).
+- [ ] **Sound pass** — `done` (lane deckd-para-sound: expo-audio rework, uiStore mute, native replay fix; live).
+- [ ] **Undo for freeplay-family games** — `queued`. Source: audit dispatch #9, G2. NOT YET STARTED.
+- [ ] **Confirm dialogs** — `done` (lane deckd-para-uxpass, commit 432e3ea).
+- [ ] **Hand sort** — `done` (lane deckd-para-uxpass, commit 1f7fc08).
+- [ ] **First-run hints** — `done` (lane deckd-para-uxpass, commit d428510 — "Tap the deck to deal").
 - [ ] **Turn indicator polish** — `queued`. Source: audit dispatch #9.
-- [ ] **Empty states** — `queued`. Store/profile/list empty states. Source: audit dispatch #9.
+- [ ] **Empty states** — `done` (lane deckd-para-uxpass, commit 5417e78).
 
 ## Animation (G3)
 
-- [ ] **Deal from deck object + settle** — `queued`. Deck object is the deal; cards land with 1-2px settle spring. Source: audit dispatch #6, directive 12.
-- [ ] **Card move animation** — `queued`. Draw/discard/play moves animated with settle physics. Source: audit dispatch #6.
-- [ ] **Pass ritual** — `queued`. Source: audit dispatch #6.
-- [ ] **Win celebration** — `queued`. Source: audit dispatch #6.
-- [ ] **Reduced-motion = plain fades** — `queued`. Source: G3.
+- [ ] **Deal from deck object + settle** — `done` (lanes deckd-para-anim-fx + deckd-para-guestresume: card flight overlay, drag foundation, felt-space transitions, draw/discard arrivals animated).
+- [ ] **Card move animation** — `done` (draw/discard arrivals animated per-game; poker/blackjack/sevens passes).
+- [ ] **Pass ritual** — `done` (sevens pass chip slide + per-game passes; full felt-wide ritual still P2 if wanted).
+- [ ] **Win celebration** — `done` (per-game: poker showdown cascade + pot pulse, blackjack hand-over pop, sevens winner banner).
+- [ ] **Reduced-motion = plain fades** — `done` (reduced-motion QA green across surfaces).
 
 ## Visuals (directives 1, 2, 3, 8, 9, 12)
 
@@ -54,8 +54,8 @@ Status legend: `queued` = ready to dispatch · `running` = a card/lane owns it �
 
 ## Multiplayer (G7)
 
-- [ ] **Live 2-device proof** — `queued`. Blackjack + hold'em on two real devices against relay.roxai.click. Source: audit dispatch #10.
-- [ ] **Guest poker street control** — `queued`. Guests can only bet; street progression host-only. E2E for guest poker. Source: audit.
+- [ ] **Live 2-device proof** — `queued`. Blackjack + hold'em on two real devices against relay.roxai.click. Source: audit dispatch #10. (Lane deckd-para-mpe2e shipped hold'em live E2E harnesses with privacy assertions — automated proof exists; real-device proof still owed.)
+- [ ] **Guest poker street control** — `done` (lane deckd-para-mpe2e: hold'em privacy + lobby sync gaps; guest hands private via viewerId selectors, E2E with privacy assertions).
 
 ## Backend / ops
 
@@ -68,8 +68,15 @@ Status legend: `queued` = ready to dispatch · `running` = a card/lane owns it �
 
 ---
 
-## Lane dispatch notes
+## Lane dispatch notes (loop SHUT DOWN 2026-08-13)
 
-- Lanes must NOT touch files the main card is editing (rules.ts, TableLayer while War is in flight).
-- Lane pattern: isolated worktree + own branch `deckd-para-<name>` + review gate before every commit + merge via deckd-merge-deploy cron when the lane card is done.
-- 2-3 concurrent workers max: main card (default profile) + 1-2 lanes (generalist profile).
+- The autonomous loop is OFF: deckd-loop-watchdog, deckd-lane-watchdog,
+  deckd-builder-watchdog, deckd-merge-deploy, and deckd-skill-index crons were
+  all removed 2026-08-13 at Josh's request. Nothing dispatches from this
+  backlog anymore. Work here happens on demand.
+- Lanes must NOT touch files another lane is editing.
+- Lane pattern (if revived): isolated worktree + own branch `deckd-para-<name>`
+  + review gate before every commit + merge via deckd-merge-deploy cron when
+  the lane card is done.
+- 2-3 concurrent workers max: main card (default profile) + 1-2 lanes
+  (generalist profile).

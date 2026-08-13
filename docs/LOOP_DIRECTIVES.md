@@ -2,6 +2,8 @@
 
 Josh's current directives for the Deckd LOOP. Latest wins over anything in ROADMAP.md / MVP_SCOPE.md where they conflict. Update this file as directives change; every loop run reads this first.
 
+**STATUS: LOOP SHUT DOWN 2026-08-13 (Josh).** All loop crons removed; no autonomous work runs against this repo. Directives below remain the product intent; apply them on demand, not continuously. See `docs/HANDOFF_2026-08-13.md` for the shutdown snapshot and next steps.
+
 Last updated: 2026-08-11
 
 ## Build brief (supersedes doc order)

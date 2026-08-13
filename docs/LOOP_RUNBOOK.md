@@ -1,5 +1,9 @@
 # Deckd LOOP Runbook
 
+**STATUS: LOOP SHUT DOWN 2026-08-13 (Josh).** All loop crons removed; the
+machinery described below is inert but fully documented for revival. See
+`docs/HANDOFF_2026-08-13.md` for the shutdown snapshot.
+
 How the autonomous Deckd loop works, what each piece does, what broke (and got
 fixed) on 2026-08-09, and how to start/stop/repair it next time.
 

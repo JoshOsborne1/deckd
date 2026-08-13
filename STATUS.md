@@ -1,5 +1,11 @@
 # Deckd status
 
+**LOOP SHUT DOWN 2026-08-13 (Josh).** All deckd crons removed (loop-watchdog,
+lane-watchdog, builder-watchdog, merge-deploy, skill-index). No autonomous work.
+Deployed head: `cleanup/ready-to-build` @ `5ee2bbb` — everything below is live
+on https://deckd-app.roxai.click. Full shutdown snapshot + honest backlog:
+`docs/HANDOFF_2026-08-13.md`.
+
 Last update: 2026-08-12 (Nav v3 ready-bar slice — live table + pass veil proof; branch `wt/deckd-loop`).
 
 ## Nav v3 slice (2026-08-12, task t_049705ec, commit `bad3dfd`)
