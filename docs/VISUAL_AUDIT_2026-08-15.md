@@ -22,7 +22,7 @@ surfaces they animate are visually broken. This document is the redesign brief.
 | Go Fish | not re-checked | (sweep shot exists, mechanics QA green) |
 | Old Maid | not re-checked | (sweep shot exists, mechanics QA green) |
 | Crazy Eights | BROKEN | five floating red "PLAY J / PLAY A / ..." buttons in a void — legacy web-button look; duplicate guidance copy; flat fan perspective |
-| Sevens | BROKEN | hand clipped at both screen edges (no scroll, no scale); cards sit ON TOP of the instruction text; giant empty center where the suit runs should read |
+| Sevens | BROKEN | hand clipped at both screen edges (no scroll, no scale); suit runs lost in the empty center where the board should read |
 | Klondike | BROKEN | face-down cards show faint low-contrast "D" logo (reads as placeholder); tableau columns squashed; Queen of Spades cut off by screen edge; DRAW STOCK button disconnected from the stock pile (bottom vs top) |
 | FreeCell | not re-checked | (sweep shot exists) |
 | Pyramid | BROKEN | pyramid off-center (right-leaning); abstract face art without readable rank/suit; stock/waste tacked left; huge mid dead space; "24" badge font mismatch |
