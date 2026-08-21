@@ -4,9 +4,16 @@ export const colors = {
   brand: '#B02020',
   brandDark: '#901A1A',
   brandSoft: '#FDE8E8',
+  /** Logo red — selected nav card, store Resume, mark on the Table tab */
+  brandHot: '#E5322F',
   bg: '#FAFAFA',
+  /** Warm shop paper from the store/nav mock */
+  paper: '#F6F3EE',
   surface: '#FDFCFA',
   surfaceAlt: '#F6F1E9',
+  /** Standing nav-card face */
+  navCard: '#F8F5EF',
+  navCardEdge: '#E7E0D6',
   ink: '#1A1A1A',
   inkSoft: '#333333',
   inkMuted: '#665F59',
@@ -179,6 +186,10 @@ export const motion = {
     press: { damping: 18, stiffness: 240, mass: 0.8 },
     card: { damping: 16, stiffness: 200, mass: 0.9 },
     reveal: { damping: 14, stiffness: 180, mass: 1.0 },
+    /** Selected nav card draw — snappy lift off the rail */
+    nav: { damping: 18, stiffness: 280, mass: 0.72 },
+    /** Page deal-out that grows from the tapped tab */
+    navDeal: { damping: 22, stiffness: 210, mass: 0.88 },
     /** Full-screen layer enter (table / lobby) — confident, slight overshoot */
     layer: { damping: 24, stiffness: 220, mass: 0.85 },
     /** Softer companion for scale on same transition */

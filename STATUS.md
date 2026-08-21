@@ -6,7 +6,31 @@ Deployed head: `cleanup/ready-to-build` @ `5ee2bbb` — everything below is live
 on https://deckd-app.roxai.click. Full shutdown snapshot + honest backlog:
 `docs/HANDOFF_2026-08-13.md`.
 
-Last update: 2026-08-12 (Nav v3 ready-bar slice — live table + pass veil proof; branch `wt/deckd-loop`).
+Last update: 2026-08-21 (Crazy Eights physical card-play surface verified locally; live remains entry-88d78b5e and no deploy was run).
+
+## Crazy Eights physical-play slice (2026-08-21)
+
+- Replaced the button-first `PLAY X` rail with a dedicated Crazy Eights surface: five-card measured fan, visible opening discard, draw pile tap when no legal match, discard drop well, hold/lift/drag/release card interaction, drop landing motion, discard entrance motion, draw press feedback, and reduced-motion-safe behavior. The existing accessibility action fallback remains available without making it the product-facing play flow.
+- Added `initialDiscard` to the serialisable recipe executor so Crazy Eights starts with a real face-up discard and a correct 41-card draw pile. Updated deterministic engine fixtures for the standard opening state.
+- Mobile hierarchy cleanup: one instruction location, shorter draw copy, drop label below the discard well, no hand/action overlap, and no bottom-nav collision. `qa/deckd-crazy-eights-qa.cjs` now proves visible drag handles or draw interaction, no visible `PLAY X` buttons, measured discard geometry, state change after hold-drag-release/draw, zero overflow, and zero browser errors at 375×812 and 1440×900.
+- Gates: `npm run typecheck` passed, `npm run lint` passed with 0 errors / 13 pre-existing warnings, Jest 225/225 passed, `git diff --check` passed, and Expo export passed. `npx expo-doctor` still reports the same nine existing Expo SDK 57 patch drifts; dependencies were not changed.
+- Deployment was intentionally not run. Live remains `entry-88d78b5ed723b373ce6385ec6d295ffd.js`; the new local export is `entry-3c9fbc2f903eda2a0f9914f0d5619684.js`.
+
+## Shared card interaction + table-surface retry (2026-08-21)
+
+- Added the shared measured `CardDragHand` adapter over `CardDrag`/`useCardDrag`: real hand/slot geometry, scroll-aware remeasurement, drag-to-run targets, and accessibility action fallback. Sevens now uses the shared interaction; Blackjack/Poker retain their rules rails while sharing the corrected table geometry.
+- Fixed surface geometry: centered Blackjack/Poker rule and utility rails, bounded desktop surfaces, stable Sevens compact board reservation at 375px, and stable playable-card identity so auto-reveal does not reset hand scroll.
+- Verified local export `entry-90ab6b2e6b90f72707859aeca260a435.js`: Sevens full loop passed at 375px and 1440px, Blackjack/Poker focused flows passed, fresh three-game baseline passed with zero overflow and zero browser errors, and visual captures show no tested overlap/clipping.
+- Gates: `npm run typecheck` passed, `npm run lint` passed with 0 errors / 13 pre-existing warnings, Jest 225/225 passed, `git diff --check` passed, and Expo export passed. `npx expo-doctor` still reports nine existing Expo SDK 57 patch drifts; dependencies were not changed in this UI retry.
+- Deployment was intentionally not run. Live remains `entry-88d78b5ed723b373ce6385ec6d295ffd.js`, without the new Sevens drop-target marker; deploy remains Josh-controlled.
+
+## Nav v5 + Store card-fan refinement (2026-08-19)
+
+- Replaced the modular rail with four visibly angled, overlapping standing-card tabs: Home, Store, Presets, Profile. The Deckd logo is a separate central Table button, not nested in a card; selected surfaces lift/fill and the Table logo scales/lifts independently.
+- Navigation is transition-free: root Stack animation is `none`, shell routes prefetch on nav mount, and web pointer/touch-down handlers route before the delayed React Native press release path. Store measured 151ms from pointer-down to route state; Table/logo measured 266ms at 375×812.
+- Refined Store deck products into overlapping asymmetric angled card pairs while preserving preview, equip, pass, restore, catalogue, and recipe behavior.
+- Verified: source-only `npm run typecheck`, changed-file ESLint, `git diff --check`, static Expo web export, 375×812 nav QA with zero browser errors, Store preview interaction QA, fresh visual screenshots, public Store/Table route taps, and live PM2 origin bundle `entry-88d78b5e`.
+- Static code sweep reports two existing RevenueCat bundle false positives (`rcb-ui-pw-root` and `rcb-ui-root` getElementById targets); no nav/Store source issue.
 
 ## Nav v3 slice (2026-08-12, task t_049705ec, commit `bad3dfd`)
 

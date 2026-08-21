@@ -230,7 +230,7 @@ export function useCardDrag({
       { scale: scale.value },
       { rotate: '0deg' },
     ],
-    zIndex: isDragging.value ? 1000 : 0,
+    zIndex: isDragging.value ? 1000 : undefined,
     shadowOpacity: reduceMotion ? 0 : isDragging.value ? 0.16 : 0,
     shadowRadius: reduceMotion ? 0 : isDragging.value ? 12 : 0,
     shadowOffset: {

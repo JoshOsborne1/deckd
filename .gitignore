@@ -39,4 +39,7 @@ yarn-error.*
 
 # Local QA artifacts (screenshots, probes)
 .qa-*
+.vischeck/
+.vischeck-sweep/
+tmp-animation-audit/
 qa/oldmaid-qa-out.json

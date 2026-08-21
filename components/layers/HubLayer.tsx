@@ -3,13 +3,13 @@ import { Pressable, ScrollView, StyleSheet, Text, View, type ViewStyle } from 'r
 import Animated, {
   Extrapolation,
   interpolate,
-  runOnJS,
   useAnimatedReaction,
   useAnimatedStyle,
   useSharedValue,
   withTiming,
   type SharedValue,
 } from 'react-native-reanimated';
+import { scheduleOnRN } from 'react-native-worklets';
 import { BookOpen, ChevronLeft, Users } from 'lucide-react-native';
 import { CardButton } from '@components/CardButton';
 import { CardSection } from '@components/CardSection';
@@ -163,18 +163,16 @@ export function HubLayer({
     const dur = reduceMotionSystem ? motion.duration.fast : motion.duration.layerCross;
     layerOpacity.value = withTiming(layerVisible ? 1 : 0, {
       duration: dur,
-      easing: reduceMotionSystem ? undefined : EASING_EMPHASIZED,
+      easing: EASING_EMPHASIZED,
     });
   }, [layerVisible, layerOpacity, reduceMotionSystem]);
   const rootStyle = useAnimatedStyle(() => ({ opacity: layerOpacity.value }));
 
-  const [gateOpen, setGateOpen] = useState(
-    progress.value >= HUB_INTERACTIVE_THRESHOLD,
-  );
+  const [gateOpen, setGateOpen] = useState(false);
   useAnimatedReaction(
     () => progress.value >= HUB_INTERACTIVE_THRESHOLD,
     (open, prev) => {
-      if (open !== prev) runOnJS(setGateOpen)(open);
+      if (open !== prev) scheduleOnRN(setGateOpen, open);
     },
     [],
   );
@@ -214,7 +212,7 @@ export function HubLayer({
       { duration: motion.duration.base, easing: EASING_EMPHASIZED },
       (finished) => {
         'worklet';
-        if (finished) runOnJS(setViewMode)('table');
+        if (finished) scheduleOnRN(setViewMode, 'table');
       },
     );
   };

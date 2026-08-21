@@ -74,6 +74,8 @@ export interface Recipe {
   winCondition: RecipeWinCondition;
   /** Optional layout family for recipes with more than hand/table zones. */
   layout?: 'klondike' | 'freecell' | 'pyramid' | 'golf';
+  /** Deal one face-up card into the public discard after the hand deal. */
+  initialDiscard?: boolean;
   helpers?: RecipeHelpers;
   variants?: RecipeVariants;
 }
@@ -250,6 +252,11 @@ export function executeRecipe(recipe: Recipe, input: RecipeSetupInput): RecipeSe
     for (const player of dealPlayers) {
       for (let round = 0; round < rounds; round += 1) addDeal(player, round);
     }
+  }
+
+  if (recipe.initialDiscard) {
+    const cardId = queue.shift();
+    if (cardId) deals.push({ cardId, toZoneId: ZONE_DISCARD, face: 'up' });
   }
 
   const withDraw = zones.map((zone) =>

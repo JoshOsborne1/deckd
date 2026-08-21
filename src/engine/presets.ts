@@ -161,6 +161,7 @@ export const crazyEightsPreset = makePreset({
   maxPlayers: 6,
   backs: ['back-brand'],
   deal: { pattern: 'roundRobin', rounds: 5, face: 'down', to: 'hand' },
+  initialDiscard: true,
   actionPolicy: {
     allowDraw: true,
     allowDiscard: true,

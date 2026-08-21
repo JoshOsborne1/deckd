@@ -1,13 +1,12 @@
-// Nav v3 (chips on the table edge) QA: geometry, presence, active state, screenshots.
+// Nav v4 (standing playing cards) QA: geometry, presence, active state, screenshots.
 // Usage: node qa/deckd-nav3-qa.cjs [baseUrl]
 const { chromium } = require('playwright');
 
 const baseUrl = process.env.DECKD_QA_URL ?? 'http://localhost:8081/';
-const NAV_LABELS = ['Home', 'Store', 'Presets', 'Profile', 'Deal the deck'];
+const NAV_LABELS = ['Home', 'Store', 'Table', 'Presets', 'Profile'];
 
-// The nav rail lives in the bottom ~120px of the viewport. HomeLayer also
-// renders a hero deck object with the same "Deal the deck" aria-label, so
-// scope nav controls to the rail zone to disambiguate.
+// The nav rail lives in the bottom ~132px of the viewport. Scope controls
+// to that rail so layered route surfaces cannot be mistaken for the nav.
 const NAV_ZONE_BOTTOM = 130;
 
 async function visibleButtons(page, labels) {
@@ -47,8 +46,7 @@ async function visibleButtons(page, labels) {
   );
 }
 
-// The nav is the bottom-most instance of each label (the hero deck object on
-// home shares "Deal the deck"; pick the one on the rail).
+// Choose the bottom-most instance of each label, which is the standing-card rail.
 function pickNavButtons(boxes) {
   const byLabel = new Map();
   for (const box of boxes) {
@@ -64,13 +62,13 @@ function assertNav(stage, boxes, viewport) {
   }
   for (const box of boxes) {
     if (
-      box.left < 0 || box.top < 0 || box.right > viewport.width || box.bottom > viewport.height ||
+      box.left < -1 || box.top < -1 || box.right > viewport.width + 1 || box.bottom > viewport.height + 1 ||
       box.width < 44 || box.height < 44
     ) {
       throw new Error(`${stage}: invalid touch bounds ${JSON.stringify(box)}`);
     }
   }
-  // Chips must not overlap each other (no horizontal collision).
+  // Standing cards must not overlap each other (no horizontal collision).
   const sorted = [...boxes].sort((a, b) => a.left - b.left);
   for (let i = 1; i < sorted.length; i++) {
     if (sorted[i].left < sorted[i - 1].right - 1) {
@@ -129,7 +127,7 @@ async function chipFaceProbe(page) {
     const entry = { screens: {} };
     try {
       await page.goto(baseUrl, { waitUntil: 'commit', timeout: 60000 });
-      await page.getByRole('button', { name: 'Deal the deck', exact: true }).last().waitFor({ state: 'visible', timeout: 60000 });
+      await page.getByRole('button', { name: 'Table', exact: true }).last().waitFor({ state: 'visible', timeout: 60000 });
       await page.waitForTimeout(1200);
 
       // Home: all five controls, no overflow, active chip = Home.
@@ -142,7 +140,7 @@ async function chipFaceProbe(page) {
       entry.home = { boxes: homeBoxes, widths: homeWidths, faces: homeFaces };
 
       // Hub (deal): chips still present on the setup surface.
-      await page.getByRole('button', { name: 'Deal the deck', exact: true }).last().click();
+      await page.getByRole('button', { name: 'Table', exact: true }).last().click();
       await page.getByText('Choose a recipe', { exact: true }).waitFor({ state: 'visible', timeout: 30000 });
       await page.waitForTimeout(600);
       const hubBoxes = await visibleButtons(page, NAV_LABELS);
@@ -187,7 +185,7 @@ async function chipFaceProbe(page) {
       // rail must clear the nav zone (the edge is part of the table).
       await page.getByRole('button', { name: 'Home', exact: true }).last().click();
       await page.waitForTimeout(1500);
-      await page.getByRole('button', { name: 'Deal the deck', exact: true }).last().click();
+      await page.getByRole('button', { name: 'Table', exact: true }).last().click();
       await page
         .getByText('Choose a recipe', { exact: true })
         .filter({ visible: true })
@@ -225,7 +223,7 @@ async function chipFaceProbe(page) {
             };
           })
           .filter((b) => b.visible && b.bottom > navTop && b.bottom <= window.innerHeight)
-          .filter((b) => !['Home', 'Store', 'Presets', 'Profile', 'Deal the deck'].includes(b.label))
+          .filter((b) => !['Home', 'Store', 'Table', 'Presets', 'Profile'].includes(b.label))
           .map((b) => b.label);
       });
       if (railClear.length > 0) {

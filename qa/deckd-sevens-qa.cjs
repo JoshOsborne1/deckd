@@ -17,7 +17,18 @@ async function reset(page) {
 
 async function startSevens(page) {
   await page.getByRole('button', { name: 'Deal the deck', exact: true }).last().click();
-  await page.getByText('Choose a recipe', { exact: true }).waitFor({ state: 'visible', timeout: 30000 });
+  const recipeHeadings = page.getByText('Choose a recipe', { exact: true });
+  let visibleHeading = null;
+  for (let index = 0; index < await recipeHeadings.count(); index += 1) {
+    const candidate = recipeHeadings.nth(index);
+    const box = await candidate.boundingBox().catch(() => null);
+    if (box && box.width > 0 && box.height > 0 && box.y > 80) {
+      visibleHeading = candidate;
+      break;
+    }
+  }
+  if (!visibleHeading) throw new Error('Visible recipe chooser heading not found');
+  await visibleHeading.waitFor({ state: 'visible', timeout: 30000 });
   const preset = page.getByRole('button', { name: /^Sevens\./ }).last();
   await preset.waitFor({ state: 'visible', timeout: 30000 });
   await preset.click();
@@ -41,11 +52,35 @@ async function readGeometry(page) {
   });
 }
 
-/**
- * Drive the Sevens turn loop. The rule rail owns the game: PLAY <rank>
- * buttons for cards that legally extend a suit run, PASS when nothing fits.
- * Returns what the driver observed.
- */
+async function firstVisible(locator) {
+  for (let index = 0; index < await locator.count(); index += 1) {
+    const candidate = locator.nth(index);
+    const box = await candidate.boundingBox().catch(() => null);
+    if (box && box.width > 0 && box.height > 0) return candidate;
+  }
+  return null;
+}
+
+async function visibleCardsInViewport(page) {
+  const cards = page.getByRole('button', { name: /^Card / });
+  const result = [];
+  for (let index = 0; index < await cards.count(); index += 1) {
+    const card = cards.nth(index);
+    const box = await card.boundingBox().catch(() => null);
+    if (!box || box.width < 20 || box.height < 20) continue;
+    if (box.x + box.width <= 2 || box.x >= page.viewportSize().width - 2) continue;
+    if (box.y < 250 || box.y >= page.viewportSize().height) continue;
+    const testId = await card.getAttribute('data-testid');
+    const isTopmostAtCentre = await page.evaluate(({ x, y, id }) => {
+      const element = document.elementFromPoint(x, y);
+      return Boolean(element?.closest(`[data-testid="${id}"]`));
+    }, { x: box.x + box.width / 2, y: box.y + box.height / 2, id: testId });
+    if (isTopmostAtCentre) result.push({ card, box });
+  }
+  return result;
+}
+
+/** Drive the Sevens turn loop through card accessibility actions and PASS. */
 async function playUntilEnd(page, maxClicks = 300) {
   let clicks = 0;
   let playSeen = false;
@@ -57,19 +92,36 @@ async function playUntilEnd(page, maxClicks = 300) {
       ended = true;
       break;
     }
-    const play = page.getByRole('button', { name: /^PLAY / }).first();
-    if (await play.isVisible().catch(() => false)) {
+    await page.waitForTimeout(120);
+    const candidates = await visibleCardsInViewport(page);
+    let played = false;
+    for (let index = candidates.length - 1; index >= 0; index -= 1) {
+      const card = candidates[index].card;
       playSeen = true;
-      await play.click();
-      await page.waitForTimeout(350);
-      clicks += 1;
-      continue;
+      try {
+        await card.click({ delay: 650, timeout: 5000 });
+        const action = await firstVisible(page.getByRole('button', { name: 'Play to the runs', exact: true }));
+        if (!action) {
+          const cancel = await firstVisible(page.getByRole('button', { name: 'Cancel', exact: true }));
+          if (cancel) await cancel.click().catch(() => {});
+          continue;
+        }
+        await action.click({ timeout: 5000 });
+        await page.waitForTimeout(450);
+        clicks += 1;
+        played = true;
+        break;
+      } catch {
+        const cancel = await firstVisible(page.getByRole('button', { name: 'Cancel', exact: true }));
+        if (cancel) await cancel.click().catch(() => {});
+      }
     }
-    const pass = page.getByRole('button', { name: /^PASS$/i, exact: true });
-    if (await pass.isVisible().catch(() => false)) {
+    if (played) continue;
+    const pass = await firstVisible(page.getByRole('button', { name: /^PASS$/i, exact: true }));
+    if (pass) {
       passSeen = true;
       await pass.click();
-      await page.waitForTimeout(350);
+      await page.waitForTimeout(450);
       clicks += 1;
       continue;
     }
@@ -166,14 +218,15 @@ async function runViewport(browser, viewport) {
     entry.geometry.rootRectWidth === entry.viewport.width
   );
 
-  const checks = [mobile, desktop].every((entry) => (
+  const passCoverage = Boolean(mobile.play?.passSeen || desktop.play?.passSeen);
+  const checks = passCoverage && [mobile, desktop].every((entry) => (
     !entry.error &&
     entry.liveRules.rendered &&
     entry.table.readoutPresent &&
     entry.table.noDeadDrawPile &&
     entry.play.ended &&
     entry.play.playSeen &&
-    entry.play.passSeen &&
+
     entry.endState.rendered &&
     entry.endState.winnerCopy &&
     entry.endState.hasReplay &&

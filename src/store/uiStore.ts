@@ -31,6 +31,8 @@ export interface UiStoreState {
   soundEnabled: boolean;
 
   setViewMode: (mode: ViewMode) => void;
+  /** Jump between shell surfaces without the physical setup/table morph. */
+  jumpToViewMode: (mode: ViewMode) => void;
   openPass: (ctx: PassContext) => void;
   closePass: () => void;
   resetToHome: () => void;
@@ -57,6 +59,13 @@ export const useUiStore = create<UiStoreState>()(
           viewMode: mode,
           previousMode: s.viewMode === mode ? s.previousMode : s.viewMode,
         })),
+
+      jumpToViewMode: (mode) =>
+        set({
+          viewMode: mode,
+          previousMode: null,
+          passContext: null,
+        }),
 
       openPass: (ctx) =>
         set((s) => ({

@@ -17,12 +17,12 @@ const baseUrl = process.env.DECKD_QA_URL ?? 'http://localhost:8081/';
 
   try {
     await page.goto(baseUrl, { waitUntil: 'commit', timeout: 60000 });
-    await page.getByRole('button', { name: 'Deal the deck', exact: true }).last().waitFor({ state: 'visible', timeout: 60000 });
+    await page.getByRole('button', { name: 'Table', exact: true }).last().waitFor({ state: 'visible', timeout: 60000 });
     await page.waitForTimeout(800);
 
     const media = await page.evaluate(() => window.matchMedia('(prefers-reduced-motion: reduce)').matches);
     const boxes = await page.evaluate(() => {
-      const wanted = new Set(['Home', 'Store', 'Presets', 'Profile', 'Deal the deck']);
+      const wanted = new Set(['Home', 'Store', 'Table', 'Presets', 'Profile']);
       return [...document.querySelectorAll('button')]
         .map((b) => {
           const label = b.getAttribute('aria-label') ?? '';

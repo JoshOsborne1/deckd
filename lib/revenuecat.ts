@@ -21,15 +21,24 @@ export function getRevenueCatApiKey(): { ios?: string; android?: string } {
 export function configureRevenueCat(): void {
   if (configured) return;
   const { ios, android } = getRevenueCatApiKey();
-  if (__DEV__) {
-    Purchases.setLogLevel(LOG_LEVEL.DEBUG);
-  }
-  if (Platform.OS === 'ios' && ios) {
-    Purchases.configure({ apiKey: ios });
-    configured = true;
-  } else if (Platform.OS === 'android' && android) {
-    Purchases.configure({ apiKey: android });
-    configured = true;
+  try {
+    if (__DEV__) {
+      Purchases.setLogLevel(LOG_LEVEL.DEBUG);
+    }
+    if (Platform.OS === 'ios' && ios) {
+      Purchases.configure({ apiKey: ios });
+      configured = true;
+    } else if (Platform.OS === 'android' && android) {
+      Purchases.configure({ apiKey: android });
+      configured = true;
+    }
+  } catch {
+    // The RNPurchases native module does not exist in Expo Go (or when the
+    // package is not linked), so every call above throws. Stay graceful:
+    // configured stays false, `isRevenueCatConfigured()` is false, and the
+    // root layout skips the customer-info listener. Purchases then simply
+    // behave as unowned, which is the correct offline default.
+    configured = false;
   }
 }
 

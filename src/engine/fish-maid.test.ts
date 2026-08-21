@@ -406,7 +406,11 @@ describe('Old Maid recipe and rules', () => {
 describe('Crazy Eights and Sevens recipe and rules', () => {
   it('plays matching cards to the Crazy Eights discard', () => {
     const config: SessionConfig = { ...goFishConfig, presetId: 'crazy-eights' };
-    const started = startSession(crazyEightsPreset, config, orderedWithPrefix(['H-A', 'H-2', 'H-3', 'H-4']));
+    const started = startSession(
+      crazyEightsPreset,
+      config,
+      orderedWithPrefix(['H-A', 'H-2', 'S-3', 'S-10', 'C-4', 'C-J', 'D-5', 'D-Q', 'S-7', 'C-8', 'H-9']),
+    );
     const rules = getGameRules('crazy-eights');
 
     expect(rules.actions(started.state, 'p1').map((action) => action.id)).toContain('play:H-A');
@@ -417,7 +421,7 @@ describe('Crazy Eights and Sevens recipe and rules', () => {
       started.nextSeq,
     );
     expect(first.state.currentPlayerId).toBe('p2');
-    expect(first.state.zones.discard?.cardIds).toEqual(['H-A']);
+    expect(first.state.zones.discard?.cardIds).toEqual(['H-9', 'H-A']);
 
     const second = appendPrimitives(
       first.events,
@@ -425,7 +429,7 @@ describe('Crazy Eights and Sevens recipe and rules', () => {
       'p2',
       first.nextSeq,
     );
-    expect(second.state.zones.discard?.cardIds).toEqual(['H-A', 'H-2']);
+    expect(second.state.zones.discard?.cardIds).toEqual(['H-9', 'H-A', 'H-2']);
     expect(second.state.zones[handZoneId('p1')]?.cardIds).toHaveLength(4);
   });
 
@@ -434,7 +438,7 @@ describe('Crazy Eights and Sevens recipe and rules', () => {
     // eight is wild and would always be playable). p1 opens with H-A; p2
     // cannot match, so the rail offers DRAW; the drawn H-K matches hearts,
     // so the turn stays with p2 and the new card becomes playable.
-    const deckOrder = orderedWithPrefix(['H-A', 'S-9', 'H-2', 'S-10', 'H-3', 'S-J', 'H-4', 'S-Q', 'H-5', 'S-K', 'H-K']);
+    const deckOrder = orderedWithPrefix(['H-A', 'S-9', 'H-2', 'S-10', 'H-3', 'S-J', 'H-4', 'S-Q', 'H-5', 'S-K', 'H-9', 'H-K']);
     const config: SessionConfig = { ...goFishConfig, presetId: 'crazy-eights' };
     const started = startSession(crazyEightsPreset, config, deckOrder);
     const rules = getGameRules('crazy-eights');
@@ -462,7 +466,7 @@ describe('Crazy Eights and Sevens recipe and rules', () => {
   it('passes the turn when the drawn card does not fit', () => {
     // Same alternating deal; p2 draws D-2 which matches neither the H-A top
     // nor any rank, so the turn passes back to p1.
-    const deckOrder = orderedWithPrefix(['H-A', 'S-9', 'H-2', 'S-10', 'H-3', 'S-J', 'H-4', 'S-Q', 'H-5', 'S-K', 'D-2']);
+    const deckOrder = orderedWithPrefix(['H-A', 'S-9', 'H-2', 'S-10', 'H-3', 'S-J', 'H-4', 'S-Q', 'H-5', 'S-K', 'H-9', 'D-2']);
     const config: SessionConfig = { ...goFishConfig, presetId: 'crazy-eights' };
     const started = startSession(crazyEightsPreset, config, deckOrder);
     const rules = getGameRules('crazy-eights');
@@ -488,7 +492,7 @@ describe('Crazy Eights and Sevens recipe and rules', () => {
     // every p2 turn is a miss-draw that passes back. p1 plays down to the
     // final heart and the last-card play must end the round with p1 as
     // winner.
-    const deckOrder = ['H-A', 'S-9', 'H-2', 'S-10', 'H-3', 'S-J', 'H-4', 'S-Q', 'H-5', 'S-K', 'D-2', 'D-3', 'D-4', 'D-5'];
+    const deckOrder = ['H-A', 'S-9', 'H-2', 'S-10', 'H-3', 'S-J', 'H-4', 'S-Q', 'H-5', 'S-K', 'H-9', 'D-2', 'D-3', 'D-4', 'D-5'];
     const config: SessionConfig = { ...goFishConfig, presetId: 'crazy-eights' };
     const started = startSession(crazyEightsPreset, config, deckOrder);
     const rules = getGameRules('crazy-eights');
@@ -523,7 +527,7 @@ describe('Crazy Eights and Sevens recipe and rules', () => {
     // draw D-2 + D-4. p2's drawn cards never match the hearts p1 keeps
     // playing, so when the pile empties p2 (7 cards) must lose to p1 (2
     // cards).
-    const deckOrder = ['H-A', 'S-9', 'H-2', 'S-10', 'H-3', 'S-J', 'H-4', 'S-Q', 'H-5', 'S-K', 'D-2', 'D-4'];
+    const deckOrder = ['H-A', 'S-9', 'H-2', 'S-10', 'H-3', 'S-J', 'H-4', 'S-Q', 'H-5', 'S-K', 'H-9', 'D-2', 'D-4'];
     const config: SessionConfig = { ...goFishConfig, presetId: 'crazy-eights' };
     const started = startSession(crazyEightsPreset, config, deckOrder);
     const rules = getGameRules('crazy-eights');
@@ -593,7 +597,7 @@ describe('Crazy Eights and Sevens recipe and rules', () => {
     const rules = getGameRules('crazy-eights');
     const readout = rules.readout?.(started.state, 'p1');
     expect(readout).toContain('HAND 5');
-    expect(readout).toContain('DRAW 42');
+    expect(readout).toContain('DRAW 41');
   });
 
   it('opens Sevens with a seven and grows the same-suit run', () => {

@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { Check, Lock } from 'lucide-react-native';
+import { useEffect, useState, type ReactNode } from 'react';
+import { Alert, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ChevronLeft } from 'lucide-react-native';
+import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, {
   interpolate,
@@ -9,48 +10,70 @@ import Animated, {
   withDelay,
   withSpring,
 } from 'react-native-reanimated';
-import { CardButton } from '@components/CardButton';
-import { CardSection } from '@components/CardSection';
-import { FeltDrawer } from '@components/FeltDrawer';
 import { FlipCard } from '@components/FlipCard';
+import { NAV_BAR_RESERVE } from '@components/GlobalNavBar';
 import { PlayingCard } from '@components/PlayingCard';
 import { useMotion } from '@hooks/useMotion';
+import { brand } from '@lib/assets';
 import { isIapConfigured, purchaseProduct, restorePurchases } from '@lib/iap';
 import { syncMasterPassFromCustomerInfo } from '@lib/entitlement';
-import { useProfileStore } from '@store/profileStore';
+import { PRESET_BACKS } from '@lib/presetAssets';
+import { builtinPresets } from '@engine/index';
+import { BUILTIN_CARD_BACKS } from '@engine/visuals';
 import { useCosmeticsStore } from '@store/cosmeticsStore';
-import { BUILTIN_CARD_BACKS, BUILTIN_TABLE_THEMES } from '@engine/visuals';
-import { alpha, colors, fontSizes, fonts, letterSpacing, motion as motionTokens, radii, shadow, space, textStyles } from '@theme';
+import { useGameStore } from '@store/gameStore';
+import { useProfileStore } from '@store/profileStore';
+import { useUiStore } from '@store/uiStore';
+import {
+  alpha,
+  colors,
+  fontSizes,
+  fonts,
+  letterSpacing,
+  motion as motionTokens,
+  radii,
+  shadow,
+  space,
+} from '@theme';
 
-interface StoreItem {
-  id: string;
-  title: string;
-  price: string;
-  back: string;
-  tint: string;
-}
+const PASSES = [
+  { id: 'deckd_pass_deal', title: 'Deal', duration: '-24h', price: '£0.99' },
+  { id: 'deckd_pass_draw', title: 'Draw', duration: '-3d', price: '£2.99' },
+  { id: 'deckd_pass_shuffle', title: 'Shuffle', duration: '-30d', price: '£5.99' },
+  { id: 'deckd_master', title: 'Master', duration: '-Lifetime', price: '£24.99' },
+];
 
-const CATALOGUE_ITEMS: StoreItem[] = BUILTIN_CARD_BACKS.map((back) => ({
+const DECKS = BUILTIN_CARD_BACKS.map((back) => ({
   id: back.id,
   title: back.name,
   price: back.unlockedByDefault ? 'FREE' : '£1.99',
   back: back.id,
-  tint: back.palette?.[0] ?? alpha.brand20,
 }));
 
-const TABLE_THEME_ITEMS = BUILTIN_TABLE_THEMES.map((theme) => ({
-  id: theme.id,
-  title: theme.name,
-  price: theme.unlockedByDefault ? 'FREE' : '£2.99',
-  theme,
-}));
+function DealIn({
+  delay,
+  reduceMotion,
+  children,
+}: {
+  delay: number;
+  reduceMotion: boolean;
+  children: ReactNode;
+}) {
+  const progress = useSharedValue(reduceMotion ? 1 : 0);
 
-const BUNDLES = [
-  { id: 'deckd_pass_deal', title: 'Deal Pass', summary: 'Host lobbies for 24 hours', price: '£0.99' },
-  { id: 'deckd_pass_draw', title: 'Draw Pass', summary: 'Host lobbies for 3 days', price: '£2.99' },
-  { id: 'deckd_pass_shuffle', title: 'Shuffle Pass', summary: 'Host lobbies for 30 days', price: '£5.99' },
-  { id: 'deckd_master', title: 'Master Pass', summary: 'Host lobbies forever', price: '£24.99' },
-];
+  useEffect(() => {
+    progress.value = reduceMotion
+      ? withSpring(1, motionTokens.spring.layerSoft)
+      : withDelay(delay, withSpring(1, motionTokens.spring.navDeal));
+  }, [delay, progress, reduceMotion]);
+
+  const style = useAnimatedStyle(() => ({
+    opacity: progress.value,
+    transform: [{ translateY: interpolate(progress.value, [0, 1], [28, 0]) }],
+  }));
+
+  return <Animated.View style={style}>{children}</Animated.View>;
+}
 
 function PreviewStage({
   back,
@@ -111,10 +134,8 @@ function PreviewStage({
           <PlayingCard face="down" back="back-crimson" size="sm" elevated />
         </Animated.View>
       </View>
-      <Pressable onPress={onFlip}>
-        {/* rank/suit give the face side real artwork — without them PlayingCard
-            renders the back on BOTH sides and the flip looks like nothing. */}
-        <FlipCard face={face} back={back} rank="K" suit="spades" size="lg" />
+      <Pressable onPress={onFlip} accessibilityRole="button" accessibilityLabel="Flip preview card">
+        <FlipCard face={face} back={back} rank="A" suit="spades" size="lg" />
       </Pressable>
       <Text style={styles.previewHint}>Tap the card to flip it</Text>
     </Animated.View>
@@ -122,17 +143,19 @@ function PreviewStage({
 }
 
 export default function StoreScreen() {
+  const router = useRouter();
   const insets = useSafeAreaInsets();
   const { reduceMotion, haptic } = useMotion();
   const hapticsEnabled = useProfileStore((s) => s.hapticsEnabled);
-  const buttonHaptic = hapticsEnabled && !reduceMotion ? 'light' : false;
+  const setViewMode = useUiStore((s) => s.setViewMode);
+  const events = useGameStore((s) => s.events);
+  const gamePhase = useGameStore((s) => s.state.phase);
+  const sessionActive = events.length > 0 && gamePhase !== 'idle';
 
   const ownedBacks = useCosmeticsStore((s) => s.ownedBackIds);
   const selectedBackId = useCosmeticsStore((s) => s.equippedBackId);
-  const selectedThemeId = useCosmeticsStore((s) => s.equippedTableThemeId);
-  const ownedThemeIds = useCosmeticsStore((s) => s.ownedTableThemeIds);
   const equipBack = useCosmeticsStore((s) => s.equipBack);
-  const equipTableTheme = useCosmeticsStore((s) => s.equipTableTheme);
+  const unlockBack = useCosmeticsStore((s) => s.unlockBack);
   const [previewBack, setPreviewBack] = useState<string | null>(null);
   const [previewFace, setPreviewFace] = useState<'up' | 'down'>('down');
 
@@ -151,9 +174,6 @@ export default function StoreScreen() {
   const onRestore = async () => {
     try {
       const customerInfo = await restorePurchases();
-      // Re-sync hasMasterPass from the restored entitlement. The
-      // customer-info listener also fires, but we do it here too so the
-      // flag is correct before the user dismisses the alert.
       syncMasterPassFromCustomerInfo(customerInfo);
       Alert.alert('Store', 'Restore completed.');
     } catch (e) {
@@ -161,172 +181,217 @@ export default function StoreScreen() {
     }
   };
 
+  const goHome = () => {
+    setViewMode('home');
+    router.push('/');
+  };
+
+  const resumeTable = () => {
+    setViewMode('table');
+    router.push('/');
+  };
+
+  const onDeckPress = (id: string, back: string) => {
+    if (hapticsEnabled) haptic('light');
+    setPreviewBack(back);
+    setPreviewFace('down');
+    if (!ownedBacks.includes(id)) unlockBack(id);
+  };
+
+  const onDeckPrice = (id: string, owned: boolean, equipped: boolean) => {
+    if (hapticsEnabled) haptic('light');
+    if (!owned) {
+      unlockBack(id);
+      return;
+    }
+    if (!equipped) equipBack(id);
+  };
+
   return (
-    <FeltDrawer>
+    <View style={styles.root}>
       <ScrollView
         contentContainerStyle={[
           styles.scrollContent,
-          { paddingTop: insets.top + space.md, paddingBottom: insets.bottom + space.x5l * 3 },
+          {
+            paddingTop: insets.top + space.md,
+            paddingBottom: insets.bottom + NAV_BAR_RESERVE + space.xxl,
+          },
         ]}
         showsVerticalScrollIndicator={false}
       >
-        <Text style={styles.eyebrow}>STORE</Text>
-        <Text style={styles.title}>Tune your table</Text>
-
-        <CardSection
-          variant="brand"
-          tab
-          eyebrow="FEATURED"
-          title="Deckd Master"
-          style={styles.section}
-        >
-          <View style={styles.bullets}>
-            <Text style={styles.heroBullet}>• Host multiplayer lobbies</Text>
-            <Text style={styles.heroBullet}>• Friends join free, from anywhere</Text>
-            <Text style={styles.heroBullet}>• Premium felts and exclusive card backs</Text>
+        <DealIn delay={40} reduceMotion={reduceMotion}>
+          <View style={styles.header}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Back to Home"
+              onPress={goHome}
+              style={({ pressed }) => [styles.backPill, pressed && styles.backPillPressed]}
+            >
+              <ChevronLeft size={16} color={colors.inkMuted} strokeWidth={2.2} />
+              <Text style={styles.backText}>Home</Text>
+            </Pressable>
+            <Text style={styles.headerEyebrow}>STORE</Text>
           </View>
-          <CardButton
-            variant="secondary"
-            size="md"
-            haptic={buttonHaptic}
-            onPress={() => showPlaceholder('deckd_master')}
-            style={styles.heroCta}
-            innerStyle={{ backgroundColor: alpha.whiteOverlay20, borderColor: 'transparent' }}
-          >
-            <Text style={[styles.heroCtaLabel, { color: colors.surface }]}>Become a Master</Text>
-          </CardButton>
-        </CardSection>
+        </DealIn>
 
-        <CardSection
-          variant="surface"
-          eyebrow="CATALOGUE"
-          title="Card backs"
-          style={styles.section}
-        >
-          <View style={styles.catalogueGrid}>
-            {CATALOGUE_ITEMS.map((item) => {
-              const owned = ownedBacks.includes(item.id);
-              const equipped = selectedBackId === item.id;
-              return (
-                <CardSection key={item.id} variant="surface" style={styles.catalogueItem}>
-                  <Pressable
-                    onPress={() => {
-                      setPreviewBack(item.back);
-                      setPreviewFace('down');
-                    }}
-                  >
-                    <View style={[styles.cardPreviewWrap, { borderColor: item.tint }]}>
-                      <PlayingCard face="down" back={item.back} size="sm" elevated />
-                      {!owned && (
-                        <View style={styles.lockOverlay} pointerEvents="none">
-                          <Lock size={20} color={colors.surface} />
-                        </View>
-                      )}
-                    </View>
-                  </Pressable>
-                  <Text style={styles.itemTitle}>{item.title}</Text>
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={equipped ? `${item.title} equipped` : `Equip ${item.title}`}
-                    disabled={!owned || equipped}
-                    onPress={() => {
-                      if (hapticsEnabled) haptic('light');
-                      equipBack(item.id);
-                    }}
-                    style={[
-                      styles.pricePill,
-                      owned && { backgroundColor: colors.brand, borderColor: colors.brand },
-                    ]}
-                  >
-                    <Text
-                      style={[styles.priceLabel, owned && { color: colors.surface }]}
-                    >
-                      {equipped ? 'Equipped' : owned ? 'Tap to equip' : item.price}
-                    </Text>
-                  </Pressable>
-                </CardSection>
-              );
-            })}
-          </View>
-        </CardSection>
-
-        <CardSection
-          variant="surface"
-          eyebrow="TABLES"
-          title="Table themes"
-          style={styles.section}
-        >
-          <View style={styles.themeRail}>
-            {TABLE_THEME_ITEMS.map((item) => {
-              const owned = ownedThemeIds.includes(item.id);
-              const equipped = selectedThemeId === item.id;
-              return (
-                <Pressable
-                  key={item.id}
-                  style={[styles.themeCard, equipped && styles.themeCardActive]}
-                  onPress={() => {
-                    if (!owned) return;
-                    equipTableTheme(item.id);
-                  }}
-                >
-                  <View style={[styles.themeSwatch, { backgroundColor: item.theme.surfaceBase, borderColor: item.theme.railColor }]}>
-                    <View style={[styles.themeWell, { backgroundColor: item.theme.wellColor }]} />
-                  </View>
-                  <Text style={styles.itemTitle}>{item.title}</Text>
-                  <Text style={styles.themeMeta}>{equipped ? 'Equipped' : owned ? 'Owned' : item.price}</Text>
-                  {equipped && <Check size={16} color={colors.brand} style={styles.themeCheck} />}
-                </Pressable>
-              );
-            })}
-          </View>
-        </CardSection>
-
-        <CardSection
-          variant="surface"
-          eyebrow="PASSES"
-          title="Deckd Master passes"
-          style={styles.section}
-        >
+        <DealIn delay={90} reduceMotion={reduceMotion}>
+          <Text style={styles.sectionTitle}>Passes</Text>
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.bundleRow}
+            contentContainerStyle={styles.passRow}
           >
-            {BUNDLES.map((bundle) => (
-              <CardSection key={bundle.id} variant="ink" style={styles.bundleCard}>
-                <Text style={styles.bundleTitle}>{bundle.title}</Text>
-                <Text style={styles.bundleSummary}>{bundle.summary}</Text>
-                <View style={styles.bundlePricePill}>
-                  <Text style={styles.bundlePriceLabel}>{bundle.price}</Text>
+            {PASSES.map((pass) => (
+              <Pressable
+                key={pass.id}
+                accessibilityRole="button"
+                accessibilityLabel={`${pass.title} pass ${pass.price}`}
+                onPress={() => {
+                  if (hapticsEnabled) haptic('light');
+                  void showPlaceholder(pass.id);
+                }}
+                style={({ pressed }) => [styles.passCard, pressed && styles.passCardPressed]}
+              >
+                <Text style={styles.passTitle}>{pass.title}</Text>
+                <Text style={styles.passDuration}>{pass.duration}</Text>
+                <Text style={styles.passPrice}>{pass.price}</Text>
+              </Pressable>
+            ))}
+            <View style={styles.extraCard}>
+              <View style={styles.extraCols}>
+                <View style={styles.extraCol}>
+                  <Text style={styles.extraHead}>Host</Text>
+                  <Text style={styles.extraLine}>8 players</Text>
+                  <Text style={styles.extraLine}>Online</Text>
+                  <Text style={styles.extraLine}>6 players</Text>
+                  <Text style={styles.extraLine}>Offline</Text>
                 </View>
-                <CardButton
-                  variant="ghost"
+                <View style={styles.extraRule} />
+                <View style={styles.extraCol}>
+                  <Text style={styles.extraHead}>Cosmetic</Text>
+                  <Text style={styles.extraLine}>New deck</Text>
+                  <Text style={styles.extraLine}>Spin</Text>
+                  <Text style={styles.extraLine}>Random</Text>
+                  <Text style={styles.extraLine}>Icon</Text>
+                </View>
+              </View>
+            </View>
+          </ScrollView>
+        </DealIn>
+
+        <DealIn delay={150} reduceMotion={reduceMotion}>
+          <Text style={styles.sectionTitle}>Decks</Text>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.deckRow}
+          >
+            {DECKS.map((deck, deckIndex) => {
+              const owned = ownedBacks.includes(deck.id);
+              const equipped = selectedBackId === deck.id;
+              return (
+                <View key={deck.id} style={[styles.deckItem, deckIndex % 2 === 0 ? styles.deckItemLeft : styles.deckItemRight]}>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={`Preview ${deck.title}`}
+                    onPress={() => onDeckPress(deck.id, deck.back)}
+                    style={[styles.deckPair, deckIndex % 2 === 0 ? styles.deckPairLeft : styles.deckPairRight]}
+                  >
+                    <View style={styles.deckBack}>
+                      <PlayingCard face="down" back={deck.back} size="sm" overlapped />
+                    </View>
+                    <View style={styles.deckFace}>
+                      <PlayingCard face="up" rank="A" suit="spades" size="sm" overlapped />
+                    </View>
+                  </Pressable>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={
+                      equipped ? `${deck.title} equipped` : owned ? `Equip ${deck.title}` : `${deck.title} ${deck.price}`
+                    }
+                    onPress={() => onDeckPrice(deck.id, owned, equipped)}
+                    style={styles.deckPriceHit}
+                  >
+                    <Text style={styles.deckPrice}>{equipped ? 'Equipped' : owned ? deck.price : deck.price}</Text>
+                  </Pressable>
+                </View>
+              );
+            })}
+          </ScrollView>
+        </DealIn>
+
+        {sessionActive ? (
+          <DealIn delay={210} reduceMotion={reduceMotion}>
+            <View style={styles.resumeCard}>
+              <View style={styles.resumeRow}>
+                <View style={styles.resumeCopy}>
+                  <Text style={styles.resumeEyebrow}>GAME IN PROGRESS</Text>
+                  <Text style={styles.resumeTitle}>Pick up where you stopped</Text>
+                  <Text style={styles.resumeMeta}>
+                    {events.length} {events.length === 1 ? 'event' : 'events'} in the log
+                  </Text>
+                </View>
+                <View style={styles.resumeMark}>
+                  <Image source={brand.logo} resizeMode="contain" style={styles.resumeLogo} />
+                </View>
+              </View>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Resume table"
+                onPress={resumeTable}
+                style={({ pressed }) => [styles.resumeButton, pressed && styles.resumeButtonPressed]}
+              >
+                <Text style={styles.resumeButtonText}>Resume</Text>
+              </Pressable>
+            </View>
+          </DealIn>
+        ) : null}
+
+        <DealIn delay={sessionActive ? 270 : 210} reduceMotion={reduceMotion}>
+          <View style={styles.recipeHead}>
+            <View style={styles.recipeHeadCopy}>
+              <Text style={styles.recipeTitle}>Choose a recipe</Text>
+              <Text style={styles.recipeKicker}>FLIP A DECK TO PREVIEW</Text>
+            </View>
+            <Text style={styles.recipeIndex}>0{builtinPresets.length}</Text>
+          </View>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.recipeRow}
+          >
+            {builtinPresets.slice(0, 6).map((preset) => (
+              <Pressable
+                key={preset.id}
+                accessibilityRole="button"
+                accessibilityLabel={`Open ${preset.name}`}
+                onPress={() => router.push('/list')}
+                style={styles.recipeCard}
+              >
+                <PlayingCard
+                  face="down"
+                  back={PRESET_BACKS[preset.id] ?? 'back-brand'}
                   size="sm"
-                  elevated={false}
-                  haptic={buttonHaptic}
-                  onPress={() => showPlaceholder(bundle.id)}
-                  style={styles.bundleButton}
-                >
-                  <Text style={styles.bundleButtonLabel}>Get pass</Text>
-                </CardButton>
-              </CardSection>
+                  elevated
+                />
+              </Pressable>
             ))}
           </ScrollView>
-        </CardSection>
+        </DealIn>
 
-        <CardButton
-          variant="ghost"
-          size="sm"
-          elevated={false}
-          haptic={buttonHaptic}
-          onPress={onRestore}
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Restore purchases"
+          onPress={() => {
+            void onRestore();
+          }}
           style={styles.restoreButton}
         >
           <Text style={styles.restoreLabel}>Restore purchases</Text>
-        </CardButton>
+        </Pressable>
       </ScrollView>
 
-      {previewBack && (
+      {previewBack ? (
         <Pressable style={styles.previewOverlay} onPress={() => setPreviewBack(null)}>
           <PreviewStage
             back={previewBack}
@@ -334,158 +399,299 @@ export default function StoreScreen() {
             onFlip={() => setPreviewFace((f) => (f === 'up' ? 'down' : 'up'))}
           />
         </Pressable>
-      )}
-    </FeltDrawer>
+      ) : null}
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.bg },
-  scrollContent: { paddingHorizontal: space.xl },
-  eyebrow: {
-    fontFamily: fonts.bold,
-    fontSize: fontSizes.micro,
-    letterSpacing: letterSpacing.caps,
-    color: colors.inkMuted,
-    marginBottom: space.sm,
+  root: {
+    flex: 1,
+    backgroundColor: colors.paper,
   },
-  title: {
-    ...textStyles.h1,
+  scrollContent: {
+    paddingHorizontal: space.xl,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: space.xl,
+  },
+  backPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingLeft: space.sm,
+    paddingRight: space.md,
+    height: 36,
+    borderRadius: radii.pill,
+    borderWidth: 1,
+    borderColor: colors.navCardEdge,
+    backgroundColor: colors.surface,
+    gap: 2,
+  },
+  backPillPressed: {
+    transform: [{ scale: 0.97 }],
+  },
+  backText: {
+    fontFamily: fonts.semibold,
+    fontSize: 14,
+    color: colors.inkSoft,
+  },
+  headerEyebrow: {
+    marginLeft: 'auto',
+    fontFamily: fonts.bold,
+    fontSize: 11,
+    letterSpacing: letterSpacing.caps,
+    color: colors.inkSubtle,
+  },
+  sectionTitle: {
+    fontFamily: fonts.bold,
+    fontSize: 22,
+    letterSpacing: -0.4,
+    color: colors.ink,
+    marginBottom: space.md,
+  },
+  passRow: {
+    gap: space.sm,
+    paddingRight: space.lg,
+    marginBottom: space.xxl,
+  },
+  passCard: {
+    width: 92,
+    minHeight: 108,
+    paddingHorizontal: space.md,
+    paddingTop: space.lg,
+    paddingBottom: space.md,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: colors.navCardEdge,
+    backgroundColor: colors.surface,
+    borderCurve: 'continuous',
+    justifyContent: 'space-between',
+  },
+  passCardPressed: {
+    transform: [{ scale: 0.97 }],
+  },
+  passTitle: {
+    fontFamily: fonts.bold,
+    fontSize: 16,
+    color: colors.ink,
+  },
+  passDuration: {
+    fontFamily: fonts.medium,
+    fontSize: 13,
+    color: colors.inkMuted,
+    marginTop: 2,
+  },
+  passPrice: {
+    fontFamily: fonts.semibold,
+    fontSize: 15,
+    color: colors.ink,
+    marginTop: space.md,
+  },
+  extraCard: {
+    width: 168,
+    minHeight: 108,
+    paddingHorizontal: space.md,
+    paddingVertical: space.md,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: colors.navCardEdge,
+    backgroundColor: colors.surface,
+    borderCurve: 'continuous',
+    justifyContent: 'center',
+  },
+  extraCols: {
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    gap: space.sm,
+  },
+  extraCol: {
+    flex: 1,
+    minWidth: 0,
+    gap: 2,
+  },
+  extraRule: {
+    width: StyleSheet.hairlineWidth,
+    backgroundColor: colors.navCardEdge,
+  },
+  extraHead: {
+    fontFamily: fonts.bold,
+    fontSize: 13,
+    color: colors.ink,
+    marginBottom: 4,
+  },
+  extraLine: {
+    fontFamily: fonts.medium,
+    fontSize: 11,
+    color: colors.inkMuted,
+  },
+  deckRow: {
+    gap: space.md,
+    paddingRight: space.lg,
+    paddingTop: space.sm,
+    marginBottom: space.xxl,
+  },
+  deckItem: {
+    width: 154,
+    alignItems: 'center',
+  },
+  deckItemLeft: {
+    transform: [{ translateY: 2 }],
+  },
+  deckItemRight: {
+    transform: [{ translateY: -2 }],
+  },
+  deckPair: {
+    width: 138,
+    height: 108,
+    position: 'relative',
+  },
+  deckPairLeft: {
+    transform: [{ rotate: '-1.5deg' }],
+  },
+  deckPairRight: {
+    transform: [{ rotate: '1.5deg' }],
+  },
+  deckBack: {
+    position: 'absolute',
+    left: 6,
+    top: 10,
+    transform: [{ rotate: '-10deg' }],
+  },
+  deckFace: {
+    position: 'absolute',
+    left: 46,
+    top: -1,
+    transform: [{ rotate: '8deg' }],
+  },
+  deckPriceHit: {
+    marginTop: space.xs,
+    minHeight: 32,
+    justifyContent: 'center',
+  },
+  deckPrice: {
+    fontFamily: fonts.semibold,
+    fontSize: 16,
+    color: colors.ink,
+    textAlign: 'center',
+  },
+  resumeCard: {
+    backgroundColor: colors.ink,
+    borderRadius: 22,
+    padding: space.lg,
+    marginBottom: space.xxl,
+    borderCurve: 'continuous',
+    ...shadow.cardStrong,
+  },
+  resumeRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: space.md,
     marginBottom: space.lg,
   },
-  section: { marginBottom: space.lg },
-  bullets: { gap: space.xs },
-  heroBullet: {
-    fontFamily: fonts.medium,
-    fontSize: fontSizes.body,
-    color: alpha.whiteOverlay80,
+  resumeCopy: {
+    flex: 1,
+    minWidth: 0,
   },
-  heroCta: { marginTop: space.md, alignSelf: 'flex-start' },
-  heroCtaLabel: {
-    ...textStyles.title,
-    fontSize: fontSizes.bodyLg,
-  },
-  catalogueGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    rowGap: space.md,
-  },
-  catalogueItem: {
-    width: '48.5%',
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  cardPreviewWrap: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: radii.md,
-    borderWidth: 1,
-    paddingVertical: space.sm,
-    marginBottom: space.sm,
-    backgroundColor: colors.surfaceAlt,
-    position: 'relative',
-    overflow: 'hidden',
-  },
-  lockOverlay: {
-    ...StyleSheet.absoluteFill,
-    backgroundColor: alpha.inkOverlay45,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: radii.md,
-  },
-  itemTitle: {
-    ...textStyles.title,
-    fontSize: fontSizes.body,
-    marginBottom: space.xs,
-  },
-  pricePill: {
-    alignSelf: 'flex-start',
-    paddingHorizontal: space.sm,
-    paddingVertical: space.xs,
-    borderRadius: radii.pill,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: alpha.brand10,
-    marginBottom: space.sm,
-  },
-  priceLabel: {
+  resumeEyebrow: {
     fontFamily: fonts.bold,
-    fontSize: fontSizes.caption,
-    color: colors.brand,
-    letterSpacing: letterSpacing.cap,
+    fontSize: 10,
+    letterSpacing: 1.4,
+    color: alpha.whiteOverlay45,
+    marginBottom: 6,
   },
-  bundleRow: { gap: space.md },
-  themeRail: { gap: space.sm },
-  themeCard: {
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radii.lg,
-    padding: space.sm,
-    backgroundColor: colors.surface,
-    position: 'relative',
-  },
-  themeCardActive: { borderColor: colors.brand, backgroundColor: colors.brandSoft },
-  themeSwatch: {
-    height: 56,
-    borderRadius: radii.md,
-    borderWidth: 4,
-    marginBottom: space.sm,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  themeWell: { width: '54%', height: 26, borderRadius: 999, opacity: 0.72 },
-  themeMeta: { fontFamily: fonts.bold, fontSize: fontSizes.micro, color: colors.inkMuted, marginTop: space.xs },
-  themeCheck: { position: 'absolute', right: space.sm, top: space.sm },
-  bundleCard: {
-    width: space.x5l * 5,
-    marginRight: space.md,
-    borderWidth: 1,
-    borderColor: alpha.whiteOverlay20,
-  },
-  bundleTitle: {
+  resumeTitle: {
     fontFamily: fonts.bold,
-    fontSize: fontSizes.title,
+    fontSize: 20,
+    letterSpacing: -0.3,
     color: colors.surface,
-    marginBottom: space.xs,
+    marginBottom: 4,
   },
-  bundleSummary: {
+  resumeMeta: {
     fontFamily: fonts.regular,
-    fontSize: fontSizes.small,
+    fontSize: 13,
     color: alpha.whiteOverlay80,
-    marginBottom: space.md,
   },
-  bundlePricePill: {
-    alignSelf: 'flex-start',
-    paddingHorizontal: space.sm,
-    paddingVertical: space.xs,
+  resumeMark: {
+    width: 54,
+    height: 72,
+    borderRadius: 10,
+    backgroundColor: colors.surface,
+    borderWidth: 1.5,
+    borderColor: colors.brandHot,
+    alignItems: 'center',
+    justifyContent: 'center',
+    transform: [{ rotate: '8deg' }],
+  },
+  resumeLogo: {
+    width: 28,
+    height: 28,
+  },
+  resumeButton: {
+    height: 46,
     borderRadius: radii.pill,
-    backgroundColor: alpha.whiteOverlay20,
+    backgroundColor: colors.brandHot,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  resumeButtonPressed: {
+    transform: [{ scale: 0.98 }],
+    opacity: 0.92,
+  },
+  resumeButtonText: {
+    fontFamily: fonts.bold,
+    fontSize: 16,
+    color: colors.surface,
+  },
+  recipeHead: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
     marginBottom: space.md,
+    gap: space.md,
   },
-  bundlePriceLabel: {
+  recipeHeadCopy: {
+    flex: 1,
+    minWidth: 0,
+  },
+  recipeTitle: {
     fontFamily: fonts.bold,
-    fontSize: fontSizes.caption,
-    color: colors.surface,
-    letterSpacing: letterSpacing.cap,
+    fontSize: 22,
+    letterSpacing: -0.4,
+    color: colors.ink,
   },
-  bundleButton: {
-    alignSelf: 'flex-start',
-    ...shadow.none,
-    borderColor: alpha.whiteOverlay45,
-  },
-  bundleButtonLabel: {
+  recipeKicker: {
+    marginTop: 4,
     fontFamily: fonts.bold,
-    fontSize: fontSizes.caption,
-    color: colors.surface,
-    letterSpacing: letterSpacing.cap,
+    fontSize: 10,
+    letterSpacing: 1.3,
+    color: colors.inkSubtle,
+  },
+  recipeIndex: {
+    fontFamily: fonts.bold,
+    fontSize: 13,
+    letterSpacing: 1,
+    color: colors.brandHot,
+    paddingBottom: 2,
+  },
+  recipeRow: {
+    gap: space.sm,
+    paddingRight: space.lg,
+    paddingBottom: space.md,
+  },
+  recipeCard: {
+    padding: 2,
   },
   restoreButton: {
     alignSelf: 'center',
-    ...shadow.none,
+    paddingVertical: space.md,
+    minHeight: 44,
+    justifyContent: 'center',
   },
   restoreLabel: {
-    ...textStyles.label,
+    fontFamily: fonts.bold,
+    fontSize: fontSizes.caption,
+    letterSpacing: letterSpacing.capLoose,
     color: colors.inkMuted,
   },
   previewOverlay: {
@@ -498,7 +704,7 @@ const styles = StyleSheet.create({
   previewStage: {
     alignItems: 'center',
     gap: space.md,
-    backgroundColor: colors.tableFelt,
+    backgroundColor: colors.ink,
     borderRadius: radii.lg,
     paddingVertical: space.xl,
     paddingHorizontal: space.xl,
@@ -515,10 +721,6 @@ const styles = StyleSheet.create({
   },
   previewFanCard: {
     position: 'absolute',
-  },
-  previewCardWrap: {
-    alignItems: 'center',
-    gap: space.md,
   },
   previewHint: {
     fontFamily: fonts.medium,

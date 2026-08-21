@@ -1,3 +1,4 @@
+/* global __dirname */
 /* Visual sweep: open every game on the local preview and screenshot at 375x812.
    Usage: node qa/deckd-visual-sweep.cjs
    Screenshots land in .vischeck-sweep/ */

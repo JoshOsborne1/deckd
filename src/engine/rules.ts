@@ -756,6 +756,8 @@ function crazyEightsActions(state: GameState, viewerId: PlayerId): GameActionSpe
       label: `PLAY ${parseCardId(cardId)?.rank ?? 'CARD'}`,
       hint: 'Match the suit or rank, or play an eight',
       kind: 'table',
+      canDrag: true,
+      targetZones: [ZONE_DISCARD],
     }));
   }
   if ((state.zones[ZONE_DRAW]?.cardIds.length ?? 0) > 0) {

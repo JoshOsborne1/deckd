@@ -34,6 +34,8 @@ export interface CardDragProps {
   disabled?: boolean;
   accessibilityLabel?: string;
   style?: StyleProp<ViewStyle>;
+  /** Resting transform for a fanned card; the drag surface keeps its measured slot. */
+  cardStyle?: StyleProp<ViewStyle>;
   children: React.ReactNode;
   onDrop?: (targetId: string) => void;
   onCancel?: () => void;
@@ -91,6 +93,7 @@ export function CardDrag({
   disabled = false,
   accessibilityLabel,
   style,
+  cardStyle,
   children,
   onDrop,
   onCancel,
@@ -188,7 +191,7 @@ export function CardDrag({
             accessibilityRole="none"
             style={styles.cardPressTarget}
           >
-            {children}
+            <View style={cardStyle}>{children}</View>
           </Pressable>
         </GestureDetector>
       </Animated.View>
@@ -243,7 +246,7 @@ const styles = StyleSheet.create({
     borderColor: colors.brand,
     backgroundColor: alpha.brand10,
     padding: 4,
-    zIndex: -1,
+    zIndex: 0,
   },
   targetRingInner: {
     flex: 1,

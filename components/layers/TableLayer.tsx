@@ -23,6 +23,7 @@ import { HandFan } from '@components/HandFan';
 import { HandStack } from '@components/HandStack';
 import { SolitaireBoard } from '@components/SolitaireBoard';
 import { BlackjackTable } from '@components/layers/BlackjackTable';
+import { CrazyEightsTable } from '@components/layers/CrazyEightsTable';
 import { SevensTable } from '@components/layers/SevensTable';
 import { PokerTable } from '@components/layers/PokerTable';
 import { useLayerSurfaceEntrance } from '@hooks/useLayerSurfaceEntrance';
@@ -353,6 +354,8 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
   const isSolitaire = ['freecell', 'pyramid', 'golf'].includes(state.config.presetId ?? '');
   /** Blackjack gets its own per-game animation pass (spec 2.2). */
   const isBlackjackTable = state.config.presetId === 'blackjack';
+  /** Crazy Eights gets a physical card-play surface, not the generic rule rail. */
+  const isCrazyEightsTable = state.config.presetId === 'crazy-eights';
   /** Sevens gets its own per-game animation pass (spec 2.8). */
   const isSevensTable = state.config.presetId === 'sevens';
   /** Poker gets its own per-game animation pass (spec 2.3). */
@@ -909,6 +912,17 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
   // --- Discard top parsed ---
   const discardParsed = discardTop ? parseCardId(discardTop.id) : null;
   const discardJoker = discardTop ? parseJokerId(discardTop.id) : null;
+
+  // --- Crazy Eights: dedicated physical card-play surface. ---
+  if (isCrazyEightsTable && viewerId) {
+    return (
+      <CrazyEightsTable
+        active={active}
+        topInset={topInset}
+        bottomInset={bottomInset}
+      />
+    );
+  }
 
   // --- Sevens: dedicated per-game animation pass (ring pulse, 90ms snake,
   // pass chip slide, drag & drop plays). ---

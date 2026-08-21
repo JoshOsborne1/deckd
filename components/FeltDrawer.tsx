@@ -30,7 +30,7 @@ export function FeltDrawer({ children, style }: FeltDrawerProps) {
     progress.value = 0;
     progress.value = withTiming(1, {
       duration: reduceMotion ? 200 : 360,
-      easing: reduceMotion ? undefined : EASING_EMPHASIZED,
+      easing: EASING_EMPHASIZED,
     });
     return () => cancelAnimation(progress);
   }, [progress, reduceMotion]);

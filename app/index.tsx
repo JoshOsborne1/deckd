@@ -58,6 +58,11 @@ export default function Surface() {
   }, [reduceMotion, reduceMotionSv]);
 
   useEffect(() => {
+    if (previousMode === null) {
+      direction.value = 0;
+      progress.value = viewMode === 'home' ? 0 : 1;
+      return;
+    }
     if (viewMode === 'home') {
       direction.value = -1;
       const duration = reduceMotion ? DURATION_REDUCE_MOTION : DURATION_RETURN_HOME;
@@ -73,7 +78,7 @@ export default function Surface() {
         if (finished) direction.value = 0;
       });
     }
-  }, [viewMode, progress, direction, reduceMotion]);
+  }, [viewMode, previousMode, progress, direction, reduceMotion]);
 
   useEffect(() => {
     const enteringTable = isSurfaceTableTransition(tableTransition);

@@ -19,7 +19,7 @@ import Animated, {
 import { BookOpen, ChevronLeft, Clock, Flag, Undo2 } from 'lucide-react-native';
 import { AvatarPlaceholder } from '@components/AvatarPlaceholder';
 import { CardButton } from '@components/CardButton';
-import { CardDrag } from '@components/CardDrag';
+import { CardDragHand } from '@components/CardDragHand';
 import { PlayingCard } from '@components/PlayingCard';
 import { TableSurface } from '@components/TableSurface';
 import { EventHistoryModal } from '@components/EventHistoryModal';
@@ -75,6 +75,8 @@ interface SevensTableProps {
  *   the action rail kept as the accessibility fallback.
  */
 export function SevensTable({ active, topInset, bottomInset }: SevensTableProps) {
+  const { width: viewportWidth } = useWindowDimensions();
+  const compactLayout = viewportWidth <= 480;
   const { haptic, reduceMotion } = useMotion();
   const setViewMode = useUiStore((s) => s.setViewMode);
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -202,6 +204,7 @@ export function SevensTable({ active, topInset, bottomInset }: SevensTableProps)
   const [chipFrom, setChipFrom] = useState({ x: 0, y: 0 });
   const [chipTo, setChipTo] = useState({ x: 0, y: 0 });
   const boardRef = useRef<View>(null);
+  const boardDropRef = useRef<View>(null);
 
   const onBoardLayout = useCallback((event: LayoutChangeEvent) => {
     const { width, height } = event.nativeEvent.layout;
@@ -224,9 +227,20 @@ export function SevensTable({ active, topInset, bottomInset }: SevensTableProps)
     return map;
   }, [ruleActions, viewerId, isMyTurn]);
 
+  // Card placement is now a physical drag. Keep only non-card actions in the
+  // rail so the UI does not fall back to a row of PLAY buttons.
+  const railActions = useMemo(
+    () => ruleActions.filter((spec) => !spec.id.startsWith('play:')),
+    [ruleActions],
+  );
+  const playableCardIds = useMemo(
+    () => new Set<CardId>(dragSpecs.keys()),
+    [dragSpecs],
+  );
+
   const [boardRect, setBoardRect] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
   const onBoardMeasure = useCallback(() => {
-    boardRef.current?.measureInWindow((x, y, width, height) => {
+    boardDropRef.current?.measureInWindow((x, y, width, height) => {
       setBoardRect({ x, y, width, height });
     });
   }, []);
@@ -309,15 +323,19 @@ export function SevensTable({ active, topInset, bottomInset }: SevensTableProps)
       {/* Run board */}
       <View
         ref={boardRef}
-        style={styles.table}
+        style={[styles.table, compactLayout && styles.tableCompact]}
         onLayout={onBoardLayout}
         collapsable={false}
       >
         <View
-          style={styles.boardDropZone}
+          ref={boardDropRef}
+          style={[styles.boardDropZone, compactLayout && styles.boardDropZoneCompact]}
           onLayout={onBoardMeasure}
           collapsable={false}
         >
+          {isMyTurn && dragSpecs.size > 0 && (
+            <Text style={styles.dropHint}>DROP A CARD TO BUILD THE RUNS</Text>
+          )}
           <SevensRunsB
             tableCardIds={communityCards}
             state={state}
@@ -389,14 +407,14 @@ export function SevensTable({ active, topInset, bottomInset }: SevensTableProps)
           <Undo2 size={20} color={colors.brand} />
         </Pressable>
 
-        {state.phase !== 'ended' && ruleActions.length > 0 ? (
+        {state.phase !== 'ended' && railActions.length > 0 ? (
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
             style={styles.ruleActionsScroll}
             contentContainerStyle={styles.ruleActions}
           >
-            {ruleActions.map((spec) => (
+            {railActions.map((spec) => (
               <CardButton
                 key={spec.id}
                 variant="primary"
@@ -415,7 +433,11 @@ export function SevensTable({ active, topInset, bottomInset }: SevensTableProps)
         ) : state.phase !== 'ended' ? (
           <View style={styles.ruleWaiting}>
             <Text style={styles.ruleWaitingText}>
-              {isMyTurn ? 'NO LEGAL CARD — PASS' : `${currentPlayerName.toUpperCase()} · TO PLAY`}
+              {isMyTurn && dragSpecs.size > 0
+                ? 'DRAG A CARD TO THE RUNS'
+                : isMyTurn
+                  ? 'NO LEGAL CARD · PASS'
+                  : `${currentPlayerName.toUpperCase()} · TO PLAY`}
             </Text>
           </View>
         ) : null}
@@ -453,57 +475,20 @@ export function SevensTable({ active, topInset, bottomInset }: SevensTableProps)
             <Text style={styles.hiddenText}>HAND LOCKED — REVEAL TO CONTINUE</Text>
           </View>
         ) : (
-          <View style={styles.handFanWrap}>
-            {localHand.map((card, index) => {
-              const spec = dragSpecs.get(card.id);
-              const parsed = parseCardId(card.id);
-              const slot = {
-                x: 0,
-                y: 0,
-                width: 90,
-                height: 126,
-              };
-              return (
-                <View
-                  key={card.id}
-                  style={[
-                    styles.handCardSlot,
-                    { marginLeft: index === 0 ? 0 : -46 },
-                  ]}
-                >
-                  {spec && parsed ? (
-                    <CardDrag
-                      cardId={card.id}
-                      slot={slot}
-                      cardSize={{ width: 90, height: 126 }}
-                      dropTargets={dropTargets}
-                      disabled={!isMyTurn}
-                      accessibilityLabel={`${parsed.rank} of ${parsed.suit}`}
-                      onDrop={handleDrop}
-                    >
-                      <PlayingCard
-                        rank={parsed.rank}
-                        suit={parsed.suit}
-                        face={faceFor(card)}
-                        size="md"
-                      />
-                    </CardDrag>
-                  ) : (
-                    <PlayingCard
-                      rank={parsed?.rank}
-                      suit={parsed?.suit}
-                      face={faceFor(card)}
-                      size="md"
-                    />
-                  )}
-                </View>
-              );
-            })}
-          </View>
+          <CardDragHand
+            cards={localHand}
+            playableCardIds={playableCardIds}
+            faceFor={faceFor}
+            dropTargets={dropTargets}
+            disabled={!isMyTurn}
+            onDrop={handleDrop}
+            size="md"
+            testID="sevens-card-hand"
+          />
         )}
         <Text style={styles.handHint} accessibilityRole="text">
           {isMyTurn
-            ? 'Hold a playable card and drag it to the runs · or use the PLAY buttons'
+            ? 'Hold a playable card, then drag it into the matching run'
             : `Waiting for ${currentPlayerName || 'the next player'} · watch the runs grow`}
         </Text>
         {readout && (
@@ -725,15 +710,44 @@ const styles = StyleSheet.create({
     flexDirection: 'column',
     alignItems: 'center',
     justifyContent: 'center',
+    alignSelf: 'center',
+    width: '100%',
+    maxWidth: 760,
     paddingHorizontal: space.xl,
     minHeight: 0,
+  },
+  tableCompact: {
+    flex: 0,
+    flexGrow: 0,
+    flexShrink: 0,
+    minHeight: 130,
+    justifyContent: 'flex-start',
   },
   boardDropZone: {
     position: 'relative',
     width: '100%',
+    minHeight: 154,
     alignItems: 'center',
     justifyContent: 'center',
-    minHeight: 120,
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderColor: alpha.brand45,
+    borderRadius: radii.lg,
+    backgroundColor: alpha.brand10,
+  },
+  boardDropZoneCompact: {
+    minHeight: 130,
+  },
+  dropHint: {
+    position: 'absolute',
+    top: space.sm,
+    left: space.md,
+    right: space.md,
+    textAlign: 'center',
+    fontSize: fontSizes.micro,
+    fontFamily: fonts.bold,
+    color: colors.brand,
+    letterSpacing: letterSpacing.cap,
   },
   ringOverlay: {
     position: 'absolute',
@@ -847,6 +861,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignSelf: 'stretch',
     width: '100%',
+    maxWidth: 760,
     paddingHorizontal: space.md,
     gap: space.md,
     paddingTop: space.md,
@@ -901,17 +916,10 @@ const styles = StyleSheet.create({
   },
   hand: {
     justifyContent: 'center',
-    minHeight: 180,
-  },
-  handFanWrap: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'flex-end',
-    height: 140,
-  },
-  handCardSlot: {
-    width: 90,
-    height: 126,
+    width: '100%',
+    maxWidth: 760,
+    alignSelf: 'center',
+    minHeight: 184,
   },
   handHint: {
     marginTop: space.sm,

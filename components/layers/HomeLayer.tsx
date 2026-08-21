@@ -3,12 +3,12 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import Animated, {
   Extrapolation,
   interpolate,
-  runOnJS,
   useAnimatedReaction,
   useAnimatedStyle,
   useSharedValue,
   withTiming,
 } from 'react-native-reanimated';
+import { scheduleOnRN } from 'react-native-worklets';
 import { AvatarPlaceholder } from '@components/AvatarPlaceholder';
 import { PlayingCard } from '@components/PlayingCard';
 import { TableSurface } from '@components/TableSurface';
@@ -88,7 +88,7 @@ export function HomeLayer({
     const dur = reduceMotionSystem ? motion.duration.fast : motion.duration.layerCross;
     layerOpacity.value = withTiming(layerVisible ? 1 : 0, {
       duration: dur,
-      easing: reduceMotionSystem ? undefined : EASING_EMPHASIZED,
+      easing: EASING_EMPHASIZED,
     });
   }, [layerVisible, layerOpacity, reduceMotionSystem]);
 
@@ -99,13 +99,11 @@ export function HomeLayer({
   // `pointerEvents` / `scrollEnabled` props can flip without re-rendering on
   // every animated frame. Combined with the JS-only `active` prop, this means
   // taps mid-slide on the "wrong" layer are impossible.
-  const [gateOpen, setGateOpen] = useState(
-    progress.value < HOME_INTERACTIVE_THRESHOLD,
-  );
+  const [gateOpen, setGateOpen] = useState(false);
   useAnimatedReaction(
     () => progress.value < HOME_INTERACTIVE_THRESHOLD,
     (open, prev) => {
-      if (open !== prev) runOnJS(setGateOpen)(open);
+      if (open !== prev) scheduleOnRN(setGateOpen, open);
     },
     [],
   );

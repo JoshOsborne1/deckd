@@ -12,5 +12,6 @@
       "@store/*": ["./src/store/*"],
       "@engine/*": ["./src/engine/*"]
     }
-  }
+  },
+  "exclude": ["dist", "app-serve", "node_modules"]
 }
