@@ -10,7 +10,7 @@
 
 const WebSocket = require('ws');
 
-const URL = 'ws://127.0.0.1:8080';
+const URL = `ws://127.0.0.1:${process.env.RELAY_TEST_PORT || 8080}`;
 
 function send(ws, msg) {
   ws.send(JSON.stringify({ version: 1, ...msg }));
