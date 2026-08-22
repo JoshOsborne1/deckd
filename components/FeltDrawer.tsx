@@ -67,7 +67,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surfaceAlt,
   },
   scrim: {
-    ...StyleSheet.absoluteFill,
+    ...StyleSheet.absoluteFillObject,
     backgroundColor: alpha.inkOverlay45,
   },
   drawer: {

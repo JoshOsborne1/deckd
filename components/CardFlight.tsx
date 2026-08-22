@@ -279,7 +279,7 @@ export const CardFlight = forwardRef(CardFlightInner) as <TCard = ReactNode>(
 
 const styles = StyleSheet.create({
   overlay: {
-    ...StyleSheet.absoluteFill,
+    ...StyleSheet.absoluteFillObject,
     overflow: 'visible',
   },
   flight: {

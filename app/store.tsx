@@ -695,7 +695,7 @@ const styles = StyleSheet.create({
     color: colors.inkMuted,
   },
   previewOverlay: {
-    ...StyleSheet.absoluteFill,
+    ...StyleSheet.absoluteFillObject,
     backgroundColor: alpha.inkOverlay45,
     alignItems: 'center',
     justifyContent: 'center',

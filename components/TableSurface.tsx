@@ -74,11 +74,11 @@ export function TableSurface({ mode }: TableSurfaceProps) {
 
 const styles = StyleSheet.create({
   root: {
-    ...StyleSheet.absoluteFill,
+    ...StyleSheet.absoluteFillObject,
     overflow: 'hidden',
   },
   base: {
-    ...StyleSheet.absoluteFill,
+    ...StyleSheet.absoluteFillObject,
   },
   paperWash: {
     position: 'absolute',
@@ -115,7 +115,7 @@ const styles = StyleSheet.create({
     opacity: 0.16,
   },
   grain: {
-    ...StyleSheet.absoluteFill,
+    ...StyleSheet.absoluteFillObject,
   },
 });
 

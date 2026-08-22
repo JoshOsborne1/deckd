@@ -194,14 +194,14 @@ function FeltBackground() {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.bg, overflow: 'hidden' },
   layers: { flex: 1, minHeight: 0 },
-  felt: { ...StyleSheet.absoluteFill },
+  felt: { ...StyleSheet.absoluteFillObject },
   feltGlow: { position: 'absolute', left: '12%', right: '12%', top: '18%', height: '64%', borderRadius: 999, opacity: 0.5 },
   tableRail: { position: 'absolute', left: 0, right: 0, top: '23%', height: '62%', borderRadius: 260, borderWidth: 18, opacity: 0.28 },
   tableWell: { position: 'absolute', left: 44, right: 44, top: '36%', height: '34%', borderRadius: 190, opacity: 0.34 },
   tableGrain: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0 },
   feltVignetteTop: { position: 'absolute', top: 0, left: 0, right: 0, height: 120, backgroundColor: alpha.inkOverlay06, opacity: 0.4 },
   feltVignetteBottom: { position: 'absolute', bottom: 0, left: 0, right: 0, height: 160, backgroundColor: alpha.inkOverlay06, opacity: 0.35 },
-  morphSweep: { ...StyleSheet.absoluteFill, zIndex: 30 },
-  morphSweepFelt: { ...StyleSheet.absoluteFill, overflow: 'hidden' },
-  sweepWash: { ...StyleSheet.absoluteFill, backgroundColor: alpha.brand10, borderTopWidth: 1, borderTopColor: alpha.brand20 },
+  morphSweep: { ...StyleSheet.absoluteFillObject, zIndex: 30 },
+  morphSweepFelt: { ...StyleSheet.absoluteFillObject, overflow: 'hidden' },
+  sweepWash: { ...StyleSheet.absoluteFillObject, backgroundColor: alpha.brand10, borderTopWidth: 1, borderTopColor: alpha.brand20 },
 });

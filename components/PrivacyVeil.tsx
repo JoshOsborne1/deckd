@@ -190,13 +190,13 @@ export function PrivacyVeil({
 
 const styles = StyleSheet.create({
   root: {
-    ...StyleSheet.absoluteFill,
+    ...StyleSheet.absoluteFillObject,
     backgroundColor: colors.surfaceAlt,
     zIndex: 100,
     elevation: 24,
   },
   tableAtmosphere: {
-    ...StyleSheet.absoluteFill,
+    ...StyleSheet.absoluteFillObject,
   },
   tableGlow: {
     position: 'absolute',
