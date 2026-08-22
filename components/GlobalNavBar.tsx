@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { Platform, Pressable, StyleSheet, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { usePathname, useRouter, type Href } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Home, Layers, ShoppingBag, User } from 'lucide-react-native';
@@ -40,6 +40,19 @@ type ImmediateWebPressProps = {
 
 /** Vertical space reserved by the angled card fan and logo button. */
 export const NAV_BAR_RESERVE = 142;
+
+/** Compact reserve for short viewports (<720px tall, SE-class). */
+export const NAV_BAR_RESERVE_COMPACT = 112;
+
+/**
+ * True when the viewport is too short for the full-height nav fan.
+ * Exported so surfaces can shrink their bottom reserves in lockstep with
+ * the nav's own compact styles (P1-20).
+ */
+export function useCompactNav(): boolean {
+  const { height } = useWindowDimensions();
+  return height < 720;
+}
 
 /** Backwards-compatible name used by layered surfaces. */
 export const GLOBAL_NAV_HEIGHT = NAV_BAR_RESERVE;
@@ -95,6 +108,8 @@ export const GlobalNavBar: React.FC = () => {
   const eventCount = useGameStore((s) => s.events.length);
   const onRoot = isOnRoot(pathname);
   const hasTable = eventCount > 0 && gamePhase !== 'idle' && gamePhase !== 'ended';
+  const compact = useCompactNav();
+  const railStyle = compact ? [styles.rail, styles.railCompact] : styles.rail;
 
   useEffect(() => {
     // Warm the shell routes once. This keeps a logo tap from waiting for the
@@ -122,8 +137,8 @@ export const GlobalNavBar: React.FC = () => {
 
   return (
     <View pointerEvents="box-none" style={[styles.wrapper, { bottom: bottomPad }]}>
-      <View style={styles.rail}>
-        <View style={styles.row}>
+      <View style={railStyle}>
+        <View style={[styles.row, compact && styles.rowCompact]}>
           <NavCard
             item={navItems[0]}
             index={0}
@@ -131,6 +146,7 @@ export const GlobalNavBar: React.FC = () => {
             reduceMotion={reduceMotion}
             haptic={haptic}
             overlap={0}
+            compact={compact}
             onPress={() => {
               haptic('light');
               goHome();
@@ -143,6 +159,7 @@ export const GlobalNavBar: React.FC = () => {
             reduceMotion={reduceMotion}
             haptic={haptic}
             overlap={SIDE_OVERLAP}
+            compact={compact}
             onPress={() => {
               haptic('light');
               goSideTab(navItems[1]);
@@ -153,6 +170,7 @@ export const GlobalNavBar: React.FC = () => {
             reduceMotion={reduceMotion}
             haptic={haptic}
             overlap={LOGO_OVERLAP}
+            compact={compact}
             onPress={() => {
               haptic('medium');
               goTable();
@@ -165,6 +183,7 @@ export const GlobalNavBar: React.FC = () => {
             reduceMotion={reduceMotion}
             haptic={haptic}
             overlap={LOGO_OVERLAP}
+            compact={compact}
             onPress={() => {
               haptic('light');
               goSideTab(navItems[2]);
@@ -177,6 +196,7 @@ export const GlobalNavBar: React.FC = () => {
             reduceMotion={reduceMotion}
             haptic={haptic}
             overlap={SIDE_OVERLAP}
+            compact={compact}
             onPress={() => {
               haptic('light');
               goSideTab(navItems[3]);
@@ -196,6 +216,7 @@ function NavCard({
   reduceMotion,
   haptic,
   overlap,
+  compact,
 }: {
   item: NavConfig;
   index: number;
@@ -204,6 +225,7 @@ function NavCard({
   reduceMotion: boolean;
   haptic: () => void;
   overlap: number;
+  compact: boolean;
 }) {
   const Icon = item.icon;
   const entry = useSharedValue(reduceMotion ? 1 : 0);
@@ -280,7 +302,7 @@ function NavCard({
     : undefined;
 
   return (
-    <View style={[styles.slot, { marginLeft: overlap }, active && styles.slotActive]}>
+    <View style={[styles.slot, compact && styles.slotCompact, { marginLeft: overlap }, active && styles.slotActive]}>
       <Pressable
         {...immediateWebPress}
         accessibilityRole="button"
@@ -297,7 +319,7 @@ function NavCard({
           pressedRef.current = false;
           setPressed(false);
         }}
-        style={styles.hit}
+        style={compact ? [styles.hit, styles.hitCompact] : styles.hit}
       >
         <Animated.View
           style={[
@@ -321,12 +343,14 @@ function LogoButton({
   reduceMotion,
   haptic,
   overlap,
+  compact,
   onPress,
 }: {
   active: boolean;
   reduceMotion: boolean;
   haptic: () => void;
   overlap: number;
+  compact: boolean;
   onPress: () => void;
 }) {
   const entry = useSharedValue(reduceMotion ? 1 : 0);
@@ -391,7 +415,7 @@ function LogoButton({
     : undefined;
 
   return (
-    <View style={[styles.logoSlot, { marginLeft: overlap }]}>
+    <View style={[styles.logoSlot, compact && styles.logoSlotCompact, { marginLeft: overlap }]}>
       <Pressable
         {...immediateWebPress}
         accessibilityRole="button"
@@ -408,7 +432,7 @@ function LogoButton({
           pressedRef.current = false;
           setPressed(false);
         }}
-        style={styles.logoHit}
+        style={compact ? [styles.logoHit, styles.hitCompact] : styles.logoHit}
       >
         <Animated.Image
           source={brand.logo}
@@ -443,6 +467,13 @@ const styles = StyleSheet.create({
     overflow: 'visible',
     backgroundColor: 'transparent',
   },
+  railCompact: {
+    minHeight: NAV_BAR_RESERVE_COMPACT,
+    paddingTop: 2,
+  },
+  rowCompact: {
+    maxHeight: NAV_BAR_RESERVE_COMPACT,
+  },
   row: {
     position: 'relative',
     flexDirection: 'row',
@@ -461,12 +492,18 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
     zIndex: 2,
   },
+  slotCompact: {
+    height: 96,
+  },
   logoSlot: {
     width: LOGO_W,
     height: 122,
     alignItems: 'center',
     justifyContent: 'flex-end',
     zIndex: 10,
+  },
+  logoSlotCompact: {
+    height: 96,
   },
   slotActive: {
     zIndex: 8,
@@ -476,6 +513,9 @@ const styles = StyleSheet.create({
     minHeight: 112,
     alignItems: 'center',
     justifyContent: 'flex-end',
+  },
+  hitCompact: {
+    minHeight: 88,
   },
   logoHit: {
     width: LOGO_W,

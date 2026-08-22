@@ -15,7 +15,7 @@ import { HubLayer } from '@components/layers/HubLayer';
 import { TableLayer } from '@components/layers/TableLayer';
 import { LobbyLayer } from '@components/layers/LobbyLayer';
 import { PassLayer } from '@components/layers/PassLayer';
-import { NAV_BAR_RESERVE } from '@components/GlobalNavBar';
+import { NAV_BAR_RESERVE, NAV_BAR_RESERVE_COMPACT, useCompactNav } from '@components/GlobalNavBar';
 import {
   SurfaceMorphContext,
   type MorphDirection,
@@ -46,6 +46,8 @@ export default function Surface() {
   const previousMode = useUiStore((s) => s.previousMode);
   const lobbyStatus = useLobbyStore((s) => s.status);
   const lobbySessionActive = lobbyStatus === 'connecting' || lobbyStatus === 'connected';
+  const compact = useCompactNav();
+  const navReserve = compact ? NAV_BAR_RESERVE_COMPACT : NAV_BAR_RESERVE;
   const showHomeSurface = viewMode === 'home' || viewMode === 'hub' || previousMode === 'home' || previousMode === 'hub';
   const showTableSurface = viewMode === 'table' || viewMode === 'pass' || previousMode === 'table' || previousMode === 'pass';
   const showLobbySurface = viewMode === 'lobby' || previousMode === 'lobby' || lobbySessionActive;
@@ -126,13 +128,13 @@ export default function Surface() {
                 active={viewMode === 'home'}
                 layerVisible={viewMode === 'home' || viewMode === 'hub'}
                 topInset={insets.top}
-                bottomInset={insets.bottom + NAV_BAR_RESERVE}
+                bottomInset={insets.bottom + navReserve}
               />
               <HubLayer
                 active={viewMode === 'hub'}
                 layerVisible={viewMode === 'home' || viewMode === 'hub'}
                 topInset={insets.top}
-                bottomInset={insets.bottom + NAV_BAR_RESERVE}
+                bottomInset={insets.bottom + navReserve}
               />
             </>
           ) : null}
@@ -140,14 +142,14 @@ export default function Surface() {
             <TableLayer
               active={viewMode === 'table' || viewMode === 'pass'}
               topInset={insets.top}
-              bottomInset={insets.bottom + NAV_BAR_RESERVE}
+              bottomInset={insets.bottom + navReserve}
             />
           ) : null}
           {showLobbySurface ? (
             <LobbyLayer
               active={viewMode === 'lobby'}
               topInset={insets.top}
-              bottomInset={insets.bottom + NAV_BAR_RESERVE}
+              bottomInset={insets.bottom + navReserve}
             />
           ) : null}
           <TableMorphSweep />
