@@ -6,7 +6,13 @@ Deployed head: `cleanup/ready-to-build` @ `5ee2bbb` — everything below is live
 on https://deckd-app.roxai.click. Full shutdown snapshot + honest backlog:
 `docs/HANDOFF_2026-08-13.md`.
 
-Last update: 2026-08-22 (full production-readiness audit written; SDK 54 downgrade verified; live remains entry-88d78b5e and no deploy was run).
+Last update: 2026-08-22 (audit remediation wave executed; all code-side P0/P1/P2 landed; every gate green; P0-1 device confirmation outstanding; no deploy).
+
+## Audit remediation wave (2026-08-22, commits d07300c → 8b09717)
+
+- Executed `docs/AUDIT_2026-08-22.md`. Status doc rewritten with landed/partial/outstanding per item. Headline: P0-3 host-reclaim tokens (8/8 E2E), P0-2 client fails closed, relay hardening (payload caps, rate limits, protocol versioning, timing-safe auth), engine event-integrity boundary, snapshot baselines, storage honesty, lazy RevenueCat import (P0-1 root-cause candidate), conditional layer mounting, drag-pipeline perf fixes, compact nav, VoiceOver labels, lint 36→7 warnings.
+- Gates at HEAD: typecheck clean, lint 0 errors/7 warnings, Jest 222/222 (22 suites), expo-doctor 18/18, relay E2E 10/10, reconnect E2E 8/8, web export + Crazy Eights QA green at 375/1440.
+- NOT production-ready yet: P0-1 needs a phone reload of `exp://100.71.147.82:8082` to confirm the lazy-import fix boots. P1-5 (ACK/gap) and P1-11 (full betting validator) land before paid lobbies. No deploy run; live remains `entry-88d78b5e`.
 
 ## Production-readiness audit (2026-08-22)
 
