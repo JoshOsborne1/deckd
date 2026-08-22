@@ -6,7 +6,13 @@ Deployed head: `cleanup/ready-to-build` @ `5ee2bbb` — everything below is live
 on https://deckd-app.roxai.click. Full shutdown snapshot + honest backlog:
 `docs/HANDOFF_2026-08-13.md`.
 
-Last update: 2026-08-21 (Crazy Eights physical card-play surface verified locally; live remains entry-88d78b5e and no deploy was run).
+Last update: 2026-08-22 (downgraded to Expo SDK 54 to match App Store Expo Go; all gates green; native iOS bundle compiles; live remains entry-88d78b5e and no deploy was run).
+
+## Expo SDK 54 downgrade (2026-08-22)
+
+- Project moved from SDK 57.0.12 to SDK 54 (~54.0.37 / RN 0.81.5) so App Store Expo Go 54.0.2 can load it. Dependencies pinned from SDK 54 `bundledNativeModules.json`; babel now uses `unstable_transformImportMeta` for the web export; RevenueCat/MMKV keep their Expo Go fallbacks.
+- Gates: typecheck exit 0, Jest 225/225, lint 0 errors / 34 warnings, expo-doctor 18/18, web export + Crazy Eights QA passed. Metro rebuilt clean under PM2 (`deckd-expo`, port 8082) after a stale metro-file-map cache caused watch-mode failure; iOS Hermes bundle via Tailscale returned HTTP 200, ~15.97MB, 3537 modules; manifest advertises `exposdk:54.0.0`. Pre-downgrade state frozen at checkpoint commit 63fb1c2.
+- Deployment intentionally not run; live remains the old bundle. Phone test: open `exp://100.71.147.82:8082` in App Store Expo Go.
 
 ## Crazy Eights physical-play slice (2026-08-21)
 
