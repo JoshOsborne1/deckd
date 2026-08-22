@@ -30,6 +30,25 @@ export interface CardDragHandProps {
 
 const OVERLAP = 36;
 
+const RANK_NAMES: Record<string, string> = {
+  A: 'Ace', J: 'Jack', Q: 'Queen', K: 'King',
+};
+const SUIT_NAMES: Record<string, string> = {
+  H: 'Hearts', S: 'Spades', D: 'Diamonds', C: 'Clubs',
+};
+
+/** Human-readable VoiceOver label, e.g. "Queen of Hearts" / "Face-down card". */
+export function describeCardLabel(cardId: string, face: CardFace): string {
+  if (face === 'down') return 'Face-down card';
+  const jokerColor = parseJokerId(cardId);
+  if (jokerColor) return `${jokerColor === 'red' ? 'Red' : 'Black'} joker`;
+  const parsed = parseCardId(cardId);
+  if (!parsed) return `Card ${cardId}`;
+  const rank = RANK_NAMES[parsed.rank] ?? parsed.rank;
+  const suit = SUIT_NAMES[parsed.suit] ?? '';
+  return suit ? `${rank} of ${suit}` : rank;
+}
+
 /**
  * A measured, scrollable hand with a single drag layer above the scroll view.
  *
@@ -214,7 +233,7 @@ export function CardDragHand({
             disabled={disabled}
             style={{ zIndex: cardIndex + 1 }}
             cardStyle={cardStyle}
-            accessibilityLabel={`Card ${card.id}`}
+            accessibilityLabel={describeCardLabel(card.id, faceFor(card))}
             onDrop={(targetId) => onDrop?.(card.id as CardId, targetId)}
           >
             <PlayingCard
