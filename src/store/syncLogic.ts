@@ -9,7 +9,7 @@
  * broadcasts resulting events; guests fold the broadcast events.
  */
 
-import { applyEvent, emptyState, foldEvents } from '@engine/state';
+import { applyEvent, emptyState } from '@engine/state';
 import type { GameEvent } from '@engine/events';
 import type { CardFace, GameState, ZoneId } from '@engine/types';
 
@@ -203,11 +203,16 @@ export function selectNewEvents(
 export function foldRemoteEvents(
   localEvents: GameEvent[],
   incoming: GameEvent[],
+  baseline: GameState = emptyState(),
+  baselineSeq = 0,
 ): { state: GameState; events: GameEvent[]; lastSeq: number; applied: number } {
-  const fresh = selectNewEvents(localEvents, incoming);
+  const seen = new Set(localEvents.map((e) => e.id));
+  const fresh = incoming
+    .filter((event) => event.seq > baselineSeq && !seen.has(event.id))
+    .sort((a, b) => a.seq - b.seq);
   const events = [...localEvents, ...fresh].sort((a, b) => a.seq - b.seq);
-  const state = foldEvents(events);
-  const lastSeq = events.reduce((max, e) => Math.max(max, e.seq), 0);
+  const state = events.reduce(applyEvent, baseline);
+  const lastSeq = events.reduce((max, event) => Math.max(max, event.seq), baselineSeq);
   return { state, events, lastSeq, applied: fresh.length };
 }
 

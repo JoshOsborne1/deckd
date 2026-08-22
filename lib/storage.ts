@@ -2,16 +2,26 @@ import { Platform } from 'react-native';
 import type { StateStorage } from 'zustand/middleware';
 
 const inMemoryStorage = new Map<string, string>();
+let persistenceDegraded = false;
+let warned = false;
+
+function markPersistenceDegraded(error?: unknown): void {
+  persistenceDegraded = true;
+  if (!warned && typeof __DEV__ !== 'undefined' && __DEV__) {
+    warned = true;
+    console.warn('[deckd] durable persistence unavailable; using in-memory storage', error);
+  }
+}
+
+export function isPersistenceDegraded(): boolean {
+  return persistenceDegraded;
+}
 
 function createInMemoryStorage(): StateStorage {
   return {
     getItem: (name) => inMemoryStorage.get(name) ?? null,
-    setItem: (name, value) => {
-      inMemoryStorage.set(name, value);
-    },
-    removeItem: (name) => {
-      inMemoryStorage.delete(name);
-    },
+    setItem: (name, value) => { inMemoryStorage.set(name, value); },
+    removeItem: (name) => { inMemoryStorage.delete(name); },
   };
 }
 
@@ -19,19 +29,18 @@ export function createPlatformStorage(): StateStorage {
   if (Platform.OS === 'web') {
     return {
       getItem: (name) => {
-        try { return localStorage.getItem(name); } catch { return null; }
+        try { return localStorage.getItem(name); } catch (error) { markPersistenceDegraded(error); return null; }
       },
       setItem: (name, value) => {
-        try { localStorage.setItem(name, value); } catch {}
+        try { localStorage.setItem(name, value); } catch (error) { markPersistenceDegraded(error); }
       },
       removeItem: (name) => {
-        try { localStorage.removeItem(name); } catch {}
+        try { localStorage.removeItem(name); } catch (error) { markPersistenceDegraded(error); }
       },
     };
   }
 
-  // Native (dev client / prebuild): MMKV.
-  // Expo Go cannot load NitroModules, so gracefully fall back.
+  // Expo Go cannot load NitroModules/MMKV. Native dev clients use MMKV.
   try {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const { createMMKV } = require('react-native-mmkv') as {
@@ -47,7 +56,8 @@ export function createPlatformStorage(): StateStorage {
       setItem: (name, value) => mmkv.set(name, value),
       removeItem: (name) => mmkv.remove(name),
     };
-  } catch {
+  } catch (error) {
+    markPersistenceDegraded(error);
     return createInMemoryStorage();
   }
 }

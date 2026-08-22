@@ -1,11 +1,12 @@
 /**
- * Relay transport — WebSocket client for cloud lobbies.
- * Replaces the old BLE transport. Host = source of truth, guests send
- * intents, host broadcasts event batches. The server is a dumb pipe.
+ * Relay transport — validated WebSocket client for cloud lobbies.
+ * Host = source of truth; guests send intents and receive filtered events.
  */
 
 import type { GameEvent } from '@engine/events';
 import {
+  envelope,
+  isRelayServerMessage,
   parseRelayMessage,
   type RelayClientMessage,
   type RelayPlayerInfo,
@@ -13,12 +14,10 @@ import {
 } from '@lib/relayProtocol';
 
 export type RelayRole = 'host' | 'guest';
-
-/** Heartbeat interval and pong grace. A missed pong forces a reconnect. */
 const HEARTBEAT_INTERVAL_MS = 15000;
 const PONG_TIMEOUT_MS = 8000;
-/** Max reconnect attempts before giving up (1s, 2s, 4s, 8s, 15s, 15s…). */
 const MAX_RECONNECT_ATTEMPTS = 6;
+const MAX_EVENT_BATCH = 2048;
 
 export interface RelaySession {
   readonly role: RelayRole;
@@ -26,14 +25,9 @@ export interface RelaySession {
   readonly players: RelayPlayerInfo[];
   readonly status: 'connecting' | 'connected' | 'closed' | 'error';
   readonly lastError: string | null;
-
-  /** Host: broadcast events to all guests. Guest: send intent to host. */
   sendEvents(events: GameEvent[]): Promise<void>;
-  /** Host: send events to a single guest (recipient-filtered privacy view). */
   sendEventsTo?(clientId: string, events: GameEvent[]): Promise<void>;
-  /** Guest: send an intent (join, ready, request_action) to host. */
   sendIntent(intent: string, payload: unknown): Promise<void>;
-  /** Host: request a snapshot be sent to a specific guest (rejoin). */
   requestSnapshot(): Promise<void>;
   close(): void;
 }
@@ -52,21 +46,30 @@ export interface RelayCallbacks {
 }
 
 const DEFAULT_RELAY_URL = 'wss://relay.roxai.click/ws';
-
-/** Local relay server for development (cd server && node index.js). */
 const DEV_RELAY_URL = 'ws://127.0.0.1:8080';
 
-/**
- * Resolve the relay WebSocket URL for the current build.
- * In __DEV__ we talk to the local server; production uses the cloud relay.
- */
 export function getRelayUrl(): string {
   return typeof __DEV__ !== 'undefined' && __DEV__ ? DEV_RELAY_URL : DEFAULT_RELAY_URL;
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+function isGameEventBatch(value: unknown): value is GameEvent[] {
+  return Array.isArray(value)
+    && value.length <= MAX_EVENT_BATCH
+    && value.every((item) => isRecord(item)
+      && typeof item.type === 'string'
+      && typeof item.id === 'string'
+      && typeof item.actorId === 'string'
+      && typeof item.seq === 'number'
+      && Number.isInteger(item.seq));
+}
+
 class RelayTransport implements RelaySession {
   readonly role: RelayRole;
-  readonly roomCode: string;
+  roomCode: string;
   status: RelaySession['status'] = 'connecting';
   lastError: string | null = null;
   players: RelayPlayerInfo[] = [];
@@ -76,6 +79,7 @@ class RelayTransport implements RelaySession {
   private clientId: string;
   private nickname: string;
   private masterToken?: string;
+  private resumeToken: string | null = null;
   private closedByUser = false;
   private url: string;
   private reconnectAttempts = 0;
@@ -106,56 +110,51 @@ class RelayTransport implements RelaySession {
   private connect(url: string): void {
     try {
       this.ws = new WebSocket(url);
-    } catch (e) {
-      this.status = 'error';
-      this.lastError = e instanceof Error ? e.message : String(e);
-      this.callbacks.onError(new Error(this.lastError));
+    } catch (error) {
+      this.fail(error instanceof Error ? error.message : String(error));
       return;
     }
 
     this.ws.onopen = () => {
       this.reconnectAttempts = 0;
       this.startHeartbeat();
-      const msg: RelayClientMessage =
-        this.role === 'host'
-          ? {
-              type: 'create_room',
-              clientId: this.clientId,
-              nickname: this.nickname,
-              masterToken: this.masterToken,
-              roomCode: this.roomCode,
-            }
-          : { type: 'join_room', roomCode: this.roomCode, clientId: this.clientId, nickname: this.nickname };
-      this.send(msg);
+      const message: RelayClientMessage = this.role === 'host'
+        ? {
+            type: 'create_room',
+            clientId: this.clientId,
+            nickname: this.nickname,
+            masterToken: this.masterToken,
+            roomCode: this.roomCode || undefined,
+            resumeToken: this.resumeToken ?? undefined,
+          }
+        : { type: 'join_room', roomCode: this.roomCode, clientId: this.clientId, nickname: this.nickname };
+      try { this.send(message); } catch (error) { this.fail(error instanceof Error ? error.message : String(error)); }
     };
 
-    this.ws.onmessage = (ev) => {
-      const raw = typeof ev.data === 'string' ? ev.data : '';
-      const msg = parseRelayMessage(raw);
-      if (!msg) return;
-      this.handleServerMessage(msg as RelayServerMessage);
+    this.ws.onmessage = (event) => {
+      const raw = typeof event.data === 'string' ? event.data : '';
+      const message = parseRelayMessage(raw);
+      if (!message || !isRelayServerMessage(message)) {
+        this.fail('Invalid relay message or protocol version');
+        return;
+      }
+      this.handleServerMessage(message);
     };
 
-    this.ws.onerror = () => {
-      this.status = 'error';
-      this.lastError = 'WebSocket error';
-      this.callbacks.onError(new Error(this.lastError));
-    };
-
+    this.ws.onerror = () => this.fail('WebSocket error');
     this.ws.onclose = () => {
       this.stopHeartbeat();
-      if (this.closedByUser) return;
-      if (this.status === 'closed') return; // room_closed already handled
+      if (this.closedByUser || this.status === 'closed') return;
       this.scheduleReconnect();
     };
   }
 
-  /**
-   * Reconnect with exponential backoff. The same clientId is reused, so the
-   * server can reclaim the seat/room during its grace window. On success the
-   * guest re-requests a snapshot (bridge watches status transitions) and the
-   * host resumes broadcasting.
-   */
+  private fail(message: string): void {
+    this.status = 'error';
+    this.lastError = message;
+    this.callbacks.onError(new Error(message));
+  }
+
   private scheduleReconnect(): void {
     if (this.closedByUser) return;
     if (this.fatalError || this.reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
@@ -169,156 +168,134 @@ class RelayTransport implements RelaySession {
     this.status = 'connecting';
     this.lastError = 'Connection lost. Reconnecting…';
     this.callbacks.onError(new Error(this.lastError));
-    this.reconnectTimer = setTimeout(() => {
-      this.connect(this.url);
-    }, delay);
+    this.reconnectTimer = setTimeout(() => this.connect(this.url), delay);
   }
 
   private startHeartbeat(): void {
     this.stopHeartbeat();
     this.heartbeatTimer = setInterval(() => {
-      if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-        this.ws.send(JSON.stringify({ type: 'ping' }));
-        this.pongTimeout = setTimeout(() => {
-          // No pong in time — force close to trigger the reconnect path.
-          this.ws?.close();
-        }, PONG_TIMEOUT_MS);
+      if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
+      if (this.pongTimeout) clearTimeout(this.pongTimeout);
+      try {
+        this.send({ type: 'ping' });
+      } catch {
+        this.ws.close();
+        return;
       }
+      this.pongTimeout = setTimeout(() => this.ws?.close(), PONG_TIMEOUT_MS);
     }, HEARTBEAT_INTERVAL_MS);
   }
 
   private stopHeartbeat(): void {
-    if (this.heartbeatTimer) {
-      clearInterval(this.heartbeatTimer);
-      this.heartbeatTimer = null;
-    }
-    if (this.pongTimeout) {
-      clearTimeout(this.pongTimeout);
-      this.pongTimeout = null;
-    }
+    if (this.heartbeatTimer) clearInterval(this.heartbeatTimer);
+    if (this.pongTimeout) clearTimeout(this.pongTimeout);
+    this.heartbeatTimer = null;
+    this.pongTimeout = null;
   }
 
-  private handleServerMessage(msg: RelayServerMessage): void {
-    switch (msg.type) {
-      case 'room_created': {
-        // Server assigns the final room code; capture it for the host.
-        (this as { roomCode: string }).roomCode = msg.roomCode;
+  private handleServerMessage(message: RelayServerMessage): void {
+    switch (message.type) {
+      case 'room_created':
+        this.roomCode = message.roomCode;
+        this.resumeToken = message.resumeToken;
         this.status = 'connected';
-        this.players = msg.players;
+        this.players = message.players;
         this.callbacks.onOpen(this);
-        this.callbacks.onPlayersChanged(msg.players);
+        this.callbacks.onPlayersChanged(message.players);
         break;
-      }
-      case 'room_joined': {
+      case 'room_joined':
         this.status = 'connected';
-        this.players = msg.players;
+        this.players = message.players;
         this.callbacks.onOpen(this);
-        this.callbacks.onPlayersChanged(msg.players);
+        this.callbacks.onPlayersChanged(message.players);
         break;
-      }
-      case 'player_joined': {
-        this.players = [...this.players, msg.player];
+      case 'player_joined':
+        this.players = this.players.some((p) => p.clientId === message.player.clientId)
+          ? this.players.map((p) => p.clientId === message.player.clientId ? message.player : p)
+          : [...this.players, message.player];
         this.callbacks.onPlayersChanged(this.players);
-        this.callbacks.onPlayerJoined?.(msg.player);
+        this.callbacks.onPlayerJoined?.(message.player);
         break;
-      }
       case 'player_left': {
-        this.players = this.players.filter((p) => p.clientId !== msg.clientId);
+        const left = this.players.find((player) => player.clientId === message.clientId);
+        this.players = this.players.filter((player) => player.clientId !== message.clientId);
         this.callbacks.onPlayersChanged(this.players);
-        const left = this.players.find((p) => p.clientId === msg.clientId);
         if (left) this.callbacks.onPlayerLeft?.(left);
         break;
       }
       case 'relay': {
+        let payload: unknown;
+        try { payload = JSON.parse(message.payload) as unknown; } catch { this.callbacks.onError(new Error('Invalid relay payload')); break; }
         if (this.role === 'host') {
-          // Guest -> host: parse as intent.
-          try {
-            const parsed = JSON.parse(msg.payload) as { intent: string; payload: unknown };
-            this.callbacks.onIntentReceived?.(parsed.intent, parsed.payload, msg.from);
-          } catch {
-            this.callbacks.onError(new Error('Failed to parse guest intent'));
+          if (!isRecord(payload) || typeof payload.intent !== 'string' || payload.intent.length > 64) {
+            this.callbacks.onError(new Error('Invalid guest intent'));
+            break;
           }
+          this.callbacks.onIntentReceived?.(payload.intent, payload.payload, message.from);
+        } else if (isGameEventBatch(payload)) {
+          this.callbacks.onEventsReceived(payload);
         } else {
-          // Host -> guest: parse as event batch.
-          try {
-            const events = JSON.parse(msg.payload) as GameEvent[];
-            this.callbacks.onEventsReceived(events);
-          } catch {
-            this.callbacks.onError(new Error('Failed to parse event batch'));
-          }
+          this.callbacks.onError(new Error('Invalid event batch'));
         }
         break;
       }
-      case 'room_closed': {
+      case 'room_closed':
         this.status = 'closed';
         this.callbacks.onRoomClosed?.();
         this.callbacks.onClose();
         break;
-      }
-      case 'error': {
+      case 'error':
         this.status = 'error';
-        this.lastError = msg.message;
-        this.callbacks.onError(new Error(msg.message));
-        // Fatal protocol errors (room_not_found, room_full, master_required)
-        // will never succeed on retry. Mark fatal so the close handler gives
-        // up instead of reconnecting into the same error.
-        if (msg.code === 'room_not_found' || msg.code === 'room_full' || msg.code === 'master_required') {
+        this.lastError = message.message;
+        this.callbacks.onError(new Error(message.message));
+        if (['room_not_found', 'room_full', 'master_required', 'host_auth_unavailable', 'host_resume_required', 'version_mismatch', 'client_in_use'].includes(message.code)) {
           this.fatalError = true;
         }
         this.ws?.close();
         break;
-      }
       case 'pong':
-        if (this.pongTimeout) {
-          clearTimeout(this.pongTimeout);
-          this.pongTimeout = null;
-        }
+        if (this.pongTimeout) clearTimeout(this.pongTimeout);
+        this.pongTimeout = null;
         break;
     }
   }
 
-  private send(msg: RelayClientMessage): void {
-    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-      this.ws.send(JSON.stringify(msg));
-    }
+  private send(message: RelayClientMessage): void {
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) throw new Error('Relay socket is not open');
+    const encoded = JSON.stringify(envelope(message));
+    if (encoded.length > 256 * 1024) throw new Error('Relay message exceeds 256KB');
+    this.ws.send(encoded);
   }
 
   async sendEvents(events: GameEvent[]): Promise<void> {
-    if (this.role !== 'host') {
-      throw new Error('Only the host broadcasts events');
-    }
+    if (this.role !== 'host') throw new Error('Only the host broadcasts events');
+    if (!isGameEventBatch(events)) throw new Error('Invalid event batch');
     this.send({ type: 'relay', to: 'all', payload: JSON.stringify(events) });
   }
 
-  /** Host: send events to a single guest (recipient-filtered privacy view). */
   async sendEventsTo(clientId: string, events: GameEvent[]): Promise<void> {
-    if (this.role !== 'host') {
-      throw new Error('Only the host sends events');
-    }
+    if (this.role !== 'host') throw new Error('Only the host sends events');
+    if (!isGameEventBatch(events)) throw new Error('Invalid event batch');
     this.send({ type: 'relay', to: clientId, payload: JSON.stringify(events) });
   }
 
   async sendIntent(intent: string, payload: unknown): Promise<void> {
-    if (this.role !== 'guest') {
-      throw new Error('Only guests send intents');
-    }
+    if (this.role !== 'guest') throw new Error('Only guests send intents');
+    if (!/^[a-z0-9_:-]{1,64}$/i.test(intent)) throw new Error('Invalid intent');
     this.send({ type: 'relay', to: 'host', payload: JSON.stringify({ intent, payload }) });
   }
 
   async requestSnapshot(): Promise<void> {
-    if (this.role !== 'host') return;
-    // Host pushes a snapshot to a rejoining guest via a relay message.
-    this.send({ type: 'relay', to: 'all', payload: JSON.stringify({ type: 'snapshot_request' }) });
+    if (this.role !== 'guest') return;
+    await this.sendIntent('request_snapshot', {});
   }
 
   close(): void {
     this.closedByUser = true;
     this.stopHeartbeat();
-    if (this.reconnectTimer) {
-      clearTimeout(this.reconnectTimer);
-      this.reconnectTimer = null;
-    }
-    this.send({ type: 'leave_room' });
+    if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
+    this.reconnectTimer = null;
+    try { this.send({ type: 'leave_room' }); } catch { /* already disconnected */ }
     this.ws?.close();
     this.status = 'closed';
   }

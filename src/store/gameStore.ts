@@ -45,6 +45,9 @@ export interface GameStoreState {
   events: GameEvent[];
   seq: number;
   state: GameState;
+  /** Fold baseline for snapshot+tail recovery. Null means events start at idle. */
+  eventBaseState: GameState | null;
+  eventBaseSeq: number;
 
   createSession: (input: CreateSessionInput) => GameState;
   resetSession: () => void;
@@ -88,11 +91,31 @@ export interface GameStoreState {
 }
 
 const HOST_ACTOR: GameEvent['actorId'] = 'system';
+const KNOWN_EVENT_TYPES = new Set([
+  'session/start', 'deck/shuffle', 'card/deal', 'card/move', 'card/flip',
+  'card/peek', 'card/ask', 'card/reveal', 'card/identify', 'hand/reorder',
+  'turn/set', 'turn/end', 'privacy/enter', 'privacy/exit', 'game/street',
+  'game/burn', 'game/bet', 'game/fold', 'session/pause', 'session/resume',
+  'session/end',
+]);
 
-function makeEvent(payload: EventPayload, seq: number): GameEvent {
+function isPersistedGameEvent(value: unknown): value is GameEvent {
+  if (typeof value !== 'object' || value === null) return false;
+  const record = value as { type?: unknown; id?: unknown; ts?: unknown; seq?: unknown; actorId?: unknown };
+  return typeof record.type === 'string'
+    && KNOWN_EVENT_TYPES.has(record.type)
+    && typeof record.id === 'string'
+    && typeof record.ts === 'number'
+    && Number.isFinite(record.ts)
+    && typeof record.seq === 'number'
+    && Number.isInteger(record.seq)
+    && typeof record.actorId === 'string';
+}
+
+function makeEvent(payload: EventPayload, seq: number, sessionId: string): GameEvent {
   return {
     ...(payload as unknown as GameEvent),
-    id: eventId(seq),
+    id: eventId(seq, sessionId),
     ts: Date.now(),
     seq,
   };
@@ -117,6 +140,8 @@ export const useGameStore = create<GameStoreState>()(
       events: [],
       seq: 0,
       state: emptyState(),
+      eventBaseState: null,
+      eventBaseSeq: 0,
 
       createSession: (input) => {
         const preset = findPreset(input.presetId);
@@ -171,6 +196,7 @@ export const useGameStore = create<GameStoreState>()(
               zones: setup.zones,
             },
             seq++,
+            `sess-${seed}`,
           ),
         );
 
@@ -185,16 +211,17 @@ export const useGameStore = create<GameStoreState>()(
                 face: deal.face,
               },
               seq++,
+              `sess-${seed}`,
             ),
           );
         }
 
         const nextState = foldEvents(events);
-        set({ events, seq: seq - 1, state: nextState });
+        set({ events, seq: seq - 1, state: nextState, eventBaseState: null, eventBaseSeq: 0 });
         return nextState;
       },
 
-      resetSession: () => set({ events: [], seq: 0, state: emptyState() }),
+      resetSession: () => set({ events: [], seq: 0, state: emptyState(), eventBaseState: null, eventBaseSeq: 0 }),
 
       startNextHand: () => {
         const { state } = get();
@@ -233,6 +260,7 @@ export const useGameStore = create<GameStoreState>()(
               zones: setup.zones,
             },
             seq++,
+            `sess-${seed}`,
           ),
         );
         for (const deal of setup.initialDeals) {
@@ -246,11 +274,12 @@ export const useGameStore = create<GameStoreState>()(
                 face: deal.face,
               },
               seq++,
+              `sess-${seed}`,
             ),
           );
         }
         const nextState = foldEvents(events);
-        set({ events, seq: seq - 1, state: nextState });
+        set({ events, seq: seq - 1, state: nextState, eventBaseState: null, eventBaseSeq: 0 });
         return nextState;
       },
 
@@ -275,7 +304,7 @@ export const useGameStore = create<GameStoreState>()(
       dispatch: (event) => {
         const { seq, events, state } = get();
         const nextSeq = seq + 1;
-        const full = makeEvent(event, nextSeq);
+        const full = makeEvent(event, nextSeq, state.meta.id || 'session');
         const nextState = applyEvent(state, full);
         set({ events: [...events, full], seq: nextSeq, state: nextState });
         return nextState;
@@ -283,7 +312,7 @@ export const useGameStore = create<GameStoreState>()(
 
       ingestRemoteEvents: (incoming) => {
         const current = get();
-        const result = foldRemoteEvents(current.events, incoming);
+        const result = foldRemoteEvents(current.events, incoming, current.eventBaseState ?? undefined, current.eventBaseSeq);
         if (result.applied === 0) {
           return { applied: 0, lastSeq: current.seq };
         }
@@ -297,6 +326,8 @@ export const useGameStore = create<GameStoreState>()(
           events: result.appliedTail,
           seq: Math.max(nextSeq - 1, result.lastSeq),
           state: result.state,
+          eventBaseState: snapshot,
+          eventBaseSeq: nextSeq - 1,
         });
       },
 
@@ -484,7 +515,7 @@ export const useGameStore = create<GameStoreState>()(
         }),
 
       undoLastAction: () => {
-        const { events, state } = get();
+        const { events, state, eventBaseState } = get();
         // Only freeplay-family pass-and-play games.
         if (state.meta.mode !== 'pass') return false;
         if (!['freeplay', 'deal-two-each'].includes(state.config.presetId ?? '')) return false;
@@ -513,8 +544,8 @@ export const useGameStore = create<GameStoreState>()(
         if (removeIndex < 0) return false;
 
         const nextEvents = events.slice(0, removeIndex).concat(events.slice(removeIndex + 1));
-        const nextState = foldEvents(nextEvents);
-        const nextSeq = removeIndex > 0 ? events[removeIndex - 1]!.seq : 0;
+        const nextState = nextEvents.reduce(applyEvent, eventBaseState ?? emptyState());
+        const nextSeq = nextEvents.length > 0 ? nextEvents[nextEvents.length - 1]!.seq : (eventBaseState ? get().eventBaseSeq : 0);
         set({ events: nextEvents, seq: nextSeq, state: nextState });
         return true;
       },
@@ -522,14 +553,34 @@ export const useGameStore = create<GameStoreState>()(
     {
       name: 'game:active',
       storage: createJSONStorage(() => createPlatformStorage()),
-      version: 1,
-      // TODO: consider adding a `snapshot` field to the persist config for
-      // faster rehydration (avoids folding all events on every app launch).
-      partialize: (s) => ({ events: s.events, seq: s.seq }),
+      version: 2,
+      migrate: (persisted) => {
+        if (!persisted || typeof persisted !== 'object') {
+          return { events: [], seq: 0, eventBaseState: null, eventBaseSeq: 0 };
+        }
+        const candidate = persisted as { events?: unknown; seq?: unknown; eventBaseState?: unknown; eventBaseSeq?: unknown };
+        const events = Array.isArray(candidate.events) ? candidate.events.filter(isPersistedGameEvent) : [];
+        const seq = typeof candidate.seq === 'number' && Number.isInteger(candidate.seq) ? candidate.seq : 0;
+        const eventBaseSeq = typeof candidate.eventBaseSeq === 'number' && Number.isInteger(candidate.eventBaseSeq)
+          ? candidate.eventBaseSeq
+          : 0;
+        const eventBaseState = candidate.eventBaseState && typeof candidate.eventBaseState === 'object'
+          ? candidate.eventBaseState as GameState
+          : null;
+        return { events, seq: Math.max(seq, eventBaseSeq), eventBaseState, eventBaseSeq };
+      },
+      partialize: (s) => ({
+        events: s.events,
+        seq: s.seq,
+        eventBaseState: s.eventBaseState,
+        eventBaseSeq: s.eventBaseSeq,
+      }),
       onRehydrateStorage: () => (rehydrated, error) => {
         if (error || !rehydrated) return;
-        // Zustand expects in-place mutation of the rehydrated object here.
-        rehydrated.state = foldEvents(rehydrated.events);
+        rehydrated.state = rehydrated.events.reduce(
+          applyEvent,
+          rehydrated.eventBaseState ?? emptyState(),
+        );
       },
     },
   ),

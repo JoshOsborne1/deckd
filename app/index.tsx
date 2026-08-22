@@ -23,6 +23,7 @@ import {
   type SurfaceTransitionKind,
 } from '@components/layers/SurfaceMorphContext';
 import { useUiStore } from '@store/uiStore';
+import { useLobbyStore } from '@store/lobbyStore';
 import { useCosmeticsStore } from '@store/cosmeticsStore';
 import { findTableThemeById } from '@engine/visuals';
 import { useMotion } from '@hooks/useMotion';
@@ -43,8 +44,12 @@ export default function Surface() {
   const insets = useSafeAreaInsets();
   const viewMode = useUiStore((s) => s.viewMode);
   const previousMode = useUiStore((s) => s.previousMode);
+  const lobbyStatus = useLobbyStore((s) => s.status);
+  const lobbySessionActive = lobbyStatus === 'connecting' || lobbyStatus === 'connected';
+  const showHomeSurface = viewMode === 'home' || viewMode === 'hub' || previousMode === 'home' || previousMode === 'hub';
+  const showTableSurface = viewMode === 'table' || viewMode === 'pass' || previousMode === 'table' || previousMode === 'pass';
+  const showLobbySurface = viewMode === 'lobby' || previousMode === 'lobby' || lobbySessionActive;
   const { reduceMotion } = useMotion();
-
   const progress = useSharedValue<number>(viewMode === 'home' ? 0 : 1);
   const direction = useSharedValue<MorphDirection>(0);
   const reduceMotionSv = useSharedValue<number>(reduceMotion ? 1 : 0);
@@ -115,30 +120,38 @@ export default function Surface() {
       <View style={styles.root}>
         <FeltBackground />
         <View style={styles.layers}>
-          <HomeLayer
-            active={viewMode === 'home'}
-            layerVisible={viewMode === 'home' || viewMode === 'hub'}
-            topInset={insets.top}
-            bottomInset={insets.bottom + NAV_BAR_RESERVE}
-          />
-          <HubLayer
-            active={viewMode === 'hub'}
-            layerVisible={viewMode === 'home' || viewMode === 'hub'}
-            topInset={insets.top}
-            bottomInset={insets.bottom + NAV_BAR_RESERVE}
-          />
-          <TableLayer
-            active={viewMode === 'table' || viewMode === 'pass'}
-            topInset={insets.top}
-            bottomInset={insets.bottom + NAV_BAR_RESERVE}
-          />
-          <LobbyLayer
-            active={viewMode === 'lobby'}
-            topInset={insets.top}
-            bottomInset={insets.bottom + NAV_BAR_RESERVE}
-          />
+          {showHomeSurface ? (
+            <>
+              <HomeLayer
+                active={viewMode === 'home'}
+                layerVisible={viewMode === 'home' || viewMode === 'hub'}
+                topInset={insets.top}
+                bottomInset={insets.bottom + NAV_BAR_RESERVE}
+              />
+              <HubLayer
+                active={viewMode === 'hub'}
+                layerVisible={viewMode === 'home' || viewMode === 'hub'}
+                topInset={insets.top}
+                bottomInset={insets.bottom + NAV_BAR_RESERVE}
+              />
+            </>
+          ) : null}
+          {showTableSurface ? (
+            <TableLayer
+              active={viewMode === 'table' || viewMode === 'pass'}
+              topInset={insets.top}
+              bottomInset={insets.bottom + NAV_BAR_RESERVE}
+            />
+          ) : null}
+          {showLobbySurface ? (
+            <LobbyLayer
+              active={viewMode === 'lobby'}
+              topInset={insets.top}
+              bottomInset={insets.bottom + NAV_BAR_RESERVE}
+            />
+          ) : null}
           <TableMorphSweep />
-          <PassLayer />
+          {viewMode === 'pass' ? <PassLayer /> : null}
         </View>
       </View>
     </SurfaceMorphContext.Provider>

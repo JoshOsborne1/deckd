@@ -23,6 +23,7 @@
 
 import type { GameEvent } from '@engine/events';
 import type { CardId, ZoneId, CardFace, PlayerId } from '@engine/types';
+import type { GameAction } from '@engine/rules';
 import { handZoneId, tableZoneId, ZONE_DISCARD } from '@engine/types';
 import { useGameStore } from '@store/gameStore';
 import { useLobbyStore } from '@store/lobbyStore';
@@ -31,6 +32,7 @@ import { selectBroadcastDelta, filterEventsForViewer } from '@store/syncLogic';
 let unsubscribeGameStore: (() => void) | null = null;
 let lastBroadcastSeq = 0;
 let trackedSessionId: string | null = null;
+const broadcastCursors = new Map<string, { sessionId: string | null; seq: number }>();
 let installed = false;
 
 /**
@@ -75,6 +77,8 @@ export function getLastBroadcastSeq(): number {
 /** Reset the broadcast cursor (test helper). */
 export function resetBridge(): void {
   lastBroadcastSeq = 0;
+  trackedSessionId = null;
+  broadcastCursors.clear();
   if (unsubscribeGameStore) {
     unsubscribeGameStore();
     unsubscribeGameStore = null;
@@ -104,20 +108,30 @@ function broadcastDelta(): void {
   if (sessionId !== trackedSessionId) {
     trackedSessionId = sessionId;
     lastBroadcastSeq = 0;
+    broadcastCursors.clear();
   }
-
-  const before = lastBroadcastSeq;
-  const delta = selectBroadcastDelta(game.events, before);
-  if (delta.length === 0) return;
-
-  lastBroadcastSeq = delta[delta.length - 1]!.seq;
 
   const guests = lobby.players.filter((p) => !p.isHost).map((p) => p.clientId);
   for (const guestId of guests) {
+    const cursor = broadcastCursors.get(guestId);
+    const before = cursor?.sessionId === sessionId ? cursor.seq : 0;
+    const delta = selectBroadcastDelta(game.events, before);
+    if (delta.length === 0) continue;
     const filtered = filterEventsForViewer(game.events, guestId).filter((e) => e.seq > before);
-    if (filtered.length > 0) {
-      void lobby.session.sendEventsTo?.(guestId, filtered);
-    }
+    if (filtered.length === 0) continue;
+    const latest = delta[delta.length - 1]!.seq;
+    lastBroadcastSeq = Math.max(lastBroadcastSeq, latest);
+    const sendEventsTo = lobby.session.sendEventsTo;
+    if (!sendEventsTo) continue;
+    void Promise.resolve(sendEventsTo.call(lobby.session, guestId, filtered))
+      .then(() => {
+        const latest = delta[delta.length - 1]!.seq;
+        broadcastCursors.set(guestId, { sessionId, seq: latest });
+        lastBroadcastSeq = Math.max(lastBroadcastSeq, latest);
+      })
+      .catch(() => {
+        // Leave the cursor unchanged. The next reconnect/snapshot will retry.
+      });
   }
 }
 
@@ -127,53 +141,83 @@ function broadcastDelta(): void {
  * event log intact on the guest side). The chain is recipient-filtered so
  * the guest only sees their own hand and public cards.
  */
-function sendFullSnapshot(): void {
+function sendFullSnapshot(requestedGuestId?: string): void {
   const lobby = useLobbyStore.getState();
   const game = useGameStore.getState();
   if (!lobby.session || lobby.session.role !== 'host') return;
   if (game.events.length === 0) return;
 
-  lastBroadcastSeq = game.events[game.events.length - 1]!.seq;
-  trackedSessionId = sessionIdOf(game.events);
-
-  const guests = lobby.players.filter((p) => !p.isHost).map((p) => p.clientId);
+  const sessionId = sessionIdOf(game.events);
+  trackedSessionId = sessionId;
+  const guests = requestedGuestId
+    ? [requestedGuestId]
+    : lobby.players.filter((p) => !p.isHost).map((p) => p.clientId);
+  const sendEventsTo = lobby.session.sendEventsTo;
+  if (!sendEventsTo) return;
   for (const guestId of guests) {
     const filtered = filterEventsForViewer(game.events, guestId);
-    if (filtered.length > 0) {
-      void lobby.session.sendEventsTo?.(guestId, filtered);
-    }
+    if (filtered.length === 0) continue;
+    void Promise.resolve(sendEventsTo.call(lobby.session, guestId, filtered))
+      .then(() => {
+        const seq = game.events[game.events.length - 1]!.seq;
+        broadcastCursors.set(guestId, { sessionId, seq });
+        lastBroadcastSeq = Math.max(lastBroadcastSeq, seq);
+      })
+      .catch(() => undefined);
   }
 }
 
-/**
- * Host: apply a guest's action intent to the local gameStore. The resulting
- * events then broadcast via the subscription. Validates that the acting
- * player is the current turn holder (host authority).
- */
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+const STATIC_GAME_ACTIONS = new Set([
+  'draw', 'recycle', 'flip', 'discard', 'reorder', 'pass', 'shuffle', 'end',
+  'twist', 'stick', 'stand', 'burn', 'flop', 'turn', 'river', 'fold', 'check',
+  'call', 'raise', 'reveal', 'pair', 'cycleStock', 'restart', 'autoFoundation',
+]);
+
+function isGameAction(value: unknown): value is GameAction {
+  if (typeof value !== 'string' || value.length > 128) return false;
+  return STATIC_GAME_ACTIONS.has(value)
+    || /^(move|play|flip):[^:]{1,96}$/.test(value)
+    || /^ask:[^:]{1,48}:[^:]{1,48}$/.test(value);
+}
+
+type GuestPayload = { cardId?: CardId; toZoneId?: ZoneId; face?: CardFace; action?: GameAction };
+
+function parseGuestPayload(value: unknown): GuestPayload | null {
+  if (value === undefined) return {};
+  if (!isRecord(value)) return null;
+  const result: GuestPayload = {};
+  if (value.cardId !== undefined) {
+    if (typeof value.cardId !== 'string' || value.cardId.length > 128) return null;
+    result.cardId = value.cardId;
+  }
+  if (value.toZoneId !== undefined) {
+    if (typeof value.toZoneId !== 'string' || value.toZoneId.length > 128) return null;
+    result.toZoneId = value.toZoneId;
+  }
+  if (value.face !== undefined) {
+    if (value.face !== 'up' && value.face !== 'down') return null;
+    result.face = value.face;
+  }
+  if (value.action !== undefined) {
+    if (!isGameAction(value.action)) return null;
+    result.action = value.action;
+  }
+  return result;
+}
 function applyGuestAction(
   intent: string,
   payload: unknown,
   fromClientId?: string,
 ): void {
   const game = useGameStore.getState();
-  const lobby = useLobbyStore.getState();
-  if (!fromClientId) return;
-  if (game.state.phase !== 'playing') return;
-
-  // Map the guest's relay clientId to a game playerId. In online mode the
-  // host creates the session with players mapped by clientId, so the
-  // guest's clientId IS their playerId.
-  const playerId = fromClientId as PlayerId;
-
-  // The guest must be a known player in the session.
-  const isPlayer = game.state.players.some((p) => p.id === playerId);
-  if (!isPlayer) return;
-
-  const p = (payload ?? {}) as {
-    cardId?: CardId;
-    toZoneId?: ZoneId;
-    face?: CardFace;
-  };
+  if (!fromClientId || game.state.phase !== 'playing') return;
+  const playerId = fromClientId;
+  const p = parseGuestPayload(payload);
+  if (!p || !game.state.players.some((player) => player.id === playerId)) return;
 
   // A guest may only touch cards in zones they own (hand:<id> or table:<id>).
   // This is the privacy gate: without it a guest could flip another player's
@@ -225,16 +269,14 @@ function applyGuestAction(
       // Route game-specific actions (twist/stick/flop/fold...) through the
       // host's rules engine. The rules validate turn, phase, and ownership.
       if (game.state.currentPlayerId !== playerId) return;
-      const action = (p as { action?: string }).action;
+      const action = p.action;
       if (!action) return;
-      game.gameAction(action as import('@engine/rules').GameAction, playerId);
+      game.gameAction(action, playerId);
       break;
     }
     default:
       break;
   }
-  // The gameStore mutation triggers the subscription, which broadcasts.
-  void lobby; // satisfy linter: lobby read above for role guard.
 }
 
 /**
@@ -268,13 +310,13 @@ export function installMultiplayerBridge(): void {
     // Host path: a guest sent an intent.
     onIntentReceived: (intent: string, payload: unknown, fromClientId?: string) => {
       if (intent === 'request_snapshot') {
-        sendFullSnapshot();
+        sendFullSnapshot(fromClientId);
       } else {
         applyGuestAction(intent, payload, fromClientId);
       }
     },
-    onSnapshotRequested: () => {
-      sendFullSnapshot();
+    onSnapshotRequested: (fromClientId?: string) => {
+      sendFullSnapshot(fromClientId);
     },
   });
 

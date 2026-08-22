@@ -152,33 +152,100 @@ export function emptyState(): GameState {
 }
 
 export function canApplyEvent(state: GameState, event: GameEvent): boolean {
+  const phaseIsPlaying = state.phase === 'playing';
+  const hasPlayer = (playerId: string): boolean => state.players.some((player) => player.id === playerId);
+  const card = 'cardId' in event ? state.cards[event.cardId] : undefined;
+  const cardIsInAZone = (cardId: string): boolean => Object.values(state.zones).some((zone) => zone.cardIds.includes(cardId));
+  // session/start bootstraps the player list, so its actor cannot be validated
+  // against players that do not exist yet.
+  const actorIsKnown = event.type === 'session/start' || event.actorId === 'system' || hasPlayer(event.actorId);
+  if (!actorIsKnown) return false;
+  const actorMatches = (playerId: string): boolean => event.actorId === 'system' || event.actorId === playerId;
+
   switch (event.type) {
+    case 'session/start': {
+      const ids = event.players.map((player) => player.id);
+      return state.phase === 'idle'
+        && event.players.length > 0
+        && new Set(ids).size === ids.length
+        && event.players.every((player) => player.id.length > 0 && player.name.length <= 80 && player.seat >= 0)
+        && hasUniqueZoneCards(event.zones);
+    }
     case 'card/deal':
     case 'card/move': {
-      return !!state.cards[event.cardId] && !!state.zones[event.toZoneId];
+      const destination = state.zones[event.toZoneId];
+      if (!phaseIsPlaying || !card || !destination || !cardIsInAZone(event.cardId)) return false;
+      return event.type !== 'card/move'
+        || event.toIndex === undefined
+        || (Number.isInteger(event.toIndex) && event.toIndex >= 0 && event.toIndex <= destination.cardIds.length);
     }
     case 'card/flip':
-    case 'card/reveal': {
-      return !!state.cards[event.cardId];
-    }
+    case 'card/reveal':
+      return phaseIsPlaying && !!card && cardIsInAZone(event.cardId);
+    case 'card/peek':
+      return phaseIsPlaying && !!card && cardIsInAZone(event.cardId) && hasPlayer(event.byPlayerId);
+    case 'card/identify':
+      return phaseIsPlaying && !!state.cards[event.cardId] && !state.cards[event.realId] && event.realId.length <= 128;
+    case 'card/ask':
+      return phaseIsPlaying && hasPlayer(event.targetPlayerId)
+        && event.rank.length <= 16 && event.transferredCount >= 0 && Number.isInteger(event.transferredCount);
     case 'hand/reorder': {
-      const zoneId = `hand:${event.playerId}` as ZoneId;
-      const zone = state.zones[zoneId];
-      if (!zone) return false;
-      return event.order.every((cid) => zone.cardIds.includes(cid));
+      const zone = state.zones[`hand:${event.playerId}` as ZoneId];
+      return phaseIsPlaying && !!zone
+        && event.order.length === zone.cardIds.length
+        && new Set(event.order).size === event.order.length
+        && event.order.every((cardId) => zone.cardIds.includes(cardId));
     }
-    case 'turn/end': {
-      return event.playerId === state.currentPlayerId;
+    case 'turn/set':
+      return phaseIsPlaying && hasPlayer(event.playerId);
+    case 'turn/end':
+      return phaseIsPlaying && event.playerId === state.currentPlayerId;
+    case 'privacy/enter':
+      return phaseIsPlaying && hasPlayer(event.playerId);
+    case 'privacy/exit':
+      return phaseIsPlaying && state.privacySeat !== null;
+    case 'deck/shuffle':
+      return phaseIsPlaying && !!state.zones[event.zoneId]
+        && hasUniqueIds(event.newOrder)
+        && event.newOrder.length === state.zones[event.zoneId]!.cardIds.length
+        && event.newOrder.every((cardId) => state.zones[event.zoneId]!.cardIds.includes(cardId));
+    case 'game/street': {
+      const currentStreet = state.game?.street ?? 0;
+      return phaseIsPlaying && Number.isInteger(event.street)
+        && ((state.config.presetId === 'war' && event.street === 0)
+          || (event.street >= currentStreet && event.street <= 4));
     }
-    case 'deck/shuffle': {
-      return !!state.zones[event.zoneId];
+    case 'game/burn':
+      return phaseIsPlaying && !!state.game && Number.isInteger(event.street) && event.street >= 0 && event.street <= 4;
+    case 'game/fold':
+      return phaseIsPlaying && hasPlayer(event.playerId) && event.playerId === state.currentPlayerId
+        && !(state.game?.folded.includes(event.playerId) ?? false);
+    case 'game/bet': {
+      const betting = state.game?.betting;
+      const stack = betting?.stacks[event.playerId];
+      return phaseIsPlaying && !!betting && stack !== undefined
+        && event.playerId === state.currentPlayerId
+        && ['blind', 'check', 'call', 'raise', 'fold'].includes(event.action)
+        && Number.isInteger(event.amount) && event.amount >= 0 && event.amount <= stack;
     }
-    case 'session/start': {
-      return event.players.length > 0;
-    }
+    case 'session/pause':
+      return phaseIsPlaying;
+    case 'session/resume':
+      return state.phase === 'paused';
+    case 'session/end':
+      return state.phase !== 'idle' && (event.winnerId === undefined || hasPlayer(event.winnerId));
     default:
-      return true;
+      return false;
   }
+}
+
+function hasUniqueIds(ids: string[]): boolean {
+  return new Set(ids).size === ids.length;
+}
+
+function hasUniqueZoneCards(zones: { cardIds: string[] }[]): boolean {
+  const cards = zones.flatMap((zone) => zone.cardIds);
+  return hasUniqueIds(cards);
 }
 
 export function applyEvent(prev: GameState, event: GameEvent): GameState {

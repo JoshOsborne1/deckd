@@ -74,6 +74,6 @@ export type GameEvent =
 
 export type EventType = GameEvent['type'];
 
-export function eventId(seq: number): string {
-  return `evt-${seq.toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+export function eventId(seq: number, sessionId = 'session'): string {
+  return `${sessionId}:${seq}`;
 }

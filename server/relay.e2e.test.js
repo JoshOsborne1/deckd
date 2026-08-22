@@ -13,7 +13,7 @@ const WebSocket = require('ws');
 const URL = 'ws://127.0.0.1:8080';
 
 function send(ws, msg) {
-  ws.send(JSON.stringify(msg));
+  ws.send(JSON.stringify({ version: 1, ...msg }));
 }
 
 let exitCode = 0;

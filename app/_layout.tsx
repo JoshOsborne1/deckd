@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { configureRevenueCat, isRevenueCatConfigured, Purchases } from '@lib/revenuecat';
+import { configureRevenueCat, isRevenueCatConfigured, requirePurchases } from '@lib/revenuecat';
 import { syncMasterPassFromCustomerInfo } from '@lib/entitlement';
 import { installMultiplayerBridge } from '@store/multiplayerBridge';
 import { useTableSoundBridge } from '@hooks/useTableSoundBridge';
@@ -19,11 +19,34 @@ SplashScreen.preventAutoHideAsync().catch(() => {
   // Swallow: some environments (web, dev reloads) resolve this outside the expected lifecycle.
 });
 
+// TEMP BOOT DIAGNOSTIC 2026-08-22 (audit P0-1) — remove after phone crash fixed.
+type BootFatal = { message?: string; stack?: string };
+type BootErrorUtils = {
+  getGlobalHandler?: () => ((e: BootFatal, fatal: boolean) => void) | undefined;
+  setGlobalHandler?: (h: (e: BootFatal, fatal: boolean) => void) => void;
+};
+const bootErrorUtils = (globalThis as { ErrorUtils?: BootErrorUtils }).ErrorUtils;
+if (bootErrorUtils?.setGlobalHandler) {
+  const previousHandler = bootErrorUtils.getGlobalHandler?.();
+  bootErrorUtils.setGlobalHandler((error, fatal) => {
+    console.log(
+      `BOOT ${fatal ? 'FATAL' : 'ERROR'}:`,
+      error?.message,
+      '|',
+      (error?.stack ?? '').split('\n').slice(0, 8).join(' ~ '),
+    );
+    previousHandler?.(error, fatal);
+  });
+}
+console.log('BOOT 0: _layout module evaluated');
+
 export default function RootLayout() {
+  console.log('BOOT 1: RootLayout render start');
   // Game-event -> table-sound bridge. Subscribes to gameStore at the app
   // root so every deal/flip/discard/pass/win (local, rule-driven, or
   // remote) plays without layer components calling the hook themselves.
   useTableSoundBridge();
+  console.log('BOOT 2: sound bridge mounted');
   const [fontsLoaded, fontError] = useFonts({
     'PlusJakartaSans-Regular': require('@assets/fonts/PlusJakartaSans-Regular.ttf'),
     'PlusJakartaSans-Medium': require('@assets/fonts/PlusJakartaSans-Medium.ttf'),
@@ -37,8 +60,10 @@ export default function RootLayout() {
     brand.cardBackNoir,
     brand.cardBackCrimson,
   ]);
+  console.log('BOOT 3: font and asset hooks returned');
 
   useEffect(() => {
+    console.log('BOOT 4: startup effect begin');
     configureRevenueCat();
 
     // Entitlement listener: map RevenueCat `master` entitlement to hasMasterPass.
@@ -47,6 +72,7 @@ export default function RootLayout() {
     // keeps hosting rights without a new purchase.
     let listener: ((info: import('react-native-purchases').CustomerInfo) => void) | null = null;
     if (isRevenueCatConfigured()) {
+      const Purchases = requirePurchases();
       listener = (info) => syncMasterPassFromCustomerInfo(info);
       Purchases.addCustomerInfoUpdateListener(listener);
       void Purchases.getCustomerInfo()
@@ -62,7 +88,9 @@ export default function RootLayout() {
 
     return () => {
       if (listener) {
-        Purchases.removeCustomerInfoUpdateListener(listener);
+        if (isRevenueCatConfigured()) {
+          requirePurchases().removeCustomerInfoUpdateListener(listener);
+        }
         listener = null;
       }
     };
@@ -75,9 +103,11 @@ export default function RootLayout() {
   }, [cardAssetError, cardAssets, fontError, fontsLoaded]);
 
   if ((!fontsLoaded && !fontError) || (!cardAssets && !cardAssetError)) {
+    console.log('BOOT 5: waiting for fonts/assets');
     return null;
   }
 
+  console.log('BOOT 6: assets ready, rendering navigator');
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>

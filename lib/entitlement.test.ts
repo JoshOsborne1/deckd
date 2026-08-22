@@ -1,10 +1,9 @@
 /**
- * Entitlement module tests — HMAC token computation and the
- * customer-info → hasMasterPass sync. The HMAC is verified against a
- * known-good value that matches Node's crypto.createHmac on the server.
+ * Entitlement module tests. Client code reads entitlement state only. Relay
+ * signing credentials are server-side and must never be recoverable from the
+ * app bundle, even when an EXPO_PUBLIC_* variable is present.
  */
 
-import sha256 from 'js-sha256';
 import type { CustomerInfo } from 'react-native-purchases';
 
 import {
@@ -82,40 +81,16 @@ describe('getMasterSecret', () => {
     expect(getMasterSecret()).toBeUndefined();
   });
 
-  it('returns the secret when set', () => {
+  it('ignores a public env var because the client must not hold the relay secret', () => {
     setSecret('topsecret');
-    expect(getMasterSecret()).toBe('topsecret');
+    expect(getMasterSecret()).toBeUndefined();
   });
 });
 
 describe('computeMasterToken', () => {
-  it('returns undefined when no secret is configured (dev mode)', () => {
-    setSecret(undefined);
+  it('always fails closed, including when a public env var is present', () => {
+    setSecret('shared-secret');
     expect(computeMasterToken('client-123')).toBeUndefined();
-  });
-
-  it('computes HMAC-SHA256(secret, clientId) hex matching the server', () => {
-    setSecret('shared-secret');
-    const clientId = 'c-abc12345';
-    const token = computeMasterToken(clientId);
-    // Mirror what server/index.js does: crypto.createHmac('sha256', secret).update(clientId).digest('hex')
-    const expected = sha256.hmac('shared-secret', clientId);
-    expect(token).toBe(expected);
-    expect(token).toMatch(/^[0-9a-f]{64}$/);
-  });
-
-  it('produces different tokens for different clientIds', () => {
-    setSecret('shared-secret');
-    expect(computeMasterToken('client-a')).not.toBe(computeMasterToken('client-b'));
-  });
-
-  it('produces different tokens for different secrets', () => {
-    const clientId = 'c-same';
-    setSecret('secret-one');
-    const t1 = computeMasterToken(clientId);
-    setSecret('secret-two');
-    const t2 = computeMasterToken(clientId);
-    expect(t1).not.toBe(t2);
   });
 });
 

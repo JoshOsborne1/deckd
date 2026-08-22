@@ -6,7 +6,7 @@
 
 import type { PurchasesPackage, CustomerInfo } from 'react-native-purchases';
 
-import { isRevenueCatConfigured, Purchases } from './revenuecat';
+import { isRevenueCatConfigured, requirePurchases } from './revenuecat';
 
 function pickPackage(
   packages: PurchasesPackage[],
@@ -28,6 +28,7 @@ export async function purchaseProduct(productId: string): Promise<void> {
   if (!isRevenueCatConfigured()) {
     throw new Error('IAP not configured — add RevenueCat API keys (see app.json extra).');
   }
+  const Purchases = requirePurchases();
 
   const offerings = await Purchases.getOfferings();
   const current = offerings.current;
@@ -48,5 +49,6 @@ export async function restorePurchases(): Promise<CustomerInfo> {
   if (!isRevenueCatConfigured()) {
     throw new Error('IAP not configured — add RevenueCat API keys (see app.json extra).');
   }
+  const Purchases = requirePurchases();
   return Purchases.restorePurchases();
 }
