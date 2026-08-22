@@ -22,7 +22,7 @@
  */
 
 import type { GameEvent } from '@engine/events';
-import type { CardId, ZoneId, CardFace, PlayerId } from '@engine/types';
+import type { CardId, ZoneId, CardFace } from '@engine/types';
 import type { GameAction } from '@engine/rules';
 import { handZoneId, tableZoneId, ZONE_DISCARD } from '@engine/types';
 import { useGameStore } from '@store/gameStore';

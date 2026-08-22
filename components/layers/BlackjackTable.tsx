@@ -212,7 +212,7 @@ export function BlackjackTable({ active, topInset, bottomInset }: TableProps) {
     });
     prevDealerIds.current = ids;
     setDealerDelays(nextDelays);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [dealerHand]);
 
   // Hand-over: winner cards pop; banner springs (endedBanner below).
@@ -299,9 +299,9 @@ export function BlackjackTable({ active, topInset, bottomInset }: TableProps) {
     cancelAnimation(endedTranslateY);
     if (state.phase !== 'ended') {
       // Reanimated shared values are intentionally mutable inside effects.
-      // eslint-disable-next-line react-hooks/immutability
+       
       endedOpacity.value = 0;
-      // eslint-disable-next-line react-hooks/immutability
+       
       endedTranslateY.value = 10;
       return;
     }

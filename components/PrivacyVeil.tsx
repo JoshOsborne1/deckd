@@ -102,7 +102,7 @@ export function PrivacyVeil({
     .maxDistance(20)
     .onBegin(() => {
       // Shared value mutation is the canonical Reanimated gesture pattern.
-      // eslint-disable-next-line react-hooks/immutability
+       
       progress.value = withTiming(1, { duration: HOLD_MS });
       runOnJS(haptic)('light');
     })
@@ -112,7 +112,7 @@ export function PrivacyVeil({
     })
     .onFinalize((_event, success) => {
       if (!success) {
-        // eslint-disable-next-line react-hooks/immutability
+         
         progress.value = withTiming(0, { duration: motion.duration.base });
       }
     });

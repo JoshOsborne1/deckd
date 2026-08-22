@@ -330,7 +330,7 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
     if (lobbyStatus === 'closed' && isOnline) {
       setViewMode('hub');
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, [lobbyStatus, isOnline]);
 
   /** Device owner / session host — shuffle authority. */
@@ -524,9 +524,9 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
     cancelAnimation(endedOpacity);
     cancelAnimation(endedTranslateY);
     if (state.phase !== 'ended') {
-      // eslint-disable-next-line react-hooks/immutability
+       
       endedOpacity.value = 0;
-      // eslint-disable-next-line react-hooks/immutability
+       
       endedTranslateY.value = 10;
       return;
     }
@@ -546,9 +546,9 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
     if (!nextDiscardId || nextDiscardId === previousId) return;
 
     if (reduceMotion) {
-      // eslint-disable-next-line react-hooks/immutability
+       
       discardEntry.value = 1;
-      // eslint-disable-next-line react-hooks/immutability
+       
       discardOpacity.value = withTiming(0.72, { duration: motion.duration.fast }, () => {
         discardOpacity.value = withTiming(1, { duration: motion.duration.fast });
       });
@@ -558,7 +558,7 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
     cancelAnimation(discardScale);
     cancelAnimation(discardEntry);
     // Reanimated shared values are intentionally mutable inside effects.
-    // eslint-disable-next-line react-hooks/immutability
+     
     discardScale.value = 1;
     discardEntry.value = 0;
     discardEntry.value = withSpring(1, motion.spring.card);
@@ -570,19 +570,19 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
 
   const handleDrawPressIn = useCallback(() => {
     if (reduceMotion) {
-      // eslint-disable-next-line react-hooks/immutability
+       
       drawOpacity.value = withTiming(0.72, { duration: motion.duration.fast });
       return;
     }
-    // eslint-disable-next-line react-hooks/immutability
+     
     drawScale.value = withSpring(0.96, motion.spring.press);
   }, [drawOpacity, drawScale, reduceMotion]);
 
   const handleDrawPressOut = useCallback(() => {
-    // eslint-disable-next-line react-hooks/immutability
+     
     drawOpacity.value = withTiming(1, { duration: motion.duration.fast });
     if (!reduceMotion) {
-      // eslint-disable-next-line react-hooks/immutability
+       
       drawScale.value = withSpring(1, motion.spring.press);
     }
   }, [drawOpacity, drawScale, reduceMotion]);

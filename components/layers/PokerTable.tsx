@@ -13,13 +13,12 @@ import { BookOpen, ChevronLeft, Clock, Flag, Shuffle } from 'lucide-react-native
 import { AvatarPlaceholder } from '@components/AvatarPlaceholder';
 import { CardButton } from '@components/CardButton';
 import { EventHistoryModal } from '@components/EventHistoryModal';
-import { FlipCard } from '@components/FlipCard';
 import { HandFan } from '@components/HandFan';
 import { HandStack } from '@components/HandStack';
 import { PlayingCard } from '@components/PlayingCard';
 import { RulesSheet } from '@components/RulesSheet';
 import { TableSurface } from '@components/TableSurface';
-import { CardPop, PotPulse } from '@components/animations/GameFx';
+import { PotPulse } from '@components/animations/GameFx';
 import { useLayerSurfaceEntrance } from '@hooks/useLayerSurfaceEntrance';
 import { useMotion } from '@hooks/useMotion';
 import { useGameAnimations } from '@hooks/useGameAnimations';
@@ -27,7 +26,7 @@ import { useCosmeticsStore } from '@store/cosmeticsStore';
 import { useGameStore } from '@store/gameStore';
 import { useLobbyStore } from '@store/lobbyStore';
 import { useUiStore } from '@store/uiStore';
-import { parseCardId, selectCardFace, selectLocalHand, type HandSortMode } from '@engine/selectors';
+import { parseCardId, selectCardFace, selectLocalHand } from '@engine/selectors';
 import { evaluatePokerHand, getGameRules, type GameAction, type GameActionSpec } from '@engine/rules';
 import { makeSeed, mulberry32, shuffleInPlace } from '@engine/index';
 import { communalZoneId, handZoneId, ZONE_MUCK, type CardFace, type CardInstance } from '@engine/types';
@@ -409,9 +408,9 @@ export function PokerTable({ active, topInset, bottomInset }: TableProps) {
     cancelAnimation(endedOpacity);
     cancelAnimation(endedTranslateY);
     if (state.phase !== 'ended') {
-      // eslint-disable-next-line react-hooks/immutability
+       
       endedOpacity.value = 0;
-      // eslint-disable-next-line react-hooks/immutability
+       
       endedTranslateY.value = 10;
       return;
     }

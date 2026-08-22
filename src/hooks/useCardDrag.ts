@@ -1,4 +1,4 @@
-/* eslint-disable react-hooks/immutability */
+ 
 
 import { useCallback, useMemo } from 'react';
 import { Gesture } from 'react-native-gesture-handler';

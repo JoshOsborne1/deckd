@@ -99,7 +99,7 @@ function PreviewStage({
     stage.value = withSpring(1, motionTokens.spring.layerSoft);
     fanL.value = withDelay(90, withSpring(1, motionTokens.spring.card));
     fanR.value = withDelay(140, withSpring(1, motionTokens.spring.card));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
   }, []);
 
   const stageStyle = useAnimatedStyle(() => ({

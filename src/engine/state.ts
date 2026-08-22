@@ -160,7 +160,6 @@ export function canApplyEvent(state: GameState, event: GameEvent): boolean {
   // against players that do not exist yet.
   const actorIsKnown = event.type === 'session/start' || event.actorId === 'system' || hasPlayer(event.actorId);
   if (!actorIsKnown) return false;
-  const actorMatches = (playerId: string): boolean => event.actorId === 'system' || event.actorId === playerId;
 
   switch (event.type) {
     case 'session/start': {

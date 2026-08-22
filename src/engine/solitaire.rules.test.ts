@@ -2,7 +2,6 @@ import { buildDeck, mulberry32, shuffleInPlace } from './deck';
 import { foldEvents } from './state';
 import { eventId } from './events';
 import type { GameEvent } from './events';
-import { ZONE_DRAW } from './types';
 import { freeCellPreset, golfPreset, pyramidPreset } from './presets';
 import { getGameRules, encodeMoveAction } from './rules';
 import {

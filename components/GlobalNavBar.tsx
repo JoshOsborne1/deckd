@@ -260,7 +260,7 @@ function NavCard({
   const setPressed = (pressed: boolean) => {
     if (reduceMotion) return;
     // Reanimated shared values are mutable by design for press feedback.
-    // eslint-disable-next-line react-hooks/immutability
+     
     press.value = withSpring(pressed ? 1 : 0, motion.spring.press);
   };
 
@@ -374,7 +374,7 @@ function LogoButton({
   const setPressed = (pressed: boolean) => {
     if (reduceMotion) return;
     // Reanimated shared values are mutable by design for press feedback.
-    // eslint-disable-next-line react-hooks/immutability
+     
     press.value = withSpring(pressed ? 1 : 0, motion.spring.press);
   };
 
