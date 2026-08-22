@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 import { CardDrag } from '@components/CardDrag';
 import { PlayingCard, SIZE_MAP } from '@components/PlayingCard';
@@ -70,7 +70,6 @@ export function CardDragHand({
 }: CardDragHandProps) {
   const handRef = useRef<View>(null);
   const scrollRef = useRef<ScrollView>(null);
-  const scrollMeasureFrame = useRef<number | null>(null);
   const slotRefs = useRef<Record<string, View | null>>({});
   const [origin, setOrigin] = useState({ x: 0, y: 0 });
   const [slots, setSlots] = useState<Record<string, Rect>>({});
@@ -112,18 +111,20 @@ export function CardDragHand({
   );
 
   const handleScroll = useCallback(() => {
-    if (scrollMeasureFrame.current !== null) return;
-    scrollMeasureFrame.current = requestAnimationFrame(() => {
-      scrollMeasureFrame.current = null;
-      measureOrigin();
-      measureAllSlots();
-    });
-  }, [measureAllSlots, measureOrigin]);
+    // P1-17: slot and origin are both measured in window space, so their
+    // DELTA (what the drag layer consumes) is invariant under scroll —
+    // the ScrollView translates both equally. Re-measuring every scroll
+    // frame was N measureInWindow calls at 60Hz for zero effect. Origin is
+    // refreshed on layout/scroll-end instead (see effects below).
+  }, []);
+
+  // Stable dep: the card identity sequence, not the array object (P1-17).
+  const cardOrderKey = useMemo(() => cards.map((c) => c.id).join(','), [cards]);
 
   useEffect(() => {
     const frame = requestAnimationFrame(measureOrigin);
     return () => cancelAnimationFrame(frame);
-  }, [cards.length, measureOrigin]);
+  }, [cardOrderKey, measureOrigin]);
 
   useEffect(() => {
     const firstPlayableIndex = cards.findIndex((card) => playableCardIds.has(card.id));
@@ -137,11 +138,17 @@ export function CardDragHand({
       requestAnimationFrame(measureAllSlots);
     });
     return () => cancelAnimationFrame(frame);
-  }, [cardSize.width, cards, measureAllSlots, measureOrigin, overlap, playableCardIds]);
+  }, [cardSize.width, cardOrderKey, measureAllSlots, measureOrigin, overlap, playableCardIds]);
 
   const localTargets = useMemo(
     () => dropTargets.map((target) => ({ ...target, x: target.x - origin.x, y: target.y - origin.y })),
     [dropTargets, origin.x, origin.y],
+  );
+  // P1-18: stable primitive identity for useCardDrag's gesture deps — the
+  // gesture only rebuilds when size/disabled/targets genuinely change.
+  const dragCardSize = useMemo(
+    () => ({ width: cardSize.width, height: cardSize.height }),
+    [cardSize.width, cardSize.height],
   );
 
   const visibleDragCards = cards.filter(
@@ -217,38 +224,94 @@ export function CardDragHand({
       {visibleDragCards.map((card) => {
         const slot = slots[card.id]!;
         const cardIndex = cards.indexOf(card);
-        const parsed = parseCardId(card.id);
-        const jokerColor = parseJokerId(card.id);
-        const fanOffset = cardIndex - (cards.length - 1) / 2;
-        const cardStyle = fan
-          ? { transform: [{ translateY: Math.abs(fanOffset) * 4 }, { rotate: `${fanOffset * 4}deg` }] }
-          : undefined;
         return (
-          <CardDrag
+          <HandDragCard
             key={`drag-${card.id}`}
-            cardId={card.id}
+            card={card}
+            cardIndex={cardIndex}
+            handCount={cards.length}
             slot={{ x: slot.x - origin.x, y: slot.y - origin.y }}
-            cardSize={{ width: cardSize.width, height: cardSize.height }}
+            cardSize={dragCardSize}
             dropTargets={localTargets}
             disabled={disabled}
-            style={{ zIndex: cardIndex + 1 }}
-            cardStyle={cardStyle}
-            accessibilityLabel={describeCardLabel(card.id, faceFor(card))}
-            onDrop={(targetId) => onDrop?.(card.id as CardId, targetId)}
-          >
-            <PlayingCard
-              rank={parsed?.rank}
-              suit={parsed?.suit}
-              jokerColor={jokerColor ?? undefined}
-              face={faceFor(card)}
-              size={size}
-            />
-          </CardDrag>
+            size={size}
+            fan={fan}
+            face={faceFor(card)}
+            onDrop={onDrop}
+          />
         );
       })}
     </View>
   );
 }
+
+/**
+ * Memoized per-card drag wrapper (P1-19). Fan transforms are derived from
+ * primitives (index/count) so re-renders of the hand don't rebuild inline
+ * style objects for unchanged cards — React.memo can then skip them.
+ */
+const HandDragCard = memo(function HandDragCard({
+  card,
+  cardIndex,
+  handCount,
+  slot,
+  cardSize,
+  dropTargets,
+  disabled,
+  size,
+  fan,
+  face,
+  onDrop,
+}: {
+  card: CardInstance;
+  cardIndex: number;
+  handCount: number;
+  slot: { x: number; y: number };
+  cardSize: { width: number; height: number };
+  dropTargets: readonly CardDropTarget[];
+  disabled: boolean;
+  size: 'md' | 'lg';
+  fan: boolean;
+  face: CardFace;
+  onDrop?: (cardId: CardId, targetId: string) => void;
+}) {
+  const parsed = parseCardId(card.id);
+  const jokerColor = parseJokerId(card.id);
+  const fanOffset = cardIndex - (handCount - 1) / 2;
+  const cardStyle = useMemo(
+    () =>
+      fan
+        ? { transform: [{ translateY: Math.abs(fanOffset) * 4 }, { rotate: `${fanOffset * 4}deg` }] }
+        : undefined,
+    [fan, fanOffset],
+  );
+  const handleDrop = useCallback(
+    (targetId: string) => onDrop?.(card.id as CardId, targetId),
+    [card.id, onDrop],
+  );
+
+  return (
+    <CardDrag
+      cardId={card.id}
+      slot={slot}
+      cardSize={cardSize}
+      dropTargets={dropTargets}
+      disabled={disabled}
+      style={{ zIndex: cardIndex + 1 }}
+      cardStyle={cardStyle}
+      accessibilityLabel={describeCardLabel(card.id, face)}
+      onDrop={handleDrop}
+    >
+      <PlayingCard
+        rank={parsed?.rank}
+        suit={parsed?.suit}
+        jokerColor={jokerColor ?? undefined}
+        face={face}
+        size={size}
+      />
+    </CardDrag>
+  );
+});
 
 const styles = StyleSheet.create({
   root: {

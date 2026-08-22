@@ -9,7 +9,9 @@ import {
   type StyleProp,
   type ViewStyle,
 } from 'react-native';
-import Animated, { useAnimatedStyle } from 'react-native-reanimated';
+import type { SharedValue } from 'react-native-reanimated';
+import Animated, { useAnimatedReaction, useAnimatedStyle } from 'react-native-reanimated';
+import { runOnJS } from 'react-native-worklets';
 import { GestureDetector } from 'react-native-gesture-handler';
 import { useCardDrag } from '@hooks/useCardDrag';
 import {
@@ -79,6 +81,19 @@ function TargetHighlight({
   );
 }
 
+/** True while this card is physically lifted (hold satisfied, drag active). */
+function useIsDragging(isDragging: SharedValue<boolean>): boolean {
+  const [dragging, setDragging] = useState(false);
+  useAnimatedReaction(
+    () => isDragging.value,
+    (next, previous) => {
+      if (next !== previous) runOnJS(setDragging)(next);
+    },
+    [isDragging],
+  );
+  return dragging;
+}
+
 /**
  * Shared physical card interaction. The card is inert until a 120ms hold and
  * 6px movement, then follows the pointer 1:1. Long-press and accessibility
@@ -132,7 +147,7 @@ export function CardDrag({
     action.onPress();
   }, []);
 
-  const { gesture, animatedStyle, activeTargetId } = useCardDrag({
+  const { gesture, animatedStyle, activeTargetId, isDragging } = useCardDrag({
     cardId,
     cardSize,
     slot,
@@ -142,6 +157,10 @@ export function CardDrag({
     onCancel,
     onLift,
   });
+  // Highlights mount only while THIS card is lifted (P1-16): a 10-card hand
+  // with 4 targets drops from 40 animated highlight nodes to at most 4, and
+  // only during an active drag.
+  const isDraggingCard = useIsDragging(isDragging);
 
   return (
     <>
@@ -175,14 +194,16 @@ export function CardDrag({
           if (action) fireAction(action);
         }}
       >
-        {dropTargets.map((target) => (
-          <TargetHighlight
-            key={target.id}
-            target={target}
-            slot={slot}
-            activeTargetId={activeTargetId}
-          />
-        ))}
+        {isDraggingCard
+          ? dropTargets.map((target) => (
+              <TargetHighlight
+                key={target.id}
+                target={target}
+                slot={slot}
+                activeTargetId={activeTargetId}
+              />
+            ))
+          : null}
         <GestureDetector gesture={gesture}>
           <Pressable
             disabled={disabled}
