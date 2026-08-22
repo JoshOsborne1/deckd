@@ -6,7 +6,12 @@ Deployed head: `cleanup/ready-to-build` @ `5ee2bbb` — everything below is live
 on https://deckd-app.roxai.click. Full shutdown snapshot + honest backlog:
 `docs/HANDOFF_2026-08-13.md`.
 
-Last update: 2026-08-22 (downgraded to Expo SDK 54 to match App Store Expo Go; all gates green; native iOS bundle compiles; live remains entry-88d78b5e and no deploy was run).
+Last update: 2026-08-22 (full production-readiness audit written; SDK 54 downgrade verified; live remains entry-88d78b5e and no deploy was run).
+
+## Production-readiness audit (2026-08-22)
+
+- Full audit at `docs/AUDIT_2026-08-22.md` + raw auditor reports in `docs/audits/2026-08-22/`. Baseline: gates all green, 225/225 tests.
+- Headline: P0 phone-crash bisect plan (probe proved device fine), P0 forgeable host auth (`EXPO_PUBLIC` secret ships to clients), P0 hijackable host-reclaim grace window. Then 20 P1s (event-integrity, persistence fallback, render perf) and 14 P2s. Recommended work order inside the doc.
 
 ## Expo SDK 54 downgrade (2026-08-22)
 
