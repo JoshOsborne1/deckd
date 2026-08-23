@@ -635,6 +635,7 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     overflow: 'hidden',
+    flexDirection: 'column',
   },
   header: {
     flexDirection: 'row',
@@ -717,10 +718,10 @@ const styles = StyleSheet.create({
     minHeight: 0,
   },
   tableCompact: {
-    flex: 0,
-    flexGrow: 0,
-    flexShrink: 0,
-    minHeight: 130,
+    flex: 1,
+    flexGrow: 1,
+    flexShrink: 1,
+    minHeight: 96,
     justifyContent: 'flex-start',
   },
   boardDropZone: {
@@ -736,7 +737,7 @@ const styles = StyleSheet.create({
     backgroundColor: alpha.brand10,
   },
   boardDropZoneCompact: {
-    minHeight: 130,
+    minHeight: 96,
   },
   dropHint: {
     position: 'absolute',

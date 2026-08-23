@@ -24,7 +24,9 @@ import { HandStack } from '@components/HandStack';
 import { SolitaireBoard } from '@components/SolitaireBoard';
 import { BlackjackTable } from '@components/layers/BlackjackTable';
 import { CrazyEightsTable } from '@components/layers/CrazyEightsTable';
+import { GoFishTable } from '@components/layers/GoFishTable';
 import { SevensTable } from '@components/layers/SevensTable';
+import { WarTable } from '@components/layers/WarTable';
 import { PokerTable } from '@components/layers/PokerTable';
 import { useLayerSurfaceEntrance } from '@hooks/useLayerSurfaceEntrance';
 import { useMotion } from '@hooks/useMotion';
@@ -397,6 +399,7 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
   // --- Per-game rule actions (blackjack twist/stick, poker burn/flop/...) ---
   const rules = useMemo(() => getGameRules(state.config.presetId), [state.config.presetId]);
   const isWar = rules.id === 'war';
+  const isGoFishTable = rules.id === 'go-fish';
   const isKlondike = rules.id === 'klondike';
   const isContextualGame = ['go-fish', 'old-maid', 'crazy-eights', 'sevens'].includes(rules.id);
   const usesRuleActionBar = [
@@ -917,6 +920,28 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
   if (isCrazyEightsTable && viewerId) {
     return (
       <CrazyEightsTable
+        active={active}
+        topInset={topInset}
+        bottomInset={bottomInset}
+      />
+    );
+  }
+
+  // --- War: dedicated battle surface (piles + centre well + FLIP dock). ---
+  if (isWar && viewerId) {
+    return (
+      <WarTable
+        active={active}
+        topInset={topInset}
+        bottomInset={bottomInset}
+      />
+    );
+  }
+
+  // --- Go Fish: dedicated ask surface (target block + books strip). ---
+  if (isGoFishTable && viewerId) {
+    return (
+      <GoFishTable
         active={active}
         topInset={topInset}
         bottomInset={bottomInset}
