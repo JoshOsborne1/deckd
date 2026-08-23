@@ -6,7 +6,14 @@ Deployed head: `cleanup/ready-to-build` @ `5ee2bbb` — everything below is live
 on https://deckd-app.roxai.click. Full shutdown snapshot + honest backlog:
 `docs/HANDOFF_2026-08-13.md`.
 
-Last update: 2026-08-22 (audit remediation wave executed; all code-side P0/P1/P2 landed; every gate green; P0-1 device confirmation outstanding; no deploy).
+Last update: 2026-08-23 (P0-1 iOS device crash FIXED and CONFIRMED on physical iPhone; boot instrumentation removed; all gates green).
+
+## P0-1 resolved (2026-08-23)
+
+- Physical iPhone reload from the PM2 dev server boots clean: fresh iOS bundle served (2864ms), heartbeats 500ms cadence through t+5140ms, renders continuing past t+100s. Previously: death ~300ms after first frame, zero heartbeats.
+- Root cause class: Reanimated worklet serialization. `FeltDrawer` called non-worklet `getDrawerMotion` inside `useAnimatedStyle` — first animated frame threw `TypeError` on the UI thread (silent on iOS, redbox on Android). Fixed by inlining (`e00a6d9`), plus `runOnJS` swap (`009da66`) and Expo Go 54 native pins (`f45d4b6`).
+- Android emulator (AVD `deckd-test`, Expo Go 54.0.8, WHPX) caught the error iOS hid and remains available for future native bisects.
+- Boot instrumentation removed (`1398255`). Gates: typecheck clean, lint 0 errors/8 warnings, Jest 222/222.
 
 ## Audit remediation wave (2026-08-22, commits d07300c → 8b09717)
 
