@@ -5,6 +5,15 @@
 
 import type { GameEvent } from '@engine/events';
 import {
+  encodeBatchAck,
+  encodeEventBatch,
+  hasSeqGap,
+  parseBatchAck,
+  parseEventBatchEnvelope,
+  type BatchAckEnvelope,
+  type EventBatchEnvelope,
+} from '@lib/relayAck';
+import {
   envelope,
   isRelayServerMessage,
   parseRelayMessage,
@@ -18,6 +27,8 @@ const HEARTBEAT_INTERVAL_MS = 15000;
 const PONG_TIMEOUT_MS = 8000;
 const MAX_RECONNECT_ATTEMPTS = 6;
 const MAX_EVENT_BATCH = 2048;
+const ACK_TIMEOUT_MS = 2500;
+const ACK_RETRIES = 3;
 
 export interface RelaySession {
   readonly role: RelayRole;
@@ -87,6 +98,18 @@ class RelayTransport implements RelaySession {
   private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
   private pongTimeout: ReturnType<typeof setTimeout> | null = null;
   private fatalError = false;
+  private nextBatchSeq = 1;
+  private readonly pendingAcks = new Map<string, {
+    resolve: () => void;
+    reject: (error: Error) => void;
+    retries: number;
+    timer: ReturnType<typeof setTimeout>;
+    to: string;
+    payload: string;
+  }>();
+  /** Highest event seq delivered to the guest (for gap detection). */
+  private lastDeliveredSeq = 0;
+  private gapResyncTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(opts: {
     role: RelayRole;
@@ -144,6 +167,7 @@ class RelayTransport implements RelaySession {
     this.ws.onerror = () => this.fail('WebSocket error');
     this.ws.onclose = () => {
       this.stopHeartbeat();
+      this.flushPendingAcks();
       if (this.closedByUser || this.status === 'closed') return;
       this.scheduleReconnect();
     };
@@ -206,6 +230,7 @@ class RelayTransport implements RelaySession {
       case 'room_joined':
         this.status = 'connected';
         this.players = message.players;
+        this.lastDeliveredSeq = 0; // Fresh session: reset the gap cursor.
         this.callbacks.onOpen(this);
         this.callbacks.onPlayersChanged(message.players);
         break;
@@ -227,15 +252,35 @@ class RelayTransport implements RelaySession {
         let payload: unknown;
         try { payload = JSON.parse(message.payload) as unknown; } catch { this.callbacks.onError(new Error('Invalid relay payload')); break; }
         if (this.role === 'host') {
+          const ack = parseBatchAck(payload);
+          if (ack) {
+            this.handleBatchAck(ack);
+            break;
+          }
           if (!isRecord(payload) || typeof payload.intent !== 'string' || payload.intent.length > 64) {
             this.callbacks.onError(new Error('Invalid guest intent'));
             break;
           }
           this.callbacks.onIntentReceived?.(payload.intent, payload.payload, message.from);
-        } else if (isGameEventBatch(payload)) {
-          this.callbacks.onEventsReceived(payload);
-        } else {
-          this.callbacks.onError(new Error('Invalid event batch'));
+        } else if (this.role === 'guest') {
+          const batch = parseEventBatchEnvelope(payload);
+          if (batch) {
+            // Deliver + ACK, or re-request a snapshot if a seq gap means a
+            // batch was lost and the guest's event chain has a hole.
+            if (hasSeqGap(this.lastDeliveredSeq, batch.firstSeq)) {
+              this.requestGapSnapshot();
+              break;
+            }
+            if (batch.events.length > 0) this.lastDeliveredSeq = batch.lastSeq;
+            this.send({ type: 'relay', to: message.from, payload: encodeBatchAck(batch.batchId, batch.lastSeq) });
+            this.callbacks.onEventsReceived(batch.events);
+          } else if (isGameEventBatch(payload)) {
+            // Legacy raw event batch from an old host: deliver unchanged.
+            if (payload.length > 0) this.lastDeliveredSeq = Math.max(...payload.map((e) => e.seq));
+            this.callbacks.onEventsReceived(payload);
+          } else {
+            this.callbacks.onError(new Error('Invalid event batch'));
+          }
         }
         break;
       }
@@ -267,16 +312,92 @@ class RelayTransport implements RelaySession {
     this.ws.send(encoded);
   }
 
+  private ackKey(batchId: string): string {
+    return `${this.clientId}:${batchId}`;
+  }
+
+  private handleBatchAck(ack: BatchAckEnvelope): void {
+    const key = this.ackKey(ack.batchId);
+    const pending = this.pendingAcks.get(key);
+    if (!pending) return; // Duplicate or unknown ACK: nothing to settle.
+    if (pending.timer) clearTimeout(pending.timer);
+    this.pendingAcks.delete(key);
+    pending.resolve();
+  }
+
+  private retryAck(batchId: string): void {
+    const key = this.ackKey(batchId);
+    const pending = this.pendingAcks.get(key);
+    if (!pending) return;
+    if (pending.retries >= ACK_RETRIES) {
+      this.pendingAcks.delete(key);
+      pending.reject(new Error(`Event batch ${batchId} was not acknowledged by the guest`));
+      return;
+    }
+    // Re-send the same payload; the guest dedups by event id + batchId.
+    pending.retries += 1;
+    try {
+      this.send({ type: 'relay', to: pending.to, payload: pending.payload });
+    } catch (error) {
+      this.pendingAcks.delete(key);
+      pending.reject(error instanceof Error ? error : new Error(String(error)));
+      return;
+    }
+    pending.timer = setTimeout(() => this.retryAck(batchId), ACK_TIMEOUT_MS);
+  }
+
+  private flushPendingAcks(): void {
+    for (const pending of this.pendingAcks.values()) {
+      if (pending.timer) clearTimeout(pending.timer);
+      pending.reject(new Error('Relay disconnected before event batch was acknowledged'));
+    }
+    this.pendingAcks.clear();
+  }
+
+  private requestGapSnapshot(): void {
+    if (this.gapResyncTimer) return; // Already scheduled.
+    this.gapResyncTimer = setTimeout(() => {
+      this.gapResyncTimer = null;
+      void this.requestSnapshot();
+    }, 500);
+  }
+
   async sendEvents(events: GameEvent[]): Promise<void> {
     if (this.role !== 'host') throw new Error('Only the host broadcasts events');
     if (!isGameEventBatch(events)) throw new Error('Invalid event batch');
-    this.send({ type: 'relay', to: 'all', payload: JSON.stringify(events) });
+    await this.sendEventBatchToAll(events);
   }
 
   async sendEventsTo(clientId: string, events: GameEvent[]): Promise<void> {
     if (this.role !== 'host') throw new Error('Only the host sends events');
     if (!isGameEventBatch(events)) throw new Error('Invalid event batch');
-    this.send({ type: 'relay', to: clientId, payload: JSON.stringify(events) });
+    await this.sendEventBatchToTarget(clientId, events);
+  }
+
+  private async sendEventBatchToAll(events: GameEvent[]): Promise<void> {
+    // Broadcast is the server's existing path: send once, relayed to every
+    // guest. The ACK contract is per-guest, so we await per-guest ACKs.
+    const guests = this.players.filter((p) => !p.isHost).map((p) => p.clientId);
+    if (guests.length === 0) return;
+    await Promise.all(guests.map((guestId) => this.sendEventBatchToTarget(guestId, events)));
+  }
+
+  private async sendEventBatchToTarget(clientId: string, events: GameEvent[]): Promise<void> {
+    if (this.role !== 'host') throw new Error('Only the host sends events');
+    const batchId = `B-${this.nextBatchSeq++}`;
+    const payload = encodeEventBatch(batchId, events);
+    this.send({ type: 'relay', to: clientId, payload });
+    const key = this.ackKey(batchId);
+    await new Promise<void>((resolve, reject) => {
+      this.pendingAcks.set(key, {
+        resolve,
+        reject,
+        retries: 0,
+        timer: setTimeout(() => this.retryAck(batchId), ACK_TIMEOUT_MS),
+        to: clientId,
+        payload,
+      });
+    });
   }
 
   async sendIntent(intent: string, payload: unknown): Promise<void> {

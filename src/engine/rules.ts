@@ -6,6 +6,7 @@ import type {
   PokerBettingState,
   ZoneId,
 } from './types';
+import { checkPokerBet } from './pokerBetting';
 import type { Suit } from '@lib/types';
 import {
   KLONDIKE_FOUNDATION_SUITS,
@@ -1133,31 +1134,6 @@ function pokerAdvanceAllowed(state: GameState, viewerId: PlayerId): boolean {
     : state.meta.hostId === viewerId;
 }
 
-function pokerAmountForAction(
-  action: Extract<GameAction, 'check' | 'call' | 'raise' | 'fold'>,
-  betting: PokerBettingState,
-  viewerId: PlayerId,
-): number | null {
-  const stack = betting.stacks[viewerId] ?? 0;
-  const roundContribution = betting.roundContributions[viewerId] ?? 0;
-  if (action === 'fold' || action === 'check') {
-    if (action === 'check' && roundContribution !== betting.currentBet) return null;
-    return 0;
-  }
-  if (stack <= 0) return null;
-  if (action === 'call') {
-    const due = betting.currentBet - roundContribution;
-    if (due <= 0) return null;
-    return Math.min(due, stack);
-  }
-
-  // The action rail is intentionally one-tap: a raise is one big blind above
-  // the current bet, capped at the player's remaining stack (all-in).
-  const target = Math.max(betting.currentBet + betting.bigBlind, betting.bigBlind);
-  const amount = Math.min(target - roundContribution, stack);
-  return amount > betting.currentBet - roundContribution ? amount : null;
-}
-
 function pokerActions(state: GameState, viewerId: PlayerId): GameActionSpec[] {
   if (state.phase !== 'playing') return [];
   const betting = pokerBetting(state);
@@ -1172,16 +1148,15 @@ function pokerActions(state: GameState, viewerId: PlayerId): GameActionSpec[] {
   if (!betting.roundComplete && isCurrent && !isFolded && (betting.stacks[viewerId] ?? 0) > 0) {
     specs.push({ id: 'fold', label: 'FOLD', hint: 'Leave the hand; the live players continue', kind: 'bet' });
     const roundContribution = betting.roundContributions[viewerId] ?? 0;
-    const callAmount = pokerAmountForAction('call', betting, viewerId);
-    const raiseAmount = pokerAmountForAction('raise', betting, viewerId);
+    const callCheck = checkPokerBet(state, viewerId, 'call');
+    const raiseCheck = checkPokerBet(state, viewerId, 'raise');
     if (roundContribution === betting.currentBet) {
       specs.push({ id: 'check', label: 'CHECK', hint: 'Pass without adding chips', kind: 'bet' });
-    } else if (callAmount !== null) {
-      specs.push({ id: 'call', label: 'CALL', hint: `Match ${callAmount} chip${callAmount === 1 ? '' : 's'}`, kind: 'bet' });
+    } else if (callCheck.ok) {
+      specs.push({ id: 'call', label: 'CALL', hint: `Match ${callCheck.amount} chip${callCheck.amount === 1 ? '' : 's'}`, kind: 'bet' });
     }
-    if (raiseAmount !== null) {
-      const raiseTo = roundContribution + raiseAmount;
-      specs.push({ id: 'raise', label: 'RAISE', hint: `Raise to ${raiseTo} chips`, kind: 'bet' });
+    if (raiseCheck.ok) {
+      specs.push({ id: 'raise', label: 'RAISE', hint: `Raise to ${raiseCheck.raiseTo ?? roundContribution + raiseCheck.amount} chips`, kind: 'bet' });
     }
   }
 
@@ -1292,8 +1267,9 @@ function pokerApply(
     }
     case 'fold': {
       if (!isCurrent || betting.roundComplete || folded.includes(viewerId)) return null;
-      const amount = pokerAmountForAction('fold', betting, viewerId);
-      if (amount === null) return null;
+      const check = checkPokerBet(state, viewerId, 'fold');
+      if (!check.ok) return null;
+      const amount = check.amount;
       const projectedFolded = [...folded, viewerId];
       const projectedBetting = {
         ...betting,
@@ -1320,8 +1296,9 @@ function pokerApply(
     case 'call':
     case 'raise': {
       if (!isCurrent || betting.roundComplete || folded.includes(viewerId)) return null;
-      const amount = pokerAmountForAction(action, betting, viewerId);
-      if (amount === null) return null;
+      const check = checkPokerBet(state, viewerId, action);
+      if (!check.ok) return null;
+      const amount = check.amount;
       const roundContribution = (betting.roundContributions[viewerId] ?? 0) + amount;
       const currentBet = action === 'raise'
         ? Math.max(betting.currentBet, roundContribution)
