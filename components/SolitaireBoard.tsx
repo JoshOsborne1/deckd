@@ -243,7 +243,7 @@ export function SolitaireBoard({ state, viewerId, topInset, bottomInset }: Solit
       </View>
 
       {/* Readout */}
-      {readout && state.phase !== 'ended' && (
+      {!!readout && state.phase !== 'ended' && (
         <View style={styles.readoutBar}>
           <Text style={styles.readoutText}>{readout}</Text>
         </View>

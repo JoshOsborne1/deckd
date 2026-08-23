@@ -343,7 +343,7 @@ export function SevensTable({ active, topInset, bottomInset }: SevensTableProps)
             snakeTrigger={snakeTrigger}
             snakeStaggerMs={SEVENS_SNAKE_STAGGER_MS}
           />
-          {lastPlayKey && (
+          {!!lastPlayKey && (
             <RingPulseB
               reduceMotion={reduceMotion}
               trigger={ringTrigger}
@@ -491,7 +491,7 @@ export function SevensTable({ active, topInset, bottomInset }: SevensTableProps)
             ? 'Hold a playable card, then drag it into the matching run'
             : `Waiting for ${currentPlayerName || 'the next player'} · watch the runs grow`}
         </Text>
-        {readout && (
+        {!!readout && (
           <View style={styles.valuePill}>
             <Text style={styles.valuePillText}>{readout}</Text>
           </View>

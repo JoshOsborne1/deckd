@@ -540,7 +540,7 @@ export function PokerTable({ active, topInset, bottomInset }: TableProps) {
           <View style={styles.muckSpacer} />
         </View>
 
-        {streetLabel && (
+        {!!streetLabel && (
           <Text style={styles.streetLabel} accessibilityRole="text">
             {streetLabel}
           </Text>
