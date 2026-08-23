@@ -129,12 +129,22 @@ export function HubLayer({
   );
 
   const [presetId, setPresetId] = React.useState<Preset['id']>(resolvedBuiltinId);
+  // Live mirror of presetId for deal-time reads. handleStart can be tapped
+  // in the same frame as a preset card tap, before React re-renders; reading
+  // the render-closure activePreset would launch the PREVIOUS preset. Refs
+  // update synchronously in the tap handler, so the freshest selection wins.
+  const presetIdRef = React.useRef<Preset['id']>(presetId);
+  presetIdRef.current = presetId;
   const [prevResolvedBuiltinId, setPrevResolvedBuiltinId] = React.useState(resolvedBuiltinId);
   if (prevResolvedBuiltinId !== resolvedBuiltinId) {
     setPrevResolvedBuiltinId(resolvedBuiltinId);
     setPresetId(resolvedBuiltinId);
   }
   const [playerCount, setPlayerCount] = React.useState<PlayerCount>(2);
+  // Mirror playerCount for the same deal-time read; the player-range clamp
+  // from a preset tap lands in the same frame as a deal tap.
+  const playerCountRef = React.useRef<PlayerCount>(playerCount);
+  playerCountRef.current = playerCount;
   const [includeJokers, setIncludeJokers] = React.useState(false);
   const [fanStyle, setFanStyle] = React.useState<FanStyle>('wide');
   const [autoReshuffle, setAutoReshuffle] = React.useState(true);
@@ -193,10 +203,13 @@ export function HubLayer({
 
   const handlePresetSelect = (nextPreset: Preset) => {
     setPresetId(nextPreset.id);
+    presetIdRef.current = nextPreset.id; // synchronous: deal taps in the same frame see this
     setPlayerCount((current) => {
       const min = Math.max(1, nextPreset.minPlayers);
       const max = Math.min(6, nextPreset.maxPlayers);
-      return Math.max(min, Math.min(max, current)) as PlayerCount;
+      const clamped = Math.max(min, Math.min(max, current)) as PlayerCount;
+      playerCountRef.current = clamped; // mirror synchronously
+      return clamped;
     });
   };
 
@@ -219,6 +232,11 @@ export function HubLayer({
 
   const handleStart = () => {
     if (launching.current) return;
+    // Deal-time preset resolution: the tap may land in the same frame as a
+    // preset card tap, before React re-renders. Read the synchronous ref so
+    // the freshest selection wins; the render-closure activePreset would
+    // launch the PREVIOUS preset (proven wrong-game race).
+    const dealPreset = builtinPresets.find((p) => p.id === presetIdRef.current) ?? builtinPresets[0];
     // Guests never create a local session. The host's event stream is the
     // only source of truth; entering the table is safe once that stream has
     // arrived, otherwise keep the guest in a visible waiting state.
@@ -254,7 +272,7 @@ export function HubLayer({
       }));
       createSession({
         mode: 'online-host',
-        presetId: activePreset.id,
+        presetId: dealPreset.id,
         players,
         config: { includeJokers: effectiveIncludeJokers, fanStyle, autoReshuffleDiscard: autoReshuffle },
         hostId: localClientId,
@@ -266,14 +284,14 @@ export function HubLayer({
 
     // Pass-and-play: local players on one device. Solo (1 player) is
     // blackjack against the virtual house.
-    const players = Array.from({ length: playerCount }, (_, idx) => ({
+    const players = Array.from({ length: playerCountRef.current }, (_, idx) => ({
       id: idx === 0 ? 'you' : `p${idx + 1}`,
       name: idx === 0 ? nickname : `Player ${idx + 1}`,
       avatarSeed: idx === 0 ? avatarSeed : `seat-${idx + 1}`,
     }));
     createSession({
       mode: playerCount === 1 ? 'solo' : 'pass',
-      presetId: activePreset.id,
+      presetId: dealPreset.id,
       players,
       config: { includeJokers: effectiveIncludeJokers, fanStyle, autoReshuffleDiscard: autoReshuffle },
       hostId: 'you',

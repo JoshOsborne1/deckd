@@ -181,7 +181,8 @@ export function isBust(value: number): boolean {
 const BLACKJACK_ACTIONS: GameActionSpec[] = [
   { id: 'twist', label: 'TWIST', hint: 'Take another card', kind: 'table' },
   { id: 'stick', label: 'STICK', hint: 'Keep your hand, end your turn', kind: 'table' },
-  { id: 'stand', label: 'STAND', hint: 'Keep your hand, end your turn', kind: 'table' },
+  // 'stand' is accepted by the engine as an alias of 'stick' but is never
+  // offered in the rail: two identical buttons side by side is noise.
 ];
 
 function blackjackActions(state: GameState, viewerId: PlayerId): GameActionSpec[] {

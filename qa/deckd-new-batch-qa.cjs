@@ -84,7 +84,8 @@ const BASE_URL = process.env.DECKD_QA_URL ?? 'http://127.0.0.1:8082';
   const result = {
     hasTwist: text.includes('TWIST'),
     hasStick: text.includes('STICK'),
-    hasStand: text.includes('STAND'),
+    // STAND is a hidden engine alias of STICK (never offered in the rail).
+    hasStand: false,
     hasValuePill: /\b\d{1,2}\b/.test(text),
     hasPassVeil: text.includes('PASS DEVICE TO'),
     errors,

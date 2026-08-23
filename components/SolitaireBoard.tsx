@@ -495,7 +495,7 @@ function FreeCellBoard({
                 if (selectedSource && selectedSource !== freeCellZoneId(i)) onTargetSelect(freeCellZoneId(i));
                 else if (topCardId) onSourceSelect(freeCellZoneId(i));
               }}
-              style={[styles.pileSlot, selectedSource === freeCellZoneId(i) && styles.slotSelected]}
+              style={[styles.pileSlot, styles.freeCellTopSlot, selectedSource === freeCellZoneId(i) && styles.slotSelected]}
             >
               {card ? (
                 <MiniCard cardId={topCardId!} face={card.face} selected={selectedSource === freeCellZoneId(i)} />
@@ -515,7 +515,7 @@ function FreeCellBoard({
             <Pressable
               key={`fdn-${i}`}
               onPress={() => onTargetSelect(foundationZoneId(i))}
-              style={styles.pileSlot}
+              style={[styles.pileSlot, styles.freeCellTopSlot]}
             >
               {card && parsed ? (
                 <MiniCard cardId={topCardId!} face={card.face} size="sm" highlight />
@@ -934,8 +934,16 @@ const styles = StyleSheet.create({
   },
   freeCellTopRow: {
     flexDirection: 'row',
-    gap: space.sm,
     alignItems: 'flex-start',
+    paddingHorizontal: 8,
+  },
+  freeCellTopSlot: {
+    width: 60,
+    alignItems: 'center',
+    justifyContent: 'center',
+    // Overlap the next slot so 8 piles fit in 375px: 8×60 − 7×18 = 354
+    // (+16px padding) — the standard mobile freecell pile look.
+    marginRight: -18,
   },
   freeCellTableau: {
     flexDirection: 'row',
