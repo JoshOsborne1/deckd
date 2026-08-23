@@ -1,6 +1,5 @@
 import React, { useEffect, useMemo } from 'react';
 import { StyleSheet, View } from 'react-native';
-import Svg, { Path } from 'react-native-svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   default as Animated,
@@ -28,12 +27,12 @@ import { useCosmeticsStore } from '@store/cosmeticsStore';
 import { findTableThemeById } from '@engine/visuals';
 import { useMotion } from '@hooks/useMotion';
 import { alpha, colors } from '@theme';
-import { PAPER_GRAIN_PATH } from '@lib/paperGrain';
 import {
   getSurfaceTransitionKind,
   isSurfaceTableTransition,
 } from '@lib/surfaceMorph';
-
+import Svg, { Path } from 'react-native-svg';
+import { PAPER_GRAIN_PATH } from '@lib/paperGrain';
 const MATERIAL_EMPHASIZED = Easing.bezier(0.4, 0, 0.2, 1);
 const DURATION_ENTER_HUB = 520;
 const DURATION_RETURN_HOME = 380;
