@@ -39,12 +39,11 @@ export function FeltDrawer({ children, style }: FeltDrawerProps) {
     opacity: progress.value,
   }));
   const drawerStyle = useAnimatedStyle(() => {
-    const motion = getDrawerMotion(reduceMotion);
     return {
       opacity: progress.value,
       transform: reduceMotion
         ? []
-        : [{ translateX: (1 - progress.value) * motion.translateX }],
+        : [{ translateX: (1 - progress.value) * 32 }],
     };
   });
 
