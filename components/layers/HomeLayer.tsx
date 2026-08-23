@@ -8,7 +8,7 @@ import Animated, {
   useSharedValue,
   withTiming,
 } from 'react-native-reanimated';
-import { scheduleOnRN } from 'react-native-worklets';
+import { runOnJS } from 'react-native-worklets';
 import { AvatarPlaceholder } from '@components/AvatarPlaceholder';
 import { PlayingCard } from '@components/PlayingCard';
 import { TableSurface } from '@components/TableSurface';
@@ -103,7 +103,7 @@ export function HomeLayer({
   useAnimatedReaction(
     () => progress.value < HOME_INTERACTIVE_THRESHOLD,
     (open, prev) => {
-      if (open !== prev) scheduleOnRN(setGateOpen, open);
+      if (open !== prev) runOnJS(setGateOpen)(open);
     },
     [],
   );

@@ -9,7 +9,7 @@ import Animated, {
   withTiming,
   type SharedValue,
 } from 'react-native-reanimated';
-import { scheduleOnRN } from 'react-native-worklets';
+import { runOnJS } from 'react-native-worklets';
 import { BookOpen, ChevronLeft, Users } from 'lucide-react-native';
 import { CardButton } from '@components/CardButton';
 import { CardSection } from '@components/CardSection';
@@ -172,7 +172,7 @@ export function HubLayer({
   useAnimatedReaction(
     () => progress.value >= HUB_INTERACTIVE_THRESHOLD,
     (open, prev) => {
-      if (open !== prev) scheduleOnRN(setGateOpen, open);
+      if (open !== prev) runOnJS(setGateOpen)(open);
     },
     [],
   );
@@ -212,7 +212,7 @@ export function HubLayer({
       { duration: motion.duration.base, easing: EASING_EMPHASIZED },
       (finished) => {
         'worklet';
-        if (finished) scheduleOnRN(setViewMode, 'table');
+        if (finished) runOnJS(setViewMode)('table');
       },
     );
   };
