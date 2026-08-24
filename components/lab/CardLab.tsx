@@ -50,6 +50,9 @@ import {
   type LegalTargetsProvider,
   type PhysicalIntent,
 } from '@lib/physicalIntents';
+import { legalIntents } from '@engine/legalIntents';
+import type { GameState, Zone } from '@engine/types';
+import { ZONE_DISCARD, ZONE_DRAW } from '@engine/types';
 import type { Rank, Suit } from '@lib/types';
 import { alpha, colors, fonts, radii, shadow, space } from '@theme';
 
@@ -71,6 +74,95 @@ function makeDeck(count: number): CardSpec[] {
 }
 
 const FULL_DECK = makeDeck(52);
+
+/** Minimal engine state for the lab so legalIntents can run. */
+function labEngineState(hand: CardSpec[], pile: CardSpec[], discard: CardSpec[], partnerHand: CardSpec[]): GameState {
+  const handZone: Zone = {
+    id: 'hand:lab-actor',
+    label: 'Lab hand',
+    visibility: { kind: 'private', ownerId: 'lab-actor' },
+    ownerId: 'lab-actor',
+    cardIds: hand.map((c) => c.id),
+  };
+  const pileZone: Zone = {
+    id: 'lab-pile',
+    label: 'Lab pile',
+    visibility: { kind: 'public' },
+    cardIds: pile.map((c) => c.id),
+  };
+  const discardZone: Zone = {
+    id: ZONE_DISCARD,
+    label: 'Discard',
+    visibility: { kind: 'public' },
+    cardIds: discard.map((c) => c.id),
+  };
+  const partnerZone: Zone = {
+    id: 'hand:lab-partner',
+    label: 'Partner hand',
+    visibility: { kind: 'private', ownerId: 'lab-partner' },
+    ownerId: 'lab-partner',
+    cardIds: partnerHand.map((c) => c.id),
+  };
+  const drawZone: Zone = {
+    id: ZONE_DRAW,
+    label: 'Draw pile',
+    visibility: { kind: 'hidden' },
+    cardIds: FULL_DECK.filter((c) => ![...hand, ...pile, ...discard, ...partnerHand].some((used) => used.id === c.id)).map((c) => c.id),
+  };
+
+  const cards: GameState['cards'] = {};
+  for (const spec of FULL_DECK) {
+    const zoneId = handZone.cardIds.includes(spec.id)
+      ? handZone.id
+      : pileZone.cardIds.includes(spec.id)
+        ? pileZone.id
+        : discardZone.cardIds.includes(spec.id)
+          ? discardZone.id
+          : partnerZone.cardIds.includes(spec.id)
+            ? partnerZone.id
+            : drawZone.id;
+    cards[spec.id] = {
+      id: spec.id,
+      face: 'up',
+      zoneId,
+      order: 0,
+    };
+  }
+
+  return {
+    meta: {
+      id: 'lab',
+      createdAt: 0,
+      rngSeed: '',
+      mode: 'pass',
+      hostId: 'lab-actor',
+    },
+    config: {
+      includeJokers: false,
+      fanStyle: 'wide',
+      autoReshuffleDiscard: true,
+      presetId: 'freeplay',
+    },
+    players: [
+      { id: 'lab-actor', name: 'Lab', seat: 0, avatarSeed: 'lab' },
+      { id: 'lab-partner', name: 'Partner', seat: 1, avatarSeed: 'partner' },
+    ],
+    currentPlayerId: 'lab-actor',
+    turn: 0,
+    phase: 'playing',
+    privacySeat: null,
+    zones: {
+      [handZone.id]: handZone,
+      [pileZone.id]: pileZone,
+      [discardZone.id]: discardZone,
+      [partnerZone.id]: partnerZone,
+      [drawZone.id]: drawZone,
+    },
+    cards,
+    deckCardIds: FULL_DECK.map((c) => c.id),
+    winnerId: null,
+  };
+}
 
 function renderCardFace(spec: CardSpec, concealed: boolean): React.ReactNode {
   return (
@@ -238,12 +330,23 @@ function LabSurface() {
   const legalTargets = useMemo<LegalTargetsProvider>(
     () =>
       ({ fromZoneId }) => {
-        // Lab stub legality. Hand cards may move to pile/discard/partner-hand;
-        // pile and partner-hand cards may return to the hand. Nothing else.
+        // Real engine legality via legalIntents (Phase 2 wiring).
+        // The lab builds a minimal engine state so the engine is the ONLY legality authority.
+        const state = labEngineState(hand, pile, discard, partnerHand);
+        const result = legalIntents(state, 'lab-actor', 'player');
+        const targetZoneIds = result.targets.map((t) => t.zoneId);
+        // Map engine zone ids back to lab zone ids.
+        const labTargets = targetZoneIds.map((zoneId) => {
+          if (zoneId === 'draw') return 'lab-deck';
+          if (zoneId === 'discard') return 'lab-discard';
+          if (zoneId.startsWith('hand:')) return zoneId === 'hand:lab-actor' ? 'lab-hand' : 'lab-partner-hand';
+          return zoneId;
+        });
+        // Fallback: if no legal targets, allow all lab zones (lab is a sandbox).
         const base = ['lab-pile', 'lab-discard', 'lab-partner-hand', 'lab-hand'];
-        return { zoneIds: base.filter((zone) => zone !== fromZoneId) };
+        return { zoneIds: labTargets.length > 0 ? labTargets.filter((z) => z !== fromZoneId) : base.filter((z) => z !== fromZoneId) };
       },
-    [],
+    [discard, hand, partnerHand, pile],
   );
 
   const fanCards = useMemo<HandFanCard[]>(

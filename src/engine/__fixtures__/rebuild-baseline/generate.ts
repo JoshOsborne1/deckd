@@ -19,6 +19,11 @@
  * generatedAt marker is a fixed string, so regeneration is byte-identical.
  */
 
+/// <reference types="node" />
+
+import * as fs from 'fs';
+import * as path from 'path';
+
 import type {
   CardId,
   GameAction,
@@ -531,4 +536,28 @@ export function generateFixtures(): Record<string, Record<string, unknown>> {
     'poker-style.json': pokerStyleFixture(),
     'solo-blackjack.json': soloBlackjackFixture(),
   };
+}
+
+/** Canonical stable JSON text for a fixture (2-space pretty + trailing LF). */
+export function fixtureJsonText(fixture: Record<string, unknown>): string {
+  return JSON.stringify(fixture, null, 2) + '\n';
+}
+
+/**
+ * GENERATOR-ONLY entry point: writes all five fixture JSONs under FIXTURE_DIR.
+ *
+ * Deliberately NOT exported to the Jest test path — the regression suite in
+ * rebuild-baseline.test.ts is read-only and must fail (not rewrite) when a
+ * checked-in fixture drifts from current engine behaviour. Run this explicitly
+ * (e.g. `npx ts-node .../generate.ts`) only when a new baseline is intended.
+ */
+export function writeFixturesToDisk(): string[] {
+  fs.mkdirSync(FIXTURE_DIR, { recursive: true });
+  const written: string[] = [];
+  for (const [file, fixture] of Object.entries(generateFixtures())) {
+    const target = path.join(FIXTURE_DIR, file);
+    fs.writeFileSync(target, fixtureJsonText(fixture));
+    written.push(target);
+  }
+  return written;
 }

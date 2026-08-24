@@ -4,13 +4,33 @@ Josh's current directives for the Deckd LOOP. Latest wins over anything in ROADM
 
 **STATUS: LOOP SHUT DOWN 2026-08-13 (Josh).** All loop crons removed; no autonomous work runs against this repo. Directives below remain the product intent; apply them on demand, not continuously. See `docs/HANDOFF_2026-08-13.md` for the shutdown snapshot and next steps.
 
-Last updated: 2026-08-19
+Last updated: 2026-08-24
 
 ## Build brief (supersedes doc order)
 
 **docs/AUDIT_2026-08-11.md is the authoritative build brief** (Josh, 2026-08-11): the verified gap list (what exists / what should exist / the "ready" bar G1-G9) and the dispatch order. Work it. Monetisation is PARKED — store products, keys, paywalls, RevenueCat wiring are NOT the goal. Gameplay, features, playability, visuals ARE the goal. Josh's standing order: build & push all day, no asking.
 
 ## Current directives
+
+### 21. Controlled physical-card gameplay rebuild (Josh, 2026-08-24 — latest)
+The product direction is now a controlled gameplay rebuild per `.hermes/plans/2026-08-23_201024-deckd-physical-card-rebuild-blueprint.md`, not another game-specific UI pass. This directive is a bounded rebuild lane; it does not restore the retired autonomous LOOP crons.
+
+The v1 scope expands from one-phone pass-and-play plus hosted lobbies to four surface modes:
+
+- **Hot-seat pass-and-play:** one phone, private hands, an intentional pass ritual.
+- **Personal-device multiplayer:** each player has a personal hand on an online or same-room nearby connection.
+- **Dual-end board:** two trusted face-to-face players share one phone from opposite ends and hold to peek.
+- **Phone Deck:** one public-table phone renders the shared table while one or more private-hand phones render only their owners' hands.
+
+The shared product principle is **objects are controls**: cards, piles, chips, and the turn token are the primary controls for the actions they represent. Visible button-first card actions are compatibility affordances only and must not be the primary play path in the rebuild.
+
+Transport decisions are fixed for this lane:
+
+- Nearby means **Google Nearby Connections** through a local Expo module; product copy must not call it BLE.
+- Raw BLE GATT multiplayer remains dropped and must not return as a shortcut.
+- **Multipeer Connectivity is banned**; Xcode 27 deprecates the framework. If the Nearby spike fails, use a local client-server adapter over Network framework/Bonjour (or the equivalent reliable local transport), never MPC or raw BLE GATT.
+
+The canonical engine stays framework-free and event-sourced. Authority, transport, surface profile, and seat binding are separate concerns; the server-authoritative room runtime, recipient-filtered projections, and physical-card grammar are the migration contract. Existing game rules remain behaviour references and are frozen as deterministic seeded replay fixtures before Phase 1.
 
 ### 1. Cards must not be "knackered" (P0)
 The card rendering is still too buggy visually. Cards must render cleanly at every size, no overlaps, no clipping, no layout jitter when the hand fans or stacks. Verify at 375px AND desktop. This is the top priority: fix card rendering before any other card work.

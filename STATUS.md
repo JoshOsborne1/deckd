@@ -1,5 +1,7 @@
 # Deckd status
 
+- Rebuild started on `rebuild/physical-cards`; Phase 0 complete (2026-08-24): source-of-truth contract, ADRs, and deterministic baseline fixtures frozen.
+
 **LOOP SHUT DOWN 2026-08-13 (Josh).** All deckd crons removed (loop-watchdog,
 lane-watchdog, builder-watchdog, merge-deploy, skill-index). No autonomous work.
 Deployed head: `cleanup/ready-to-build` @ `5ee2bbb` — everything below is live

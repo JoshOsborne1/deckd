@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Alert,
   Pressable,
   StyleSheet,
   Text,
@@ -16,14 +15,12 @@ import Animated, {
   withSpring,
   withTiming,
 } from 'react-native-reanimated';
-import { BookOpen, ChevronLeft, Clock, Flag, Undo2 } from 'lucide-react-native';
 import { AvatarPlaceholder } from '@components/AvatarPlaceholder';
 import { CardButton } from '@components/CardButton';
 import { CardDragHand } from '@components/CardDragHand';
-import { EventHistoryModal } from '@components/EventHistoryModal';
 import { PlayingCard, SIZE_MAP } from '@components/PlayingCard';
-import { RulesSheet } from '@components/RulesSheet';
 import { TableSurface } from '@components/TableSurface';
+import { TableShell } from '@components/table/TableShell';
 import { useLayerSurfaceEntrance } from '@hooks/useLayerSurfaceEntrance';
 import { useMotion } from '@hooks/useMotion';
 import { useCosmeticsStore } from '@store/cosmeticsStore';
@@ -32,7 +29,6 @@ import { useLobbyStore } from '@store/lobbyStore';
 import { useUiStore } from '@store/uiStore';
 import {
   parseCardId,
-  selectCanUndo,
   selectCardFace,
   selectCurrentPlayerId,
   selectIsMyTurn,
@@ -69,17 +65,12 @@ export function CrazyEightsTable({ active, topInset, bottomInset }: CrazyEightsT
   const surfaceStyle = useLayerSurfaceEntrance(active);
   const setViewMode = useUiStore((s) => s.setViewMode);
   const equippedBackId = useCosmeticsStore((s) => s.equippedBackId);
-  const [historyOpen, setHistoryOpen] = useState(false);
-  const [rulesOpen, setRulesOpen] = useState(false);
 
   const state = useGameStore((s) => s.state);
   const events = useGameStore((s) => s.events);
   const gameAction = useGameStore((s) => s.gameAction);
   const replaySession = useGameStore((s) => s.replaySession);
-  const undoLastAction = useGameStore((s) => s.undoLastAction);
-  const endSession = useGameStore((s) => s.endSession);
 
-  const lobbyStatus = useLobbyStore((s) => s.status);
   const lobbySession = useLobbyStore((s) => s.session);
   const localClientId = useLobbyStore((s) => s.localClientId);
 
@@ -112,17 +103,9 @@ export function CrazyEightsTable({ active, topInset, bottomInset }: CrazyEightsT
     () => (viewerId ? selectIsMyTurn(state, viewerId) : false),
     [state, viewerId],
   );
-  const canUndo = useMemo(
-    () => (viewerId ? selectCanUndo(state, viewerId) : false),
-    [state, viewerId],
-  );
   const drawCount = state.zones[ZONE_DRAW]?.cardIds.length ?? 0;
   const discardCardId = state.zones[ZONE_DISCARD]?.cardIds.at(-1) ?? null;
   const discardCard = discardCardId ? state.cards[discardCardId] : null;
-  const currentPlayerName = useMemo(
-    () => state.players.find((player) => player.id === currentPlayerId)?.name ?? '',
-    [currentPlayerId, state.players],
-  );
   const hasSession = events.length > 0 && state.phase !== 'idle';
   const handLocked = state.privacySeat !== null;
 
@@ -154,22 +137,6 @@ export function CrazyEightsTable({ active, topInset, bottomInset }: CrazyEightsT
     haptic('light');
     setViewMode('hub');
   }, [haptic, setViewMode]);
-
-  const handleEndSession = useCallback(() => {
-    Alert.alert(
-      'End the table?',
-      'This ends the session for everyone. You can start a new one from the hub.',
-      [
-        { text: 'Keep playing', style: 'cancel' },
-        { text: 'End table', style: 'destructive', onPress: () => endSession(viewerId ?? undefined) },
-      ],
-    );
-  }, [endSession, viewerId]);
-
-  const handleUndo = useCallback(() => {
-    haptic('medium');
-    undoLastAction();
-  }, [haptic, undoLastAction]);
 
   const discardRef = useRef<View>(null);
   const [discardRect, setDiscardRect] = useState<Rect | null>(null);
@@ -268,169 +235,121 @@ export function CrazyEightsTable({ active, topInset, bottomInset }: CrazyEightsT
       style={[styles.root, { bottom: bottomInset }, surfaceStyle]}
     >
       <TableSurface mode="play" />
+      <TableShell
+        title="CRAZY EIGHTS"
+        active={active}
+        topInset={topInset}
+        bottomInset={0}
+        onBackToHub={handleBackToHub}
+      >
+        <View style={styles.opponents}>
+          {opponents.map((opponent) => {
+            const handSize = selectOpponentHandSize(state, opponent.id);
+            const activeOpponent = currentPlayerId === opponent.id;
+            return (
+              <View key={opponent.id} style={[styles.opponent, activeOpponent && styles.opponentActive]}>
+                <AvatarPlaceholder seed={opponent.avatarSeed} label={opponent.name} size={compact ? 38 : 48} />
+                <Text style={styles.opponentName} numberOfLines={1}>{opponent.name}</Text>
+                <Text style={styles.opponentCount}>{handSize} {handSize === 1 ? 'CARD' : 'CARDS'}</Text>
+              </View>
+            );
+          })}
+        </View>
 
-      <View style={[styles.header, { paddingTop: topInset + space.sm }]}>
-        <CardButton
-          variant="ghost"
-          size="sm"
-          elevated={false}
-          haptic="light"
-          onPress={handleBackToHub}
-          style={styles.backChip}
-        >
-          <ChevronLeft size={18} color={colors.inkMuted} />
-          <Text style={styles.backText}>Hub</Text>
-        </CardButton>
-        <Text style={styles.eyebrow}>{isMyTurn ? 'YOUR TURN' : `${currentPlayerName.toUpperCase()} · TO PLAY`}</Text>
-        {lobbyStatus === 'connected' && <View style={styles.syncDot} />}
-      </View>
+        <View style={[styles.table, compact && styles.tableCompact]}>
+          <Text style={styles.tableTitle}>{isMyTurn ? 'Choose a card' : 'Watch the table'}</Text>
+          <View style={styles.playArea}>
+            <Animated.View style={[styles.drawObject, drawMotionStyle]}>
+              <Pressable
+                disabled={!canDraw}
+                onPress={handleDraw}
+                onPressIn={drawPressIn}
+                onPressOut={drawPressOut}
+                accessibilityRole="button"
+                accessibilityLabel={`Draw pile, ${drawCount} cards left`}
+                accessibilityHint={canDraw ? 'Tap to draw a card.' : 'The draw pile is not available right now.'}
+                style={[styles.drawPressTarget, !canDraw && styles.disabledObject]}
+              >
+                <View style={styles.deckStackBack}>
+                  <PlayingCard face="down" size={compact ? 'md' : 'lg'} back={equippedBackId} />
+                  <View style={styles.deckOffsetCard} />
+                </View>
+                <Text style={styles.drawCount}>{drawCount} LEFT</Text>
+                <Text style={styles.objectLabel}>{canDraw ? 'DRAW' : 'DRAW PILE'}</Text>
+              </Pressable>
+            </Animated.View>
 
-      <View style={styles.opponents}>
-        {opponents.map((opponent) => {
-          const handSize = selectOpponentHandSize(state, opponent.id);
-          const activeOpponent = currentPlayerId === opponent.id;
-          return (
-            <View key={opponent.id} style={[styles.opponent, activeOpponent && styles.opponentActive]}>
-              <AvatarPlaceholder seed={opponent.avatarSeed} label={opponent.name} size={compact ? 38 : 48} />
-              <Text style={styles.opponentName} numberOfLines={1}>{opponent.name}</Text>
-              <Text style={styles.opponentCount}>{handSize} {handSize === 1 ? 'CARD' : 'CARDS'}</Text>
-            </View>
-          );
-        })}
-      </View>
-
-      <View style={[styles.table, compact && styles.tableCompact]}>
-        <Text style={styles.tableEyebrow}>CRAZY EIGHTS</Text>
-        <Text style={styles.tableTitle}>{isMyTurn ? 'Choose a card' : 'Watch the table'}</Text>
-        <View style={styles.playArea}>
-          <Animated.View style={[styles.drawObject, drawMotionStyle]}>
-            <Pressable
-              disabled={!canDraw}
-              onPress={handleDraw}
-              onPressIn={drawPressIn}
-              onPressOut={drawPressOut}
-              accessibilityRole="button"
-              accessibilityLabel={`Draw pile, ${drawCount} cards left`}
-              accessibilityHint={canDraw ? 'Tap to draw a card.' : 'The draw pile is not available right now.'}
-              style={[styles.drawPressTarget, !canDraw && styles.disabledObject]}
+            <View
+              ref={discardRef}
+              collapsable={false}
+              onLayout={handleDiscardLayout}
+              style={[styles.discardTarget, compact && styles.discardTargetCompact, dragSpecs.size > 0 && styles.discardReady]}
+              accessible
+              accessibilityRole="text"
+              accessibilityLabel={dragSpecs.size > 0 ? 'Discard target. Drop a playable card here.' : 'Discard pile'}
             >
-              <View style={styles.deckStackBack}>
-                <PlayingCard face="down" size={compact ? 'md' : 'lg'} back={equippedBackId} />
-                <View style={styles.deckOffsetCard} />
-              </View>
-              <Text style={styles.drawCount}>{drawCount} LEFT</Text>
-              <Text style={styles.objectLabel}>{canDraw ? 'DRAW' : 'DRAW PILE'}</Text>
-            </Pressable>
-          </Animated.View>
-
-          <View
-            ref={discardRef}
-            collapsable={false}
-            onLayout={handleDiscardLayout}
-            style={[styles.discardTarget, compact && styles.discardTargetCompact, dragSpecs.size > 0 && styles.discardReady]}
-            accessible
-            accessibilityRole="text"
-            accessibilityLabel={dragSpecs.size > 0 ? 'Discard target. Drop a playable card here.' : 'Discard pile'}
-          >
-            {discardCard ? (
-              <Animated.View style={discardMotionStyle}>
-                <DiscardCard card={discardCard} faceFor={faceFor} back={equippedBackId} compact={compact} />
-              </Animated.View>
-            ) : (
-              <View style={styles.emptyDiscard}>
-                <Text style={styles.emptyDiscardLabel}>DISCARD</Text>
-                <Text style={styles.emptyDiscardSub}>DROP HERE</Text>
-              </View>
-            )}
-            {dragSpecs.size > 0 && <Text style={styles.dropLabel}>DROP TO PLAY</Text>}
+              {discardCard ? (
+                <Animated.View style={discardMotionStyle}>
+                  <DiscardCard card={discardCard} faceFor={faceFor} back={equippedBackId} compact={compact} />
+                </Animated.View>
+              ) : (
+                <View style={styles.emptyDiscard}>
+                  <Text style={styles.emptyDiscardLabel}>DISCARD</Text>
+                  <Text style={styles.emptyDiscardSub}>DROP HERE</Text>
+                </View>
+              )}
+              {dragSpecs.size > 0 && <Text style={styles.dropLabel}>DROP TO PLAY</Text>}
+            </View>
+          </View>
+          <View style={styles.ruleLine}>
+            <Text style={styles.ruleLineText}>Match suit or rank</Text>
+            <Text style={styles.ruleLineAccent}>EIGHTS ARE WILD</Text>
+          </View>
+          <View style={styles.readoutPill}>
+            <Text style={styles.readoutText}>{readout}</Text>
           </View>
         </View>
-        <View style={styles.ruleLine}>
-          <Text style={styles.ruleLineText}>Match suit or rank</Text>
-          <Text style={styles.ruleLineAccent}>EIGHTS ARE WILD</Text>
-        </View>
-        <View style={styles.readoutPill}>
-          <Text style={styles.readoutText}>{readout}</Text>
-        </View>
-      </View>
 
-      <View style={styles.utilityRail}>
-        <Pressable
-          onPress={handleUndo}
-          disabled={!canUndo}
-          accessibilityRole="button"
-          accessibilityLabel="Undo last action"
-          style={[styles.utilityButton, !canUndo && styles.utilityDisabled]}
-        >
-          <Undo2 size={19} color={colors.brand} />
-        </Pressable>
-        <View style={styles.utilityMessage}>
-          <Text style={styles.utilityEyebrow}>{isMyTurn ? 'YOUR HAND' : 'TABLE WATCH'}</Text>
-          <Text style={styles.utilityText} numberOfLines={1}>
-            {isMyTurn
-              ? dragSpecs.size > 0
-                ? 'Hold · drag to discard'
-                : canDraw
-                  ? 'Tap draw pile'
-                  : drawCount === 0
-                    ? 'No cards left to draw'
-                    : 'The table is moving'
-              : `Waiting for ${currentPlayerName || 'the next player'}`}
-          </Text>
+        <View style={styles.hand}>
+          {handLocked ? (
+            <View style={styles.hiddenHand}>
+              <Text style={styles.hiddenText}>HAND LOCKED · REVEAL TO CONTINUE</Text>
+            </View>
+          ) : (
+            <CardDragHand
+              cards={localHand}
+              playableCardIds={playableCardIds}
+              faceFor={faceFor}
+              dropTargets={dropTargets}
+              disabled={!isMyTurn}
+              onDrop={handleDrop}
+              size="md"
+              fan
+              testID="crazy-eights-card-hand"
+            />
+          )}
         </View>
-        <Pressable onPress={() => setHistoryOpen(true)} accessibilityRole="button" accessibilityLabel="Open event log" style={styles.utilityButton}>
-          <Clock size={19} color={colors.inkMuted} />
-        </Pressable>
-        <Pressable onPress={() => setRulesOpen(true)} accessibilityRole="button" accessibilityLabel="Read table rules" style={styles.utilityButton}>
-          <BookOpen size={19} color={colors.inkMuted} />
-        </Pressable>
-        <Pressable onPress={handleEndSession} accessibilityRole="button" accessibilityLabel="End table" style={styles.utilityButton}>
-          <Flag size={19} color={colors.brand} />
-        </Pressable>
-      </View>
 
-      <View style={styles.hand}>
-        {handLocked ? (
-          <View style={styles.hiddenHand}>
-            <Text style={styles.hiddenText}>HAND LOCKED · REVEAL TO CONTINUE</Text>
+        {state.phase === 'ended' && (
+          <View style={styles.endedOverlay} pointerEvents="box-none">
+            <View style={styles.endedCard}>
+              <Text style={styles.endedEyebrow}>SESSION OVER</Text>
+              <Text style={styles.endedTitle}>
+                {state.winnerId === viewerId
+                  ? 'You played out first'
+                  : `${state.players.find((player) => player.id === state.winnerId)?.name ?? 'Winner'} played out first`}
+              </Text>
+              <Text style={styles.endedMeta}>Round complete · {state.turn} {state.turn === 1 ? 'turn' : 'turns'}</Text>
+              <CardButton variant="primary" size="md" haptic="medium" onPress={replaySession} style={styles.endedCta}>
+                <Text style={styles.endedCtaText}>Replay table</Text>
+              </CardButton>
+              <Pressable onPress={handleBackToHub} accessibilityRole="button" accessibilityLabel="Back to setup" style={styles.endedSecondary}>
+                <Text style={styles.endedSecondaryText}>Back to setup</Text>
+              </Pressable>
+            </View>
           </View>
-        ) : (
-          <CardDragHand
-            cards={localHand}
-            playableCardIds={playableCardIds}
-            faceFor={faceFor}
-            dropTargets={dropTargets}
-            disabled={!isMyTurn}
-            onDrop={handleDrop}
-            size="md"
-            fan
-            testID="crazy-eights-card-hand"
-          />
         )}
-      </View>
-
-      {state.phase === 'ended' && (
-        <View style={styles.endedOverlay} pointerEvents="box-none">
-          <View style={styles.endedCard}>
-            <Text style={styles.endedEyebrow}>SESSION OVER</Text>
-            <Text style={styles.endedTitle}>
-              {state.winnerId === viewerId
-                ? 'You played out first'
-                : `${state.players.find((player) => player.id === state.winnerId)?.name ?? 'Winner'} played out first`}
-            </Text>
-            <Text style={styles.endedMeta}>Round complete · {state.turn} {state.turn === 1 ? 'turn' : 'turns'}</Text>
-            <CardButton variant="primary" size="md" haptic="medium" onPress={replaySession} style={styles.endedCta}>
-              <Text style={styles.endedCtaText}>Replay table</Text>
-            </CardButton>
-            <Pressable onPress={handleBackToHub} accessibilityRole="button" accessibilityLabel="Back to setup" style={styles.endedSecondary}>
-              <Text style={styles.endedSecondaryText}>Back to setup</Text>
-            </Pressable>
-          </View>
-        </View>
-      )}
-
-      <EventHistoryModal visible={historyOpen} events={events} onClose={() => setHistoryOpen(false)} />
-      <RulesSheet visible={rulesOpen} presetId={state.config.presetId} onClose={() => setRulesOpen(false)} />
+      </TableShell>
     </Animated.View>
   );
 }
@@ -460,36 +379,6 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     overflow: 'hidden',
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: space.lg,
-    gap: space.sm,
-  },
-  backChip: {
-    minWidth: 72,
-    paddingHorizontal: space.sm,
-  },
-  backText: {
-    marginLeft: 2,
-    fontSize: fontSizes.small,
-    fontFamily: fonts.semibold,
-    color: colors.inkMuted,
-  },
-  eyebrow: {
-    flex: 1,
-    textAlign: 'center',
-    fontSize: fontSizes.caption,
-    fontFamily: fonts.bold,
-    color: colors.inkSubtle,
-    letterSpacing: letterSpacing.caps,
-  },
-  syncDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: colors.brand,
   },
   opponents: {
     flexDirection: 'row',
@@ -531,12 +420,6 @@ const styles = StyleSheet.create({
   tableCompact: {
     paddingTop: space.xs,
     paddingBottom: space.xs,
-  },
-  tableEyebrow: {
-    fontSize: 10,
-    fontFamily: fonts.bold,
-    color: colors.brand,
-    letterSpacing: letterSpacing.caps,
   },
   tableTitle: {
     marginTop: 2,
@@ -672,42 +555,6 @@ const styles = StyleSheet.create({
     fontFamily: fonts.bold,
     color: colors.surface,
     letterSpacing: letterSpacing.cap,
-  },
-  utilityRail: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: space.xs,
-    paddingHorizontal: space.lg,
-    minHeight: 52,
-  },
-  utilityButton: {
-    width: 44,
-    height: 44,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: radii.pill,
-    backgroundColor: colors.surface,
-    ...shadow.card,
-  },
-  utilityDisabled: {
-    opacity: 0.4,
-  },
-  utilityMessage: {
-    flex: 1,
-    minWidth: 0,
-    paddingHorizontal: space.xs,
-  },
-  utilityEyebrow: {
-    fontSize: 9,
-    fontFamily: fonts.bold,
-    color: colors.brand,
-    letterSpacing: letterSpacing.cap,
-  },
-  utilityText: {
-    marginTop: 2,
-    fontSize: fontSizes.micro,
-    fontFamily: fonts.semibold,
-    color: colors.ink,
   },
   hand: {
     width: '100%',

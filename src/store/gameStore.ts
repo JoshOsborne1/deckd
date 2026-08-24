@@ -22,6 +22,7 @@ import {
   mulberry32,
   shuffleInPlace,
   blackjackDealerPlay,
+  topologyFromLegacyMode,
 } from '@engine/index';
 import {
   applySnapshotWithTail,
@@ -172,6 +173,7 @@ export const useGameStore = create<GameStoreState>()(
           });
         }
         const hostId = input.hostId ?? players[0]?.id ?? 'host';
+        const topology = topologyFromLegacyMode(input.mode, hostId, players.map((player) => player.id));
 
         const deckOrder = orderedDeckForPreset(seed, config.includeJokers, preset.id);
         const setup = executeRecipe(preset.recipe, { players, config, deckOrder });
@@ -189,6 +191,8 @@ export const useGameStore = create<GameStoreState>()(
                 createdAt: Date.now(),
                 rngSeed: seed,
                 mode: input.mode,
+                surfaceProfile: topology.surfaceProfile,
+                seatBinding: topology.seatBinding,
                 hostId,
               },
               config,
@@ -234,6 +238,7 @@ export const useGameStore = create<GameStoreState>()(
           avatarSeed: p.avatarSeed,
           seat: p.seat,
         }));
+        const topology = topologyFromLegacyMode('solo', state.meta.hostId, players.map((player) => player.id));
         const deckOrder = orderedDeckForPreset(seed, state.config.includeJokers, preset.id);
         const setup = executeRecipe(preset.recipe, {
           players,
@@ -253,6 +258,8 @@ export const useGameStore = create<GameStoreState>()(
                 createdAt: Date.now(),
                 rngSeed: seed,
                 mode: 'solo',
+                surfaceProfile: topology.surfaceProfile,
+                seatBinding: topology.seatBinding,
                 hostId: state.meta.hostId,
               },
               config: state.config,

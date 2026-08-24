@@ -1,16 +1,18 @@
 /**
- * Rebuild-baseline fixture writer + fold check (Phase 0, R0).
+ * Rebuild-baseline fixture regression check (Phase 0, R0).
  *
- * Writes the five deterministic replay JSONs under this directory and
- * verifies each one:
- *   1. parses as JSON and matches the fixed schema shape;
- *   2. folds back to the recorded expected summary (the Phase 2
- *      regression contract) using the CURRENT engine;
- *   3. is byte-stable — regeneration produces the identical file, so any
- *      engine change that shifts replay behaviour fails this test.
+ * Read-only protection over the checked-in deterministic replay JSONs under
+ * this directory. For each one it verifies:
+ *   1. the checked-in file parses as JSON and matches the fixed schema shape;
+ *   2. the file's recorded `events` fold back to its recorded `expected`
+ *      summary (the Phase 2 regression contract) using the CURRENT engine;
+ *   3. the checked-in file's stable JSON text is byte-identical to a fresh
+ *      regeneration — any engine change that shifts replay behaviour fails
+ *      this test.
  *
- * Jest testMatch covers `.test.ts` files under the src root, so this test
- * runs under the normal suite and writes fixtures before the assertions.
+ * The suite NEVER writes the fixtures: a missing or drifted file fails here.
+ * (Re)writing happens only via the explicit generator entry point
+ * `writeFixturesToDisk` in ./generate — never from Jest setup.
  */
 
 /// <reference types="node" />
@@ -18,24 +20,28 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { foldEvents, handValue, type GameEvent, type GameState } from '../../index';
-import { FIXTURE_DIR, generateFixtures } from './generate';
+import { FIXTURE_DIR, fixtureJsonText, generateFixtures } from './generate';
+
+interface ParsedFixture {
+  text: string;
+  parsed: Record<string, unknown>;
+}
 
 describe('rebuild-baseline fixtures (Phase 0 regression contract)', () => {
   const bundles = generateFixtures();
 
-  // Materialise the fixtures before any assertion so the JSONs exist on disk
-  // and the byte-stability test compares against the generated output.
+  // Read the checked-in artifacts once; no writes happen anywhere in the suite.
+  const onDisk: Record<string, ParsedFixture> = {};
   beforeAll(() => {
-    fs.mkdirSync(FIXTURE_DIR, { recursive: true });
-    for (const [file, fixture] of Object.entries(bundles)) {
-      fs.writeFileSync(path.join(FIXTURE_DIR, file), JSON.stringify(fixture, null, 2) + '\n');
+    for (const file of Object.keys(bundles)) {
+      const text = fs.readFileSync(path.join(FIXTURE_DIR, file), 'utf8');
+      onDisk[file] = { text, parsed: JSON.parse(text) as Record<string, unknown> };
     }
   });
 
-  for (const [file, fixture] of Object.entries(bundles)) {
+  for (const file of Object.keys(bundles)) {
     it(`${file} is valid JSON with the expected schema`, () => {
-      const text = JSON.stringify(fixture, null, 2);
-      const parsed = JSON.parse(text) as Record<string, unknown>;
+      const { parsed } = onDisk[file]!;
 
       expect(parsed.schemaVersion).toBe(1);
       expect(parsed.fixture).toMatchObject({ id: expect.any(String) });
@@ -63,10 +69,11 @@ describe('rebuild-baseline fixtures (Phase 0 regression contract)', () => {
       expect((parsed.deckOrder as string[]).length).toBe(52);
     });
 
-    it(`${file} folds to the recorded expected summary with the current engine`, () => {
-      const events = fixture.events as GameEvent[];
+    it(`${file} folds its recorded events to the recorded expected summary with the current engine`, () => {
+      const { parsed } = onDisk[file]!;
+      const events = parsed.events as GameEvent[];
       const state = foldEvents(events);
-      const expected = fixture.expected as Record<string, unknown>;
+      const expected = parsed.expected as Record<string, unknown>;
 
       expect(state.phase).toBe(expected.phase);
       expect(state.winnerId).toBe(expected.winnerId);
@@ -75,13 +82,13 @@ describe('rebuild-baseline fixtures (Phase 0 regression contract)', () => {
       expect(state.zones.draw?.cardIds.length ?? 0).toBe(expected.deckRemaining);
       expect(zoneCardIds(state)).toEqual(expected.zoneCardIds);
 
-      if (fixture.preset === 'blackjack') {
+      if (parsed.preset === 'blackjack') {
         const handValues = expected.handValues as Record<string, number>;
         for (const player of state.players) {
           expect(handValue(state, player.id)).toBe(handValues[player.id]);
         }
       }
-      if (fixture.preset === 'poker') {
+      if (parsed.preset === 'poker') {
         const poker = expected.poker as { pot: number; street: number; folded: string[]; stacks: Record<string, number> };
         expect(state.game?.pot).toBe(poker.pot);
         expect(state.game?.street).toBe(poker.street);
@@ -91,9 +98,8 @@ describe('rebuild-baseline fixtures (Phase 0 regression contract)', () => {
     });
 
     it(`${file} is byte-stable under regeneration`, () => {
-      const regenerated = JSON.stringify(generateFixtures()[file], null, 2) + '\n';
-      const current = fs.readFileSync(path.join(FIXTURE_DIR, file), 'utf8');
-      expect(regenerated).toBe(current);
+      const regenerated = fixtureJsonText(generateFixtures()[file]!);
+      expect(regenerated).toBe(onDisk[file]!.text);
     });
   }
 });

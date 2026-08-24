@@ -131,6 +131,8 @@ export function emptyState(): GameState {
       createdAt: 0,
       rngSeed: '',
       mode: 'pass',
+      surfaceProfile: 'hot-seat',
+      seatBinding: { kind: 'shared-device', playerIds: [] },
       hostId: '',
     },
     config: {

@@ -2,11 +2,11 @@
 
 ## North star
 
-Make Deckd a tactile, premium card table that people can play on one phone, and a place where a Deckd Master can host a lobby their friends join free from anywhere.
+Make Deckd a tactile, premium deck of cards living on phones: a trusted group can play on one shared device, on personal devices, across a dual-end board, or with one public table phone and private hand phones. A Deckd Master can host a lobby their friends join free from anywhere.
 
 ## MVP promise
 
-A group can open Deckd, choose a simple preset, deal cards, pass the phone privately between players, and play with a real-feeling digital deck. A Deckd Master can host a multiplayer lobby; everyone else joins free.
+A group can open Deckd, choose a simple preset, deal cards, and play through the same physical-card grammar across the supported surface modes. A Deckd Master can host a multiplayer lobby; everyone else joins free. Cards, piles, chips, and the turn token are the controls for the actions they represent; button-first card actions are not the primary play path.
 
 ## In scope
 
@@ -24,11 +24,22 @@ A group can open Deckd, choose a simple preset, deal cards, pass the phone priva
 - Privacy veil before the next player sees their hand.
 - End/reset session.
 
+### Surface modes
+
+The controlled rebuild includes four product modes. A game is only exposed on a mode after its geometry, privacy, accessibility, transport, and release-device checks pass; the scope does not promise every preset on every surface.
+
+- **Hot-seat pass-and-play:** one phone, private hands, intentional pass veil and handoff ritual.
+- **Personal-device multiplayer:** one seat per personal device, with online relay or same-room nearby transport; both transports share the session contract.
+- **Dual-end board:** exactly two trusted face-to-face players share one phone from opposite ends; hold-to-peek re-veils on release and is shoulder-surf resistant, not cryptographic privacy.
+- **Phone Deck:** one public-table phone renders deck, piles, community, scores, and turn state; private-hand phones render only their owners' hands and legal interactions.
+
+The four product modes map to the presentation profiles `hot-seat`, `personal-table`, `dual-end-board`, and the Phone Deck pair `public-table` + `private-hand`.
+
 ### Multiplayer lobbies (paid hosting)
 
 - Host creates a lobby with a join code.
 - Guests join free with the code, from anywhere (cloud relay, not same-room).
-- Turn-based play over the relay; host device is the source of truth.
+- Turn-based play over the relay; an authoritative room runtime is the source of truth, clients send typed intents, and each recipient receives only its permitted projection.
 - Hosting requires a Deckd Master pass.
 - Passes: Deal (24h), Draw (3d), Shuffle (30d), Master (lifetime).
 
@@ -49,7 +60,8 @@ A group can open Deckd, choose a simple preset, deal cards, pass the phone priva
 
 ## Out of scope for v1
 
-- BLE multiplayer (dropped from the first build; revisit only as a free local bonus later).
+- Raw BLE GATT multiplayer or BLE as a product-facing mode (dropped; nearby uses Google Nearby Connections through a local Expo module).
+- Apple Multipeer Connectivity (banned; Xcode 27 deprecates the framework; local fallback is Network framework/Bonjour or an equivalent client-server transport).
 - Real money/stakes tracking.
 - Auth/accounts (join codes are anonymous).
 - Analytics.
@@ -62,6 +74,8 @@ A group can open Deckd, choose a simple preset, deal cards, pass the phone priva
 
 - User can complete a pass-and-play session without confusion.
 - A Master can host a lobby and guests can join and play a full turn cycle.
+- Each supported surface mode has a documented eligible-game matrix; unsupported combinations are not shown.
+- Online and nearby clients receive recipient-filtered projections and never receive canonical private deck state.
 - Table actions are obvious by looking at the screen.
 - Phone safe areas and touch targets feel right.
 - Desktop web works for fast design iteration.

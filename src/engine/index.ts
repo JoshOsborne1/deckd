@@ -6,3 +6,29 @@ export * from './presets';
 export * from './selectors';
 export * from './rules';
 export * from './rulesGuide';
+export * from './sessionTopology';
+export * from './intents';
+export {
+  legalIntents,
+  intentFromActionSpec,
+  type LegalIntentSource,
+  type LegalIntentTarget,
+  type LegalIntentsResult,
+  type SurfaceRole,
+} from './legalIntents';
+export {
+  buildViewerProjection,
+  projectStateForViewer,
+  projectEventsForViewer,
+  projectSnapshotWithTail,
+  projectDiagnosticsForViewer,
+  visibleCardsForPlayerInState,
+  type ViewerProjection,
+} from './projection';
+export {
+  withSemantics,
+  semanticsOf,
+  inferCue,
+  type PresentationCue,
+  type EventSemantics,
+} from './presentationCues';

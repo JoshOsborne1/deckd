@@ -14,6 +14,14 @@ export interface BaseEvent {
   readonly ts: number;
   readonly actorId: PlayerId | 'system';
   readonly seq: number;
+  /** Groups all events caused by one intent. */
+  readonly transactionId?: string;
+  /** Source zone for card movement (presentation cue). */
+  readonly fromZoneId?: ZoneId;
+  /** Optional choreography cue — does not affect reduction. */
+  readonly cue?: string;
+  /** Schema version for forward compatibility. */
+  readonly schemaVersion?: number;
 }
 
 export type GameEvent =
