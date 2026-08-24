@@ -11,6 +11,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { runOnJS } from 'react-native-worklets';
 import { BookOpen, ChevronLeft, Users } from 'lucide-react-native';
+import { useRouter } from 'expo-router';
 import { CardButton } from '@components/CardButton';
 import { CardSection } from '@components/CardSection';
 import { TableSurface } from '@components/TableSurface';
@@ -99,6 +100,7 @@ export function HubLayer({
   topInset,
   bottomInset,
 }: HubLayerProps) {
+  const router = useRouter();
   const setViewMode = useUiStore((s) => s.setViewMode);
   const nickname = useProfileStore((s) => s.nickname);
   const avatarSeed = useProfileStore((s) => s.avatarSeed);
@@ -735,6 +737,23 @@ export function HubLayer({
               <Text style={styles.hostChipText}>Host a lobby</Text>
             </View>
           </Pressable>
+
+          {__DEV__ ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Open Card Lab"
+              onPress={() => router.push('/lab')}
+              style={({ pressed }) => [styles.hostChip, pressed && styles.hostChipPressed]}
+            >
+              <View style={styles.hostChipIcon}>
+                <Text style={styles.hostChipEyebrow}>R1</Text>
+              </View>
+              <View>
+                <Text style={styles.hostChipEyebrow}>INTERNAL</Text>
+                <Text style={styles.hostChipText}>Card Lab</Text>
+              </View>
+            </Pressable>
+          ) : null}
 
           <Animated.View style={[styles.startCtaWrap, startCtaStyle, dealLaunchStyle]}>
             <Pressable
