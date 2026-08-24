@@ -20,7 +20,6 @@ import React, {
   type ReactNode,
 } from 'react';
 import {
-  Pressable,
   StyleSheet,
   View,
   type LayoutChangeEvent,
@@ -250,23 +249,18 @@ function FanCardView({
           onDragCenterX={handleDragCenterX}
           accessibilityLabel={cardLabel}
           accessibilityHint="Hold and drag to reorder or move; long-press for the action menu."
+          extraAccessibilityActions={[
+            { name: 'move-left', label: 'Move left', run: moveLeft },
+            { name: 'move-right', label: 'Move right', run: moveRight },
+          ]}
           testID={`fan-card-${card.id}`}
         >
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={cardLabel}
-            accessibilityActions={[
-              { name: 'move-left', label: 'Move left' },
-              { name: 'move-right', label: 'Move right' },
-            ]}
-            onAccessibilityAction={({ nativeEvent }) => {
-              if (nativeEvent.actionName === 'move-left') moveLeft();
-              if (nativeEvent.actionName === 'move-right') moveRight();
-            }}
+          <View
+            accessibilityRole="none"
             style={styles.cardFace}
           >
             {card.render(concealed)}
-          </Pressable>
+          </View>
         </CardEntity>
       </Animated.View>
     </View>
@@ -292,6 +286,7 @@ export function HandFanSurface({
   const [draggedCardId, setDraggedCardId] = useState<string | null>(null);
   const [gapIndex, setGapIndex] = useState<number | null>(null);
   const gapRef = useRef<number | null>(null);
+  const containerRef = useRef<View | null>(null);
 
   const cardWidth = SIZE_MAP[size].width;
   const cardHeight = SIZE_MAP[size].height;
@@ -301,8 +296,8 @@ export function HandFanSurface({
     [cards.length, cardWidth, maxWidth],
   );
 
-  const onLayout = useCallback((event: LayoutChangeEvent) => {
-    event.currentTarget.measureInWindow((x) => {
+  const onLayout = useCallback((_event: LayoutChangeEvent) => {
+    containerRef.current?.measureInWindow((x) => {
       setContainerLeft(x);
     });
   }, []);
@@ -411,6 +406,9 @@ export function HandFanSurface({
 
   return (
     <View
+      ref={(node) => {
+        containerRef.current = node;
+      }}
       testID={testID ?? `hand-fan-${zoneId}`}
       accessibilityLabel={label}
       onLayout={onLayout}

@@ -402,16 +402,20 @@ function LabSurface() {
         <View style={styles.board}>
           {/* Draw pile + discard target */}
           <View style={styles.zoneRow}>
-            <DeckPile
-              zoneId="lab-deck"
-              actorId="lab-actor"
-              drawToZoneId="lab-hand"
-              count={Math.max(0, deckCount)}
-              dispatchIntent={dispatchIntent}
-              label="Lab deck"
-            >
-              <PlayingCard face="down" size="md" elevated />
-            </DeckPile>
+            <View style={styles.zoneBlock}>
+              <DeckPile
+                zoneId="lab-deck"
+                actorId="lab-actor"
+                drawToZoneId="lab-hand"
+                count={Math.max(0, deckCount)}
+                dispatchIntent={dispatchIntent}
+                label="Lab deck"
+              >
+                <PlayingCard face="down" size="md" elevated />
+              </DeckPile>
+              <Text style={styles.zoneLabel}>Deck</Text>
+              <Text style={styles.zoneCount}>{deckCount}</Text>
+            </View>
 
             <CardZone zoneId="lab-discard" active testID="lab-discard">
               <View style={styles.dropZone}>
@@ -662,6 +666,12 @@ const styles = StyleSheet.create({
   dropZone: {
     minWidth: 110,
     minHeight: 158,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: space.xs,
+    padding: space.sm,
+  },
+  zoneBlock: {
     alignItems: 'center',
     justifyContent: 'center',
     gap: space.xs,

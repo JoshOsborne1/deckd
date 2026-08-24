@@ -120,6 +120,12 @@ export const GlobalNavBar: React.FC = () => {
     void router.prefetch('/profile');
   }, [router]);
 
+  // Card Lab is a full-screen internal surface; the nav bar must never
+  // overlap its table. Hide it on the lab route.
+  if (pathname === '/lab' || pathname.startsWith('/lab/')) {
+    return null;
+  }
+
   const goSideTab = (item: NavConfig) => {
     if (pathname === String(item.href) || pathname.startsWith(`${String(item.href)}/`)) return;
     router.replace(item.href);

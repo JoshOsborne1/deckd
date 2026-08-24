@@ -7,8 +7,6 @@
  * lab and engines.
  */
 
-import type { LayoutRectangle } from 'react-native';
-
 /** Press-in feedback fires on the same frame, before any threshold. */
 export const PHYS_PRESS_SCALE = 0.98;
 

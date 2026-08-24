@@ -72,6 +72,12 @@ export type CardPhase =
   | 'committed'
   | 'cancelled';
 
+export interface ExtraAccessibilityAction {
+  name: string;
+  label: string;
+  run: () => void;
+}
+
 export interface CardEntityProps {
   cardId: string;
   /** Actor (player) id used in typed intents. */
@@ -88,6 +94,8 @@ export interface CardEntityProps {
   children: ReactNode;
   /** Live centre-x while dragging (used by the fan for the insertion gap). */
   onDragCenterX?: (cardId: string, centerX: number | null) => void;
+  /** Extra screen-reader actions merged into the accessibilityActions list. */
+  extraAccessibilityActions?: readonly ExtraAccessibilityAction[];
   accessibilityLabel?: string;
   accessibilityHint?: string;
   disabled?: boolean;
@@ -110,6 +118,7 @@ export function CardEntity({
   dispatchIntent,
   children,
   onDragCenterX,
+  extraAccessibilityActions,
   accessibilityLabel,
   accessibilityHint,
   disabled = false,
@@ -209,6 +218,21 @@ export function CardEntity({
         run: () => commitToZone(zone),
       })),
     [commitToZone, legalZones],
+  );
+
+  const extraActions = useMemo<ActionSheetAction[]>(
+    () =>
+      (extraAccessibilityActions ?? []).map((action) => ({
+        id: action.name,
+        label: action.label,
+        run: action.run,
+      })),
+    [extraAccessibilityActions],
+  );
+
+  const allActions = useMemo(
+    () => [...accessibleActions, ...extraActions],
+    [accessibleActions, extraActions],
   );
 
   const openSheet = useCallback(
@@ -417,16 +441,16 @@ export function CardEntity({
         accessibilityLabel={accessibilityLabel ?? `Card ${cardId}`}
         accessibilityHint={
           accessibilityHint ??
-          (accessibleActions.length > 0
+          (allActions.length > 0
             ? 'Hold and drag to a highlighted zone, or open the actions menu for the same moves.'
             : 'Hold and drag this card.')
         }
-        accessibilityActions={accessibleActions.map((action) => ({
+        accessibilityActions={allActions.map((action) => ({
           name: action.id,
           label: action.label,
         }))}
         onAccessibilityAction={({ nativeEvent }) => {
-          const action = accessibleActions.find(
+          const action = allActions.find(
             (candidate) => candidate.id === nativeEvent.actionName,
           );
           if (action) fireSheetAction(action);
@@ -468,7 +492,7 @@ export function CardEntity({
           <View style={styles.sheet}>
             <Text style={styles.sheetEyebrow}>CARD ACTIONS</Text>
             <Text style={styles.sheetTitle}>{accessibilityLabel ?? cardId}</Text>
-            {accessibleActions.map((action) => (
+            {allActions.map((action) => (
               <Pressable
                 key={action.id}
                 accessibilityRole="button"
