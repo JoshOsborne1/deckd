@@ -22,6 +22,10 @@ V1 is not:
 - real IAP/RevenueCat configuration (keys, products, offerings)
 - auth, analytics, social, cloud sync
 
+## Rebuild directive (2026-08-24)
+
+Controlled physical-card gameplay rebuild per `.hermes/plans/2026-08-23_201024-deckd-physical-card-rebuild-blueprint.md`. V1 scope expands to four surface modes: hot-seat pass-and-play, personal-device online/nearby, dual-end board, phone-deck public-table + private-hand. Objects are controls (cards, piles, chips, turn token) — button-first card actions are not the primary play path. BLE stays dropped; Google Nearby Connections is the nearby transport; Apple Multipeer Connectivity is banned. Code rules below are unchanged.
+
 ## Deckd Master passes
 
 Hosting a lobby requires a pass. Guests always join free.
