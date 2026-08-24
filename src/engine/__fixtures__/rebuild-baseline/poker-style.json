@@ -1,0 +1,852 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-08-24T00:00:00.000Z",
+  "fixture": {
+    "id": "poker-style",
+    "description": "Three-player hold'em-style: blinds + call/raise/call preflop, burn/flop/turn/river with check rounds, showdown."
+  },
+  "seed": "rebuild-baseline-poker-style-0001",
+  "sessionId": "sess-rebuild-baseline-poker-style-0001",
+  "mode": "pass",
+  "preset": "poker",
+  "config": {
+    "includeJokers": false,
+    "fanStyle": "wide",
+    "autoReshuffleDiscard": true,
+    "presetId": "poker"
+  },
+  "players": [
+    {
+      "id": "p1",
+      "name": "Ava",
+      "avatarSeed": "ava",
+      "seat": 0
+    },
+    {
+      "id": "p2",
+      "name": "Ben",
+      "avatarSeed": "ben",
+      "seat": 1
+    },
+    {
+      "id": "p3",
+      "name": "Cara",
+      "avatarSeed": "cara",
+      "seat": 2
+    }
+  ],
+  "deckOrder": [
+    "D-K",
+    "C-5",
+    "D-6",
+    "C-Q",
+    "C-10",
+    "C-J",
+    "H-4",
+    "H-8",
+    "C-A",
+    "S-8",
+    "D-7",
+    "D-4",
+    "H-A",
+    "S-3",
+    "S-K",
+    "H-2",
+    "D-3",
+    "H-10",
+    "D-A",
+    "H-J",
+    "H-6",
+    "H-9",
+    "H-K",
+    "C-4",
+    "S-6",
+    "D-5",
+    "C-K",
+    "D-2",
+    "D-9",
+    "D-8",
+    "C-8",
+    "C-7",
+    "H-Q",
+    "S-7",
+    "H-3",
+    "H-5",
+    "H-7",
+    "C-9",
+    "S-4",
+    "S-10",
+    "D-J",
+    "C-6",
+    "S-2",
+    "S-Q",
+    "D-10",
+    "S-J",
+    "S-A",
+    "S-9",
+    "C-2",
+    "S-5",
+    "C-3",
+    "D-Q"
+  ],
+  "eventCount": 53,
+  "events": [
+    {
+      "type": "session/start",
+      "actorId": "system",
+      "meta": {
+        "id": "sess-rebuild-baseline-poker-style-0001",
+        "createdAt": 1787579000000,
+        "rngSeed": "rebuild-baseline-poker-style-0001",
+        "mode": "pass",
+        "hostId": "p1"
+      },
+      "config": {
+        "includeJokers": false,
+        "fanStyle": "wide",
+        "autoReshuffleDiscard": true,
+        "presetId": "poker"
+      },
+      "players": [
+        {
+          "id": "p1",
+          "name": "Ava",
+          "avatarSeed": "ava",
+          "seat": 0
+        },
+        {
+          "id": "p2",
+          "name": "Ben",
+          "avatarSeed": "ben",
+          "seat": 1
+        },
+        {
+          "id": "p3",
+          "name": "Cara",
+          "avatarSeed": "cara",
+          "seat": 2
+        }
+      ],
+      "zones": [
+        {
+          "id": "draw",
+          "label": "Draw pile",
+          "visibility": {
+            "kind": "hidden"
+          },
+          "cardIds": [
+            "H-4",
+            "H-8",
+            "C-A",
+            "S-8",
+            "D-7",
+            "D-4",
+            "H-A",
+            "S-3",
+            "S-K",
+            "H-2",
+            "D-3",
+            "H-10",
+            "D-A",
+            "H-J",
+            "H-6",
+            "H-9",
+            "H-K",
+            "C-4",
+            "S-6",
+            "D-5",
+            "C-K",
+            "D-2",
+            "D-9",
+            "D-8",
+            "C-8",
+            "C-7",
+            "H-Q",
+            "S-7",
+            "H-3",
+            "H-5",
+            "H-7",
+            "C-9",
+            "S-4",
+            "S-10",
+            "D-J",
+            "C-6",
+            "S-2",
+            "S-Q",
+            "D-10",
+            "S-J",
+            "S-A",
+            "S-9",
+            "C-2",
+            "S-5",
+            "C-3",
+            "D-Q"
+          ]
+        },
+        {
+          "id": "discard",
+          "label": "Discard",
+          "visibility": {
+            "kind": "public"
+          },
+          "cardIds": []
+        },
+        {
+          "id": "muck",
+          "label": "Muck",
+          "visibility": {
+            "kind": "hidden"
+          },
+          "cardIds": []
+        },
+        {
+          "id": "communal:0",
+          "label": "Community",
+          "visibility": {
+            "kind": "public"
+          },
+          "cardIds": []
+        },
+        {
+          "id": "hand:p1",
+          "label": "Ava's hand",
+          "visibility": {
+            "kind": "private",
+            "ownerId": "p1"
+          },
+          "ownerId": "p1",
+          "cardIds": [
+            "D-K",
+            "C-Q"
+          ]
+        },
+        {
+          "id": "table:p1",
+          "label": "Ava's table",
+          "visibility": {
+            "kind": "public"
+          },
+          "ownerId": "p1",
+          "cardIds": []
+        },
+        {
+          "id": "hand:p2",
+          "label": "Ben's hand",
+          "visibility": {
+            "kind": "private",
+            "ownerId": "p2"
+          },
+          "ownerId": "p2",
+          "cardIds": [
+            "C-5",
+            "C-10"
+          ]
+        },
+        {
+          "id": "table:p2",
+          "label": "Ben's table",
+          "visibility": {
+            "kind": "public"
+          },
+          "ownerId": "p2",
+          "cardIds": []
+        },
+        {
+          "id": "hand:p3",
+          "label": "Cara's hand",
+          "visibility": {
+            "kind": "private",
+            "ownerId": "p3"
+          },
+          "ownerId": "p3",
+          "cardIds": [
+            "D-6",
+            "C-J"
+          ]
+        },
+        {
+          "id": "table:p3",
+          "label": "Cara's table",
+          "visibility": {
+            "kind": "public"
+          },
+          "ownerId": "p3",
+          "cardIds": []
+        }
+      ],
+      "id": "sess-rebuild-baseline-poker-style-0001:1",
+      "ts": 1787579000001,
+      "seq": 1
+    },
+    {
+      "type": "card/deal",
+      "actorId": "system",
+      "cardId": "D-K",
+      "toZoneId": "hand:p1",
+      "face": "down",
+      "id": "sess-rebuild-baseline-poker-style-0001:2",
+      "ts": 1787579000002,
+      "seq": 2
+    },
+    {
+      "type": "card/deal",
+      "actorId": "system",
+      "cardId": "C-5",
+      "toZoneId": "hand:p2",
+      "face": "down",
+      "id": "sess-rebuild-baseline-poker-style-0001:3",
+      "ts": 1787579000003,
+      "seq": 3
+    },
+    {
+      "type": "card/deal",
+      "actorId": "system",
+      "cardId": "D-6",
+      "toZoneId": "hand:p3",
+      "face": "down",
+      "id": "sess-rebuild-baseline-poker-style-0001:4",
+      "ts": 1787579000004,
+      "seq": 4
+    },
+    {
+      "type": "card/deal",
+      "actorId": "system",
+      "cardId": "C-Q",
+      "toZoneId": "hand:p1",
+      "face": "down",
+      "id": "sess-rebuild-baseline-poker-style-0001:5",
+      "ts": 1787579000005,
+      "seq": 5
+    },
+    {
+      "type": "card/deal",
+      "actorId": "system",
+      "cardId": "C-10",
+      "toZoneId": "hand:p2",
+      "face": "down",
+      "id": "sess-rebuild-baseline-poker-style-0001:6",
+      "ts": 1787579000006,
+      "seq": 6
+    },
+    {
+      "type": "card/deal",
+      "actorId": "system",
+      "cardId": "C-J",
+      "toZoneId": "hand:p3",
+      "face": "down",
+      "id": "sess-rebuild-baseline-poker-style-0001:7",
+      "ts": 1787579000007,
+      "seq": 7
+    },
+    {
+      "type": "game/bet",
+      "playerId": "p1",
+      "action": "call",
+      "amount": 10,
+      "roundComplete": false,
+      "id": "sess-rebuild-baseline-poker-style-0001:8",
+      "ts": 1787579000008,
+      "actorId": "p1",
+      "seq": 8
+    },
+    {
+      "type": "turn/set",
+      "playerId": "p2",
+      "id": "sess-rebuild-baseline-poker-style-0001:9",
+      "ts": 1787579000009,
+      "actorId": "p2",
+      "seq": 9
+    },
+    {
+      "type": "game/bet",
+      "playerId": "p2",
+      "action": "raise",
+      "amount": 15,
+      "roundComplete": false,
+      "id": "sess-rebuild-baseline-poker-style-0001:10",
+      "ts": 1787579000010,
+      "actorId": "p2",
+      "seq": 10
+    },
+    {
+      "type": "turn/set",
+      "playerId": "p3",
+      "id": "sess-rebuild-baseline-poker-style-0001:11",
+      "ts": 1787579000011,
+      "actorId": "p3",
+      "seq": 11
+    },
+    {
+      "type": "game/bet",
+      "playerId": "p3",
+      "action": "call",
+      "amount": 10,
+      "roundComplete": false,
+      "id": "sess-rebuild-baseline-poker-style-0001:12",
+      "ts": 1787579000012,
+      "actorId": "p3",
+      "seq": 12
+    },
+    {
+      "type": "turn/set",
+      "playerId": "p1",
+      "id": "sess-rebuild-baseline-poker-style-0001:13",
+      "ts": 1787579000013,
+      "actorId": "p1",
+      "seq": 13
+    },
+    {
+      "type": "game/bet",
+      "playerId": "p1",
+      "action": "call",
+      "amount": 10,
+      "roundComplete": true,
+      "id": "sess-rebuild-baseline-poker-style-0001:14",
+      "ts": 1787579000014,
+      "actorId": "p1",
+      "seq": 14
+    },
+    {
+      "type": "card/move",
+      "cardId": "H-4",
+      "toZoneId": "muck",
+      "face": "down",
+      "id": "sess-rebuild-baseline-poker-style-0001:15",
+      "ts": 1787579000015,
+      "actorId": "p1",
+      "seq": 15
+    },
+    {
+      "type": "game/burn",
+      "street": 0,
+      "id": "sess-rebuild-baseline-poker-style-0001:16",
+      "ts": 1787579000016,
+      "actorId": "p1",
+      "seq": 16
+    },
+    {
+      "type": "card/deal",
+      "cardId": "H-8",
+      "toZoneId": "communal:0",
+      "face": "up",
+      "id": "sess-rebuild-baseline-poker-style-0001:17",
+      "ts": 1787579000017,
+      "actorId": "p1",
+      "seq": 17
+    },
+    {
+      "type": "card/deal",
+      "cardId": "C-A",
+      "toZoneId": "communal:0",
+      "face": "up",
+      "id": "sess-rebuild-baseline-poker-style-0001:18",
+      "ts": 1787579000018,
+      "actorId": "p1",
+      "seq": 18
+    },
+    {
+      "type": "card/deal",
+      "cardId": "S-8",
+      "toZoneId": "communal:0",
+      "face": "up",
+      "id": "sess-rebuild-baseline-poker-style-0001:19",
+      "ts": 1787579000019,
+      "actorId": "p1",
+      "seq": 19
+    },
+    {
+      "type": "game/street",
+      "street": 1,
+      "id": "sess-rebuild-baseline-poker-style-0001:20",
+      "ts": 1787579000020,
+      "actorId": "p1",
+      "seq": 20
+    },
+    {
+      "type": "turn/set",
+      "playerId": "p2",
+      "id": "sess-rebuild-baseline-poker-style-0001:21",
+      "ts": 1787579000021,
+      "actorId": "p2",
+      "seq": 21
+    },
+    {
+      "type": "game/bet",
+      "playerId": "p2",
+      "action": "check",
+      "amount": 0,
+      "roundComplete": false,
+      "id": "sess-rebuild-baseline-poker-style-0001:22",
+      "ts": 1787579000022,
+      "actorId": "p2",
+      "seq": 22
+    },
+    {
+      "type": "turn/set",
+      "playerId": "p3",
+      "id": "sess-rebuild-baseline-poker-style-0001:23",
+      "ts": 1787579000023,
+      "actorId": "p3",
+      "seq": 23
+    },
+    {
+      "type": "game/bet",
+      "playerId": "p3",
+      "action": "check",
+      "amount": 0,
+      "roundComplete": false,
+      "id": "sess-rebuild-baseline-poker-style-0001:24",
+      "ts": 1787579000024,
+      "actorId": "p3",
+      "seq": 24
+    },
+    {
+      "type": "turn/set",
+      "playerId": "p1",
+      "id": "sess-rebuild-baseline-poker-style-0001:25",
+      "ts": 1787579000025,
+      "actorId": "p1",
+      "seq": 25
+    },
+    {
+      "type": "game/bet",
+      "playerId": "p1",
+      "action": "check",
+      "amount": 0,
+      "roundComplete": true,
+      "id": "sess-rebuild-baseline-poker-style-0001:26",
+      "ts": 1787579000026,
+      "actorId": "p1",
+      "seq": 26
+    },
+    {
+      "type": "card/move",
+      "cardId": "D-7",
+      "toZoneId": "muck",
+      "face": "down",
+      "id": "sess-rebuild-baseline-poker-style-0001:27",
+      "ts": 1787579000027,
+      "actorId": "p1",
+      "seq": 27
+    },
+    {
+      "type": "game/burn",
+      "street": 1,
+      "id": "sess-rebuild-baseline-poker-style-0001:28",
+      "ts": 1787579000028,
+      "actorId": "p1",
+      "seq": 28
+    },
+    {
+      "type": "card/deal",
+      "cardId": "D-4",
+      "toZoneId": "communal:0",
+      "face": "up",
+      "id": "sess-rebuild-baseline-poker-style-0001:29",
+      "ts": 1787579000029,
+      "actorId": "p1",
+      "seq": 29
+    },
+    {
+      "type": "game/street",
+      "street": 2,
+      "id": "sess-rebuild-baseline-poker-style-0001:30",
+      "ts": 1787579000030,
+      "actorId": "p1",
+      "seq": 30
+    },
+    {
+      "type": "turn/set",
+      "playerId": "p2",
+      "id": "sess-rebuild-baseline-poker-style-0001:31",
+      "ts": 1787579000031,
+      "actorId": "p2",
+      "seq": 31
+    },
+    {
+      "type": "game/bet",
+      "playerId": "p2",
+      "action": "check",
+      "amount": 0,
+      "roundComplete": false,
+      "id": "sess-rebuild-baseline-poker-style-0001:32",
+      "ts": 1787579000032,
+      "actorId": "p2",
+      "seq": 32
+    },
+    {
+      "type": "turn/set",
+      "playerId": "p3",
+      "id": "sess-rebuild-baseline-poker-style-0001:33",
+      "ts": 1787579000033,
+      "actorId": "p3",
+      "seq": 33
+    },
+    {
+      "type": "game/bet",
+      "playerId": "p3",
+      "action": "check",
+      "amount": 0,
+      "roundComplete": false,
+      "id": "sess-rebuild-baseline-poker-style-0001:34",
+      "ts": 1787579000034,
+      "actorId": "p3",
+      "seq": 34
+    },
+    {
+      "type": "turn/set",
+      "playerId": "p1",
+      "id": "sess-rebuild-baseline-poker-style-0001:35",
+      "ts": 1787579000035,
+      "actorId": "p1",
+      "seq": 35
+    },
+    {
+      "type": "game/bet",
+      "playerId": "p1",
+      "action": "check",
+      "amount": 0,
+      "roundComplete": true,
+      "id": "sess-rebuild-baseline-poker-style-0001:36",
+      "ts": 1787579000036,
+      "actorId": "p1",
+      "seq": 36
+    },
+    {
+      "type": "card/move",
+      "cardId": "H-A",
+      "toZoneId": "muck",
+      "face": "down",
+      "id": "sess-rebuild-baseline-poker-style-0001:37",
+      "ts": 1787579000037,
+      "actorId": "p1",
+      "seq": 37
+    },
+    {
+      "type": "game/burn",
+      "street": 2,
+      "id": "sess-rebuild-baseline-poker-style-0001:38",
+      "ts": 1787579000038,
+      "actorId": "p1",
+      "seq": 38
+    },
+    {
+      "type": "card/deal",
+      "cardId": "S-3",
+      "toZoneId": "communal:0",
+      "face": "up",
+      "id": "sess-rebuild-baseline-poker-style-0001:39",
+      "ts": 1787579000039,
+      "actorId": "p1",
+      "seq": 39
+    },
+    {
+      "type": "game/street",
+      "street": 3,
+      "id": "sess-rebuild-baseline-poker-style-0001:40",
+      "ts": 1787579000040,
+      "actorId": "p1",
+      "seq": 40
+    },
+    {
+      "type": "turn/set",
+      "playerId": "p2",
+      "id": "sess-rebuild-baseline-poker-style-0001:41",
+      "ts": 1787579000041,
+      "actorId": "p2",
+      "seq": 41
+    },
+    {
+      "type": "game/bet",
+      "playerId": "p2",
+      "action": "check",
+      "amount": 0,
+      "roundComplete": false,
+      "id": "sess-rebuild-baseline-poker-style-0001:42",
+      "ts": 1787579000042,
+      "actorId": "p2",
+      "seq": 42
+    },
+    {
+      "type": "turn/set",
+      "playerId": "p3",
+      "id": "sess-rebuild-baseline-poker-style-0001:43",
+      "ts": 1787579000043,
+      "actorId": "p3",
+      "seq": 43
+    },
+    {
+      "type": "game/bet",
+      "playerId": "p3",
+      "action": "check",
+      "amount": 0,
+      "roundComplete": false,
+      "id": "sess-rebuild-baseline-poker-style-0001:44",
+      "ts": 1787579000044,
+      "actorId": "p3",
+      "seq": 44
+    },
+    {
+      "type": "turn/set",
+      "playerId": "p1",
+      "id": "sess-rebuild-baseline-poker-style-0001:45",
+      "ts": 1787579000045,
+      "actorId": "p1",
+      "seq": 45
+    },
+    {
+      "type": "game/bet",
+      "playerId": "p1",
+      "action": "check",
+      "amount": 0,
+      "roundComplete": true,
+      "id": "sess-rebuild-baseline-poker-style-0001:46",
+      "ts": 1787579000046,
+      "actorId": "p1",
+      "seq": 46
+    },
+    {
+      "type": "card/reveal",
+      "cardId": "D-K",
+      "id": "sess-rebuild-baseline-poker-style-0001:47",
+      "ts": 1787579000047,
+      "actorId": "p1",
+      "seq": 47
+    },
+    {
+      "type": "card/reveal",
+      "cardId": "C-Q",
+      "id": "sess-rebuild-baseline-poker-style-0001:48",
+      "ts": 1787579000048,
+      "actorId": "p1",
+      "seq": 48
+    },
+    {
+      "type": "card/reveal",
+      "cardId": "C-5",
+      "id": "sess-rebuild-baseline-poker-style-0001:49",
+      "ts": 1787579000049,
+      "actorId": "p1",
+      "seq": 49
+    },
+    {
+      "type": "card/reveal",
+      "cardId": "C-10",
+      "id": "sess-rebuild-baseline-poker-style-0001:50",
+      "ts": 1787579000050,
+      "actorId": "p1",
+      "seq": 50
+    },
+    {
+      "type": "card/reveal",
+      "cardId": "D-6",
+      "id": "sess-rebuild-baseline-poker-style-0001:51",
+      "ts": 1787579000051,
+      "actorId": "p1",
+      "seq": 51
+    },
+    {
+      "type": "card/reveal",
+      "cardId": "C-J",
+      "id": "sess-rebuild-baseline-poker-style-0001:52",
+      "ts": 1787579000052,
+      "actorId": "p1",
+      "seq": 52
+    },
+    {
+      "type": "session/end",
+      "winnerId": "p1",
+      "id": "sess-rebuild-baseline-poker-style-0001:53",
+      "ts": 1787579000053,
+      "actorId": "p1",
+      "seq": 53
+    }
+  ],
+  "expected": {
+    "phase": "ended",
+    "winnerId": "p1",
+    "currentPlayerId": "p1",
+    "turn": 0,
+    "deckRemaining": 38,
+    "zoneCardIds": {
+      "draw": [
+        "S-K",
+        "H-2",
+        "D-3",
+        "H-10",
+        "D-A",
+        "H-J",
+        "H-6",
+        "H-9",
+        "H-K",
+        "C-4",
+        "S-6",
+        "D-5",
+        "C-K",
+        "D-2",
+        "D-9",
+        "D-8",
+        "C-8",
+        "C-7",
+        "H-Q",
+        "S-7",
+        "H-3",
+        "H-5",
+        "H-7",
+        "C-9",
+        "S-4",
+        "S-10",
+        "D-J",
+        "C-6",
+        "S-2",
+        "S-Q",
+        "D-10",
+        "S-J",
+        "S-A",
+        "S-9",
+        "C-2",
+        "S-5",
+        "C-3",
+        "D-Q"
+      ],
+      "discard": [],
+      "muck": [
+        "H-4",
+        "D-7",
+        "H-A"
+      ],
+      "communal:0": [
+        "H-8",
+        "C-A",
+        "S-8",
+        "D-4",
+        "S-3"
+      ],
+      "hand:p1": [
+        "D-K",
+        "C-Q"
+      ],
+      "table:p1": [],
+      "hand:p2": [
+        "C-5",
+        "C-10"
+      ],
+      "table:p2": [],
+      "hand:p3": [
+        "D-6",
+        "C-J"
+      ],
+      "table:p3": []
+    },
+    "poker": {
+      "pot": 60,
+      "street": 3,
+      "folded": [],
+      "stacks": {
+        "p1": 80,
+        "p2": 80,
+        "p3": 80
+      }
+    }
+  }
+}

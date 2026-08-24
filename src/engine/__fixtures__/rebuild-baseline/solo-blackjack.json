@@ -1,0 +1,420 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-08-24T00:00:00.000Z",
+  "fixture": {
+    "id": "solo-blackjack",
+    "description": "Solo blackjack (single player + house): up/down deal, twist to 17+, stick, dealer reveal + draw to 17, showdown."
+  },
+  "seed": "rebuild-baseline-solo-blackjack-0001",
+  "sessionId": "sess-rebuild-baseline-solo-blackjack-0001",
+  "mode": "solo",
+  "preset": "blackjack",
+  "config": {
+    "includeJokers": false,
+    "fanStyle": "wide",
+    "autoReshuffleDiscard": true,
+    "presetId": "blackjack"
+  },
+  "players": [
+    {
+      "id": "p1",
+      "name": "Ava",
+      "avatarSeed": "ava",
+      "seat": 0
+    },
+    {
+      "id": "house",
+      "name": "House",
+      "avatarSeed": "house",
+      "seat": 1
+    }
+  ],
+  "deckOrder": [
+    "D-3",
+    "C-5",
+    "S-K",
+    "D-6",
+    "D-J",
+    "D-4",
+    "C-J",
+    "H-7",
+    "C-K",
+    "H-8",
+    "S-6",
+    "D-10",
+    "C-10",
+    "D-K",
+    "S-A",
+    "H-Q",
+    "C-2",
+    "D-8",
+    "C-A",
+    "C-3",
+    "S-9",
+    "C-6",
+    "H-10",
+    "C-Q",
+    "H-2",
+    "D-2",
+    "H-5",
+    "C-7",
+    "S-J",
+    "H-4",
+    "H-9",
+    "S-10",
+    "H-3",
+    "S-2",
+    "D-9",
+    "S-3",
+    "S-5",
+    "C-8",
+    "S-Q",
+    "H-A",
+    "D-5",
+    "D-7",
+    "D-A",
+    "D-Q",
+    "H-K",
+    "S-7",
+    "H-6",
+    "H-J",
+    "C-9",
+    "C-4",
+    "S-4",
+    "S-8"
+  ],
+  "eventCount": 11,
+  "events": [
+    {
+      "type": "session/start",
+      "actorId": "system",
+      "meta": {
+        "id": "sess-rebuild-baseline-solo-blackjack-0001",
+        "createdAt": 1787579000000,
+        "rngSeed": "rebuild-baseline-solo-blackjack-0001",
+        "mode": "solo",
+        "hostId": "p1"
+      },
+      "config": {
+        "includeJokers": false,
+        "fanStyle": "wide",
+        "autoReshuffleDiscard": true,
+        "presetId": "blackjack"
+      },
+      "players": [
+        {
+          "id": "p1",
+          "name": "Ava",
+          "avatarSeed": "ava",
+          "seat": 0
+        },
+        {
+          "id": "house",
+          "name": "House",
+          "avatarSeed": "house",
+          "seat": 1
+        }
+      ],
+      "zones": [
+        {
+          "id": "draw",
+          "label": "Draw pile",
+          "visibility": {
+            "kind": "hidden"
+          },
+          "cardIds": [
+            "D-J",
+            "D-4",
+            "C-J",
+            "H-7",
+            "C-K",
+            "H-8",
+            "S-6",
+            "D-10",
+            "C-10",
+            "D-K",
+            "S-A",
+            "H-Q",
+            "C-2",
+            "D-8",
+            "C-A",
+            "C-3",
+            "S-9",
+            "C-6",
+            "H-10",
+            "C-Q",
+            "H-2",
+            "D-2",
+            "H-5",
+            "C-7",
+            "S-J",
+            "H-4",
+            "H-9",
+            "S-10",
+            "H-3",
+            "S-2",
+            "D-9",
+            "S-3",
+            "S-5",
+            "C-8",
+            "S-Q",
+            "H-A",
+            "D-5",
+            "D-7",
+            "D-A",
+            "D-Q",
+            "H-K",
+            "S-7",
+            "H-6",
+            "H-J",
+            "C-9",
+            "C-4",
+            "S-4",
+            "S-8"
+          ]
+        },
+        {
+          "id": "discard",
+          "label": "Discard",
+          "visibility": {
+            "kind": "public"
+          },
+          "cardIds": []
+        },
+        {
+          "id": "muck",
+          "label": "Muck",
+          "visibility": {
+            "kind": "hidden"
+          },
+          "cardIds": []
+        },
+        {
+          "id": "communal:0",
+          "label": "Community",
+          "visibility": {
+            "kind": "public"
+          },
+          "cardIds": []
+        },
+        {
+          "id": "hand:p1",
+          "label": "Ava's hand",
+          "visibility": {
+            "kind": "private",
+            "ownerId": "p1"
+          },
+          "ownerId": "p1",
+          "cardIds": [
+            "D-3",
+            "S-K"
+          ]
+        },
+        {
+          "id": "table:p1",
+          "label": "Ava's table",
+          "visibility": {
+            "kind": "public"
+          },
+          "ownerId": "p1",
+          "cardIds": []
+        },
+        {
+          "id": "hand:house",
+          "label": "House's hand",
+          "visibility": {
+            "kind": "private",
+            "ownerId": "house"
+          },
+          "ownerId": "house",
+          "cardIds": [
+            "C-5",
+            "D-6"
+          ]
+        },
+        {
+          "id": "table:house",
+          "label": "House's table",
+          "visibility": {
+            "kind": "public"
+          },
+          "ownerId": "house",
+          "cardIds": []
+        }
+      ],
+      "id": "sess-rebuild-baseline-solo-blackjack-0001:1",
+      "ts": 1787579000001,
+      "seq": 1
+    },
+    {
+      "type": "card/deal",
+      "actorId": "system",
+      "cardId": "D-3",
+      "toZoneId": "hand:p1",
+      "face": "up",
+      "id": "sess-rebuild-baseline-solo-blackjack-0001:2",
+      "ts": 1787579000002,
+      "seq": 2
+    },
+    {
+      "type": "card/deal",
+      "actorId": "system",
+      "cardId": "C-5",
+      "toZoneId": "hand:house",
+      "face": "up",
+      "id": "sess-rebuild-baseline-solo-blackjack-0001:3",
+      "ts": 1787579000003,
+      "seq": 3
+    },
+    {
+      "type": "card/deal",
+      "actorId": "system",
+      "cardId": "S-K",
+      "toZoneId": "hand:p1",
+      "face": "up",
+      "id": "sess-rebuild-baseline-solo-blackjack-0001:4",
+      "ts": 1787579000004,
+      "seq": 4
+    },
+    {
+      "type": "card/deal",
+      "actorId": "system",
+      "cardId": "D-6",
+      "toZoneId": "hand:house",
+      "face": "down",
+      "id": "sess-rebuild-baseline-solo-blackjack-0001:5",
+      "ts": 1787579000005,
+      "seq": 5
+    },
+    {
+      "type": "card/deal",
+      "cardId": "D-J",
+      "toZoneId": "hand:p1",
+      "face": "up",
+      "id": "sess-rebuild-baseline-solo-blackjack-0001:6",
+      "ts": 1787579000006,
+      "actorId": "p1",
+      "seq": 6
+    },
+    {
+      "type": "turn/end",
+      "playerId": "p1",
+      "id": "sess-rebuild-baseline-solo-blackjack-0001:7",
+      "ts": 1787579000007,
+      "actorId": "p1",
+      "seq": 7
+    },
+    {
+      "type": "card/reveal",
+      "cardId": "D-6",
+      "id": "sess-rebuild-baseline-solo-blackjack-0001:8",
+      "ts": 1787579000008,
+      "actorId": "house",
+      "seq": 8
+    },
+    {
+      "type": "card/deal",
+      "cardId": "D-4",
+      "toZoneId": "hand:house",
+      "face": "up",
+      "id": "sess-rebuild-baseline-solo-blackjack-0001:9",
+      "ts": 1787579000009,
+      "actorId": "p1",
+      "seq": 9
+    },
+    {
+      "type": "card/deal",
+      "cardId": "C-J",
+      "toZoneId": "hand:house",
+      "face": "up",
+      "id": "sess-rebuild-baseline-solo-blackjack-0001:10",
+      "ts": 1787579000010,
+      "actorId": "p1",
+      "seq": 10
+    },
+    {
+      "type": "session/end",
+      "winnerId": "house",
+      "id": "sess-rebuild-baseline-solo-blackjack-0001:11",
+      "ts": 1787579000011,
+      "actorId": "p1",
+      "seq": 11
+    }
+  ],
+  "expected": {
+    "phase": "ended",
+    "winnerId": "house",
+    "currentPlayerId": "house",
+    "turn": 1,
+    "deckRemaining": 45,
+    "zoneCardIds": {
+      "draw": [
+        "H-7",
+        "C-K",
+        "H-8",
+        "S-6",
+        "D-10",
+        "C-10",
+        "D-K",
+        "S-A",
+        "H-Q",
+        "C-2",
+        "D-8",
+        "C-A",
+        "C-3",
+        "S-9",
+        "C-6",
+        "H-10",
+        "C-Q",
+        "H-2",
+        "D-2",
+        "H-5",
+        "C-7",
+        "S-J",
+        "H-4",
+        "H-9",
+        "S-10",
+        "H-3",
+        "S-2",
+        "D-9",
+        "S-3",
+        "S-5",
+        "C-8",
+        "S-Q",
+        "H-A",
+        "D-5",
+        "D-7",
+        "D-A",
+        "D-Q",
+        "H-K",
+        "S-7",
+        "H-6",
+        "H-J",
+        "C-9",
+        "C-4",
+        "S-4",
+        "S-8"
+      ],
+      "discard": [],
+      "muck": [],
+      "communal:0": [],
+      "hand:p1": [
+        "D-3",
+        "S-K",
+        "D-J"
+      ],
+      "table:p1": [],
+      "hand:house": [
+        "C-5",
+        "D-6",
+        "D-4",
+        "C-J"
+      ],
+      "table:house": []
+    },
+    "handValues": {
+      "p1": 23,
+      "house": 25
+    }
+  }
+}

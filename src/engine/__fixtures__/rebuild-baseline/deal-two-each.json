@@ -1,0 +1,514 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-08-24T00:00:00.000Z",
+  "fixture": {
+    "id": "deal-two-each",
+    "description": "Four-player deal-2-each: two face-down rounds dealt, one flip, one extra draw, three passes."
+  },
+  "seed": "rebuild-baseline-deal-two-each-0001",
+  "sessionId": "sess-rebuild-baseline-deal-two-each-0001",
+  "mode": "pass",
+  "preset": "deal-two-each",
+  "config": {
+    "includeJokers": false,
+    "fanStyle": "wide",
+    "autoReshuffleDiscard": true,
+    "presetId": "deal-two-each"
+  },
+  "players": [
+    {
+      "id": "p1",
+      "name": "Ava",
+      "avatarSeed": "ava",
+      "seat": 0
+    },
+    {
+      "id": "p2",
+      "name": "Ben",
+      "avatarSeed": "ben",
+      "seat": 1
+    },
+    {
+      "id": "p3",
+      "name": "Cara",
+      "avatarSeed": "cara",
+      "seat": 2
+    },
+    {
+      "id": "p4",
+      "name": "Dan",
+      "avatarSeed": "dan",
+      "seat": 3
+    }
+  ],
+  "deckOrder": [
+    "C-8",
+    "H-6",
+    "D-K",
+    "C-7",
+    "C-6",
+    "H-K",
+    "C-5",
+    "D-4",
+    "S-3",
+    "C-10",
+    "H-Q",
+    "H-9",
+    "D-2",
+    "C-J",
+    "S-8",
+    "D-8",
+    "H-10",
+    "D-6",
+    "H-5",
+    "C-2",
+    "S-5",
+    "D-9",
+    "H-8",
+    "H-2",
+    "S-2",
+    "S-10",
+    "H-7",
+    "C-A",
+    "H-A",
+    "D-A",
+    "S-K",
+    "S-6",
+    "D-3",
+    "C-4",
+    "S-A",
+    "S-J",
+    "C-3",
+    "C-Q",
+    "C-K",
+    "H-J",
+    "D-10",
+    "H-3",
+    "D-J",
+    "D-5",
+    "D-7",
+    "H-4",
+    "C-9",
+    "S-Q",
+    "S-4",
+    "S-7",
+    "D-Q",
+    "S-9"
+  ],
+  "eventCount": 14,
+  "events": [
+    {
+      "type": "session/start",
+      "actorId": "system",
+      "meta": {
+        "id": "sess-rebuild-baseline-deal-two-each-0001",
+        "createdAt": 1787579000000,
+        "rngSeed": "rebuild-baseline-deal-two-each-0001",
+        "mode": "pass",
+        "hostId": "p1"
+      },
+      "config": {
+        "includeJokers": false,
+        "fanStyle": "wide",
+        "autoReshuffleDiscard": true,
+        "presetId": "deal-two-each"
+      },
+      "players": [
+        {
+          "id": "p1",
+          "name": "Ava",
+          "avatarSeed": "ava",
+          "seat": 0
+        },
+        {
+          "id": "p2",
+          "name": "Ben",
+          "avatarSeed": "ben",
+          "seat": 1
+        },
+        {
+          "id": "p3",
+          "name": "Cara",
+          "avatarSeed": "cara",
+          "seat": 2
+        },
+        {
+          "id": "p4",
+          "name": "Dan",
+          "avatarSeed": "dan",
+          "seat": 3
+        }
+      ],
+      "zones": [
+        {
+          "id": "draw",
+          "label": "Draw pile",
+          "visibility": {
+            "kind": "hidden"
+          },
+          "cardIds": [
+            "S-3",
+            "C-10",
+            "H-Q",
+            "H-9",
+            "D-2",
+            "C-J",
+            "S-8",
+            "D-8",
+            "H-10",
+            "D-6",
+            "H-5",
+            "C-2",
+            "S-5",
+            "D-9",
+            "H-8",
+            "H-2",
+            "S-2",
+            "S-10",
+            "H-7",
+            "C-A",
+            "H-A",
+            "D-A",
+            "S-K",
+            "S-6",
+            "D-3",
+            "C-4",
+            "S-A",
+            "S-J",
+            "C-3",
+            "C-Q",
+            "C-K",
+            "H-J",
+            "D-10",
+            "H-3",
+            "D-J",
+            "D-5",
+            "D-7",
+            "H-4",
+            "C-9",
+            "S-Q",
+            "S-4",
+            "S-7",
+            "D-Q",
+            "S-9"
+          ]
+        },
+        {
+          "id": "discard",
+          "label": "Discard",
+          "visibility": {
+            "kind": "public"
+          },
+          "cardIds": []
+        },
+        {
+          "id": "muck",
+          "label": "Muck",
+          "visibility": {
+            "kind": "hidden"
+          },
+          "cardIds": []
+        },
+        {
+          "id": "communal:0",
+          "label": "Community",
+          "visibility": {
+            "kind": "public"
+          },
+          "cardIds": []
+        },
+        {
+          "id": "hand:p1",
+          "label": "Ava's hand",
+          "visibility": {
+            "kind": "private",
+            "ownerId": "p1"
+          },
+          "ownerId": "p1",
+          "cardIds": [
+            "C-8",
+            "C-6"
+          ]
+        },
+        {
+          "id": "table:p1",
+          "label": "Ava's table",
+          "visibility": {
+            "kind": "public"
+          },
+          "ownerId": "p1",
+          "cardIds": []
+        },
+        {
+          "id": "hand:p2",
+          "label": "Ben's hand",
+          "visibility": {
+            "kind": "private",
+            "ownerId": "p2"
+          },
+          "ownerId": "p2",
+          "cardIds": [
+            "H-6",
+            "H-K"
+          ]
+        },
+        {
+          "id": "table:p2",
+          "label": "Ben's table",
+          "visibility": {
+            "kind": "public"
+          },
+          "ownerId": "p2",
+          "cardIds": []
+        },
+        {
+          "id": "hand:p3",
+          "label": "Cara's hand",
+          "visibility": {
+            "kind": "private",
+            "ownerId": "p3"
+          },
+          "ownerId": "p3",
+          "cardIds": [
+            "D-K",
+            "C-5"
+          ]
+        },
+        {
+          "id": "table:p3",
+          "label": "Cara's table",
+          "visibility": {
+            "kind": "public"
+          },
+          "ownerId": "p3",
+          "cardIds": []
+        },
+        {
+          "id": "hand:p4",
+          "label": "Dan's hand",
+          "visibility": {
+            "kind": "private",
+            "ownerId": "p4"
+          },
+          "ownerId": "p4",
+          "cardIds": [
+            "C-7",
+            "D-4"
+          ]
+        },
+        {
+          "id": "table:p4",
+          "label": "Dan's table",
+          "visibility": {
+            "kind": "public"
+          },
+          "ownerId": "p4",
+          "cardIds": []
+        }
+      ],
+      "id": "sess-rebuild-baseline-deal-two-each-0001:1",
+      "ts": 1787579000001,
+      "seq": 1
+    },
+    {
+      "type": "card/deal",
+      "actorId": "system",
+      "cardId": "C-8",
+      "toZoneId": "hand:p1",
+      "face": "down",
+      "id": "sess-rebuild-baseline-deal-two-each-0001:2",
+      "ts": 1787579000002,
+      "seq": 2
+    },
+    {
+      "type": "card/deal",
+      "actorId": "system",
+      "cardId": "H-6",
+      "toZoneId": "hand:p2",
+      "face": "down",
+      "id": "sess-rebuild-baseline-deal-two-each-0001:3",
+      "ts": 1787579000003,
+      "seq": 3
+    },
+    {
+      "type": "card/deal",
+      "actorId": "system",
+      "cardId": "D-K",
+      "toZoneId": "hand:p3",
+      "face": "down",
+      "id": "sess-rebuild-baseline-deal-two-each-0001:4",
+      "ts": 1787579000004,
+      "seq": 4
+    },
+    {
+      "type": "card/deal",
+      "actorId": "system",
+      "cardId": "C-7",
+      "toZoneId": "hand:p4",
+      "face": "down",
+      "id": "sess-rebuild-baseline-deal-two-each-0001:5",
+      "ts": 1787579000005,
+      "seq": 5
+    },
+    {
+      "type": "card/deal",
+      "actorId": "system",
+      "cardId": "C-6",
+      "toZoneId": "hand:p1",
+      "face": "down",
+      "id": "sess-rebuild-baseline-deal-two-each-0001:6",
+      "ts": 1787579000006,
+      "seq": 6
+    },
+    {
+      "type": "card/deal",
+      "actorId": "system",
+      "cardId": "H-K",
+      "toZoneId": "hand:p2",
+      "face": "down",
+      "id": "sess-rebuild-baseline-deal-two-each-0001:7",
+      "ts": 1787579000007,
+      "seq": 7
+    },
+    {
+      "type": "card/deal",
+      "actorId": "system",
+      "cardId": "C-5",
+      "toZoneId": "hand:p3",
+      "face": "down",
+      "id": "sess-rebuild-baseline-deal-two-each-0001:8",
+      "ts": 1787579000008,
+      "seq": 8
+    },
+    {
+      "type": "card/deal",
+      "actorId": "system",
+      "cardId": "D-4",
+      "toZoneId": "hand:p4",
+      "face": "down",
+      "id": "sess-rebuild-baseline-deal-two-each-0001:9",
+      "ts": 1787579000009,
+      "seq": 9
+    },
+    {
+      "type": "card/flip",
+      "cardId": "C-8",
+      "id": "sess-rebuild-baseline-deal-two-each-0001:10",
+      "ts": 1787579000010,
+      "actorId": "p1",
+      "seq": 10
+    },
+    {
+      "type": "turn/end",
+      "playerId": "p1",
+      "id": "sess-rebuild-baseline-deal-two-each-0001:11",
+      "ts": 1787579000011,
+      "actorId": "p1",
+      "seq": 11
+    },
+    {
+      "type": "card/deal",
+      "cardId": "S-3",
+      "toZoneId": "hand:p2",
+      "face": "down",
+      "id": "sess-rebuild-baseline-deal-two-each-0001:12",
+      "ts": 1787579000012,
+      "actorId": "p1",
+      "seq": 12
+    },
+    {
+      "type": "turn/end",
+      "playerId": "p2",
+      "id": "sess-rebuild-baseline-deal-two-each-0001:13",
+      "ts": 1787579000013,
+      "actorId": "p2",
+      "seq": 13
+    },
+    {
+      "type": "turn/end",
+      "playerId": "p3",
+      "id": "sess-rebuild-baseline-deal-two-each-0001:14",
+      "ts": 1787579000014,
+      "actorId": "p3",
+      "seq": 14
+    }
+  ],
+  "expected": {
+    "phase": "playing",
+    "winnerId": null,
+    "currentPlayerId": "p4",
+    "turn": 3,
+    "deckRemaining": 43,
+    "zoneCardIds": {
+      "draw": [
+        "C-10",
+        "H-Q",
+        "H-9",
+        "D-2",
+        "C-J",
+        "S-8",
+        "D-8",
+        "H-10",
+        "D-6",
+        "H-5",
+        "C-2",
+        "S-5",
+        "D-9",
+        "H-8",
+        "H-2",
+        "S-2",
+        "S-10",
+        "H-7",
+        "C-A",
+        "H-A",
+        "D-A",
+        "S-K",
+        "S-6",
+        "D-3",
+        "C-4",
+        "S-A",
+        "S-J",
+        "C-3",
+        "C-Q",
+        "C-K",
+        "H-J",
+        "D-10",
+        "H-3",
+        "D-J",
+        "D-5",
+        "D-7",
+        "H-4",
+        "C-9",
+        "S-Q",
+        "S-4",
+        "S-7",
+        "D-Q",
+        "S-9"
+      ],
+      "discard": [],
+      "muck": [],
+      "communal:0": [],
+      "hand:p1": [
+        "C-8",
+        "C-6"
+      ],
+      "table:p1": [],
+      "hand:p2": [
+        "H-6",
+        "H-K",
+        "S-3"
+      ],
+      "table:p2": [],
+      "hand:p3": [
+        "D-K",
+        "C-5"
+      ],
+      "table:p3": [],
+      "hand:p4": [
+        "C-7",
+        "D-4"
+      ],
+      "table:p4": []
+    }
+  }
+}

@@ -1,0 +1,435 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-08-24T00:00:00.000Z",
+  "fixture": {
+    "id": "freeplay",
+    "description": "Three-player hot-seat freeplay: shuffled 52-card draw, a few deals/flips/moves across turns."
+  },
+  "seed": "rebuild-baseline-freeplay-0001",
+  "sessionId": "sess-rebuild-baseline-freeplay-0001",
+  "mode": "pass",
+  "preset": "freeplay",
+  "config": {
+    "includeJokers": false,
+    "fanStyle": "wide",
+    "autoReshuffleDiscard": true,
+    "presetId": "freeplay"
+  },
+  "players": [
+    {
+      "id": "p1",
+      "name": "Ava",
+      "avatarSeed": "ava",
+      "seat": 0
+    },
+    {
+      "id": "p2",
+      "name": "Ben",
+      "avatarSeed": "ben",
+      "seat": 1
+    },
+    {
+      "id": "p3",
+      "name": "Cara",
+      "avatarSeed": "cara",
+      "seat": 2
+    }
+  ],
+  "deckOrder": [
+    "S-K",
+    "H-3",
+    "S-6",
+    "D-Q",
+    "S-10",
+    "D-8",
+    "S-3",
+    "C-8",
+    "H-10",
+    "H-9",
+    "C-7",
+    "D-7",
+    "C-J",
+    "D-J",
+    "H-J",
+    "S-5",
+    "D-K",
+    "S-2",
+    "S-7",
+    "H-2",
+    "D-6",
+    "D-4",
+    "C-Q",
+    "D-A",
+    "H-6",
+    "C-K",
+    "D-10",
+    "C-6",
+    "H-5",
+    "C-A",
+    "S-8",
+    "H-7",
+    "S-J",
+    "C-2",
+    "D-3",
+    "S-4",
+    "D-5",
+    "H-4",
+    "H-A",
+    "S-9",
+    "S-A",
+    "D-2",
+    "C-5",
+    "C-9",
+    "H-Q",
+    "C-3",
+    "S-Q",
+    "H-K",
+    "C-10",
+    "H-8",
+    "C-4",
+    "D-9"
+  ],
+  "eventCount": 10,
+  "events": [
+    {
+      "type": "session/start",
+      "actorId": "system",
+      "meta": {
+        "id": "sess-rebuild-baseline-freeplay-0001",
+        "createdAt": 1787579000000,
+        "rngSeed": "rebuild-baseline-freeplay-0001",
+        "mode": "pass",
+        "hostId": "p1"
+      },
+      "config": {
+        "includeJokers": false,
+        "fanStyle": "wide",
+        "autoReshuffleDiscard": true,
+        "presetId": "freeplay"
+      },
+      "players": [
+        {
+          "id": "p1",
+          "name": "Ava",
+          "avatarSeed": "ava",
+          "seat": 0
+        },
+        {
+          "id": "p2",
+          "name": "Ben",
+          "avatarSeed": "ben",
+          "seat": 1
+        },
+        {
+          "id": "p3",
+          "name": "Cara",
+          "avatarSeed": "cara",
+          "seat": 2
+        }
+      ],
+      "zones": [
+        {
+          "id": "draw",
+          "label": "Draw pile",
+          "visibility": {
+            "kind": "hidden"
+          },
+          "cardIds": [
+            "S-K",
+            "H-3",
+            "S-6",
+            "D-Q",
+            "S-10",
+            "D-8",
+            "S-3",
+            "C-8",
+            "H-10",
+            "H-9",
+            "C-7",
+            "D-7",
+            "C-J",
+            "D-J",
+            "H-J",
+            "S-5",
+            "D-K",
+            "S-2",
+            "S-7",
+            "H-2",
+            "D-6",
+            "D-4",
+            "C-Q",
+            "D-A",
+            "H-6",
+            "C-K",
+            "D-10",
+            "C-6",
+            "H-5",
+            "C-A",
+            "S-8",
+            "H-7",
+            "S-J",
+            "C-2",
+            "D-3",
+            "S-4",
+            "D-5",
+            "H-4",
+            "H-A",
+            "S-9",
+            "S-A",
+            "D-2",
+            "C-5",
+            "C-9",
+            "H-Q",
+            "C-3",
+            "S-Q",
+            "H-K",
+            "C-10",
+            "H-8",
+            "C-4",
+            "D-9"
+          ]
+        },
+        {
+          "id": "discard",
+          "label": "Discard",
+          "visibility": {
+            "kind": "public"
+          },
+          "cardIds": []
+        },
+        {
+          "id": "muck",
+          "label": "Muck",
+          "visibility": {
+            "kind": "hidden"
+          },
+          "cardIds": []
+        },
+        {
+          "id": "communal:0",
+          "label": "Community",
+          "visibility": {
+            "kind": "public"
+          },
+          "cardIds": []
+        },
+        {
+          "id": "hand:p1",
+          "label": "Ava's hand",
+          "visibility": {
+            "kind": "private",
+            "ownerId": "p1"
+          },
+          "ownerId": "p1",
+          "cardIds": []
+        },
+        {
+          "id": "table:p1",
+          "label": "Ava's table",
+          "visibility": {
+            "kind": "public"
+          },
+          "ownerId": "p1",
+          "cardIds": []
+        },
+        {
+          "id": "hand:p2",
+          "label": "Ben's hand",
+          "visibility": {
+            "kind": "private",
+            "ownerId": "p2"
+          },
+          "ownerId": "p2",
+          "cardIds": []
+        },
+        {
+          "id": "table:p2",
+          "label": "Ben's table",
+          "visibility": {
+            "kind": "public"
+          },
+          "ownerId": "p2",
+          "cardIds": []
+        },
+        {
+          "id": "hand:p3",
+          "label": "Cara's hand",
+          "visibility": {
+            "kind": "private",
+            "ownerId": "p3"
+          },
+          "ownerId": "p3",
+          "cardIds": []
+        },
+        {
+          "id": "table:p3",
+          "label": "Cara's table",
+          "visibility": {
+            "kind": "public"
+          },
+          "ownerId": "p3",
+          "cardIds": []
+        }
+      ],
+      "id": "sess-rebuild-baseline-freeplay-0001:1",
+      "ts": 1787579000001,
+      "seq": 1
+    },
+    {
+      "type": "card/deal",
+      "cardId": "S-K",
+      "toZoneId": "hand:p1",
+      "face": "down",
+      "id": "sess-rebuild-baseline-freeplay-0001:2",
+      "ts": 1787579000002,
+      "actorId": "p1",
+      "seq": 2
+    },
+    {
+      "type": "card/flip",
+      "cardId": "S-K",
+      "id": "sess-rebuild-baseline-freeplay-0001:3",
+      "ts": 1787579000003,
+      "actorId": "p1",
+      "seq": 3
+    },
+    {
+      "type": "card/deal",
+      "cardId": "H-3",
+      "toZoneId": "table:p1",
+      "face": "up",
+      "id": "sess-rebuild-baseline-freeplay-0001:4",
+      "ts": 1787579000004,
+      "actorId": "p1",
+      "seq": 4
+    },
+    {
+      "type": "turn/end",
+      "playerId": "p1",
+      "id": "sess-rebuild-baseline-freeplay-0001:5",
+      "ts": 1787579000005,
+      "actorId": "p1",
+      "seq": 5
+    },
+    {
+      "type": "card/deal",
+      "cardId": "S-6",
+      "toZoneId": "hand:p2",
+      "face": "down",
+      "id": "sess-rebuild-baseline-freeplay-0001:6",
+      "ts": 1787579000006,
+      "actorId": "p1",
+      "seq": 6
+    },
+    {
+      "type": "turn/end",
+      "playerId": "p2",
+      "id": "sess-rebuild-baseline-freeplay-0001:7",
+      "ts": 1787579000007,
+      "actorId": "p2",
+      "seq": 7
+    },
+    {
+      "type": "card/move",
+      "cardId": "D-Q",
+      "toZoneId": "table:p3",
+      "face": "down",
+      "id": "sess-rebuild-baseline-freeplay-0001:8",
+      "ts": 1787579000008,
+      "actorId": "p3",
+      "seq": 8
+    },
+    {
+      "type": "card/flip",
+      "cardId": "D-Q",
+      "id": "sess-rebuild-baseline-freeplay-0001:9",
+      "ts": 1787579000009,
+      "actorId": "p3",
+      "seq": 9
+    },
+    {
+      "type": "turn/end",
+      "playerId": "p3",
+      "id": "sess-rebuild-baseline-freeplay-0001:10",
+      "ts": 1787579000010,
+      "actorId": "p3",
+      "seq": 10
+    }
+  ],
+  "expected": {
+    "phase": "playing",
+    "winnerId": null,
+    "currentPlayerId": "p1",
+    "turn": 3,
+    "deckRemaining": 48,
+    "zoneCardIds": {
+      "draw": [
+        "S-10",
+        "D-8",
+        "S-3",
+        "C-8",
+        "H-10",
+        "H-9",
+        "C-7",
+        "D-7",
+        "C-J",
+        "D-J",
+        "H-J",
+        "S-5",
+        "D-K",
+        "S-2",
+        "S-7",
+        "H-2",
+        "D-6",
+        "D-4",
+        "C-Q",
+        "D-A",
+        "H-6",
+        "C-K",
+        "D-10",
+        "C-6",
+        "H-5",
+        "C-A",
+        "S-8",
+        "H-7",
+        "S-J",
+        "C-2",
+        "D-3",
+        "S-4",
+        "D-5",
+        "H-4",
+        "H-A",
+        "S-9",
+        "S-A",
+        "D-2",
+        "C-5",
+        "C-9",
+        "H-Q",
+        "C-3",
+        "S-Q",
+        "H-K",
+        "C-10",
+        "H-8",
+        "C-4",
+        "D-9"
+      ],
+      "discard": [],
+      "muck": [],
+      "communal:0": [],
+      "hand:p1": [
+        "S-K"
+      ],
+      "table:p1": [
+        "H-3"
+      ],
+      "hand:p2": [
+        "S-6"
+      ],
+      "table:p2": [],
+      "hand:p3": [],
+      "table:p3": [
+        "D-Q"
+      ]
+    }
+  }
+}
