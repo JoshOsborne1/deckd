@@ -42,8 +42,6 @@ export interface StackSurfaceProps {
   lead: StackSurfaceCard;
   run: readonly StackSurfaceCard[];
   legalTargets: LegalTargetsProvider;
-  /** Zone ids this stack run may legally land in. */
-  runTargets: readonly string[];
   dispatchIntent: (intent: PhysicalIntent) => void;
   /** Vertical spacing between stacked cards. */
   offset?: number;
@@ -57,7 +55,6 @@ export function StackSurface({
   lead,
   run,
   legalTargets,
-  runTargets,
   dispatchIntent,
   offset = 22,
   style,
@@ -71,9 +68,9 @@ export function StackSurface({
   const cardIds = useMemo(() => [lead.id, ...run.map((card) => card.id)], [lead.id, run]);
 
   // Ask the provider for the lead's legal targets; the run follows the lead.
-  const leadTargetsProvider = useMemo<LegalTargetsProvider>(
-    () => (query) => legalTargets({ ...query, cardId: lead.id }),
-    [lead.id, legalTargets],
+  const runTargets = useMemo(
+    () => legalTargets({ cardId: lead.id, fromZoneId: zoneId }).zoneIds,
+    [lead.id, legalTargets, zoneId],
   );
 
   const commitRun = useCallback(
@@ -115,10 +112,8 @@ export function StackSurface({
         .onEnd((event) => {
           'worklet';
           lifted.value = false;
-          // The lab's stack legality: the run may land only in runTargets.
-          // Full legal targeting is driven by CardEntity elsewhere; this is
-          // the stack-as-one-body gesture, the minimal version for blueprint
-          // 6.6 that still dispatches the same typed intent on commit.
+          // The engine-owned provider decides the only destinations this run
+          // may use. The gesture owns motion thresholds, never game legality.
           const travel = Math.abs(event.translationX) + Math.abs(event.translationY);
           const committed = travel > 56 || Math.abs(event.velocityY) > 800;
           const duration = reduceMotion ? 120 : 240;
@@ -144,8 +139,6 @@ export function StackSurface({
       zIndex: lifted.value ? 1000 : 0,
     };
   });
-
-  void leadTargetsProvider; // Reserved for Phase 2 legal-target emphasis on stacks.
 
   return (
     <CardZone zoneId={zoneId} testID={testID ?? `stack-${zoneId}`}>

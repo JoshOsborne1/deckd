@@ -3,6 +3,26 @@ const { chromium } = require('playwright');
 const BASE_URL = process.env.DECKD_QA_URL ?? 'http://127.0.0.1:8081';
 const VIEWPORT = { width: 1440, height: 900 };
 
+async function lastVisible(locator, timeout = 30000) {
+  const deadline = Date.now() + timeout;
+  while (Date.now() < deadline) {
+    for (let index = (await locator.count()) - 1; index >= 0; index -= 1) {
+      const candidate = locator.nth(index);
+      if (await candidate.isVisible().catch(() => false)) return candidate;
+    }
+    await locator.page().waitForTimeout(100);
+  }
+  throw new Error('Timed out waiting for a visible locator');
+}
+
+async function hasVisibleButton(page, pattern) {
+  const buttons = page.getByRole('button', { name: pattern });
+  for (let index = 0; index < await buttons.count(); index += 1) {
+    if (await buttons.nth(index).isVisible().catch(() => false)) return true;
+  }
+  return false;
+}
+
 (async () => {
   const browser = await chromium.launch({ headless: true });
   const page = await browser.newPage({ viewport: VIEWPORT, deviceScaleFactor: 1 });
@@ -18,10 +38,10 @@ const VIEWPORT = { width: 1440, height: 900 };
     await page.reload({ waitUntil: 'commit', timeout: 30000 });
     await page.getByRole('button', { name: 'Deal the deck', exact: true }).last().waitFor({ state: 'visible', timeout: 30000 });
     await page.getByRole('button', { name: 'Deal the deck', exact: true }).last().click();
-    await page.getByText('Choose a recipe', { exact: true }).waitFor({ state: 'visible', timeout: 30000 });
-    await page.getByRole('button', { name: /^War\./ }).last().click();
-    await page.getByRole('button', { name: 'Deal now', exact: true }).last().click();
-    await page.getByRole('button', { name: 'FLIP', exact: true }).waitFor({ state: 'visible', timeout: 30000 });
+    await lastVisible(page.getByText('Choose a recipe', { exact: true }));
+    await (await lastVisible(page.getByRole('button', { name: /^War\./ }))).click();
+    await (await lastVisible(page.getByRole('button', { name: 'Deal now', exact: true }))).click();
+    const playPile = await lastVisible(page.getByRole('button', { name: /^Play the top card from your pile,/ }));
     await page.waitForTimeout(600);
 
     const geometry = await page.evaluate(() => {
@@ -40,7 +60,7 @@ const VIEWPORT = { width: 1440, height: 900 };
     const buttonBounds = await Promise.all([
       ['Home', page.getByRole('button', { name: 'Home', exact: true }).last()],
       ['Profile', page.getByRole('button', { name: 'Profile', exact: true }).last()],
-      ['FLIP', page.getByRole('button', { name: 'FLIP', exact: true }).last()],
+      ['Play pile', playPile],
     ].map(async ([label, button]) => {
       const rect = await button.boundingBox();
       return rect
@@ -60,7 +80,9 @@ const VIEWPORT = { width: 1440, height: 900 };
     const body = await page.locator('body').innerText();
     const result = {
       viewport: VIEWPORT,
-      hasTable: body.includes('YOUR TURN') && body.includes('FLIP'),
+      hasTable: body.includes('YOUR TURN')
+        && body.includes('TAP TO PLAY')
+        && !(await hasVisibleButton(page, /^FLIP$/)),
       bodyTail: body.slice(-1200),
       geometry,
       buttonBounds,

@@ -1,5 +1,5 @@
 import type { Rank, Suit } from '@lib/types';
-import type { SeatBinding, SurfaceProfile } from './sessionTopology';
+import type { LegacyMode, SeatBinding, SurfaceProfile } from './sessionTopology';
 
 export type CardId = string;
 export type PlayerId = string;
@@ -88,7 +88,7 @@ export interface SessionMeta {
   id: string;
   createdAt: number;
   rngSeed: string;
-  mode: 'pass' | 'solo' | 'ble-host' | 'ble-guest' | 'online-host' | 'online-guest';
+  mode: LegacyMode;
   /** New topology fields; optional during legacy fixture migration. */
   surfaceProfile?: SurfaceProfile;
   seatBinding?: SeatBinding;

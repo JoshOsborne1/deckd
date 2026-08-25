@@ -133,6 +133,11 @@ function FanCard({
 
   const parsed = parseCardId(card.id);
   const jokerColor = parseJokerId(card.id);
+  const cardLabel = parsed
+    ? `${parsed.rank} of ${parsed.suit}`
+    : jokerColor
+      ? `${jokerColor} joker`
+      : 'Face-down card';
 
   const fireTap = useCallback(() => {
     haptic('light');
@@ -204,7 +209,21 @@ function FanCard({
       ]}
     >
       <GestureDetector gesture={composed}>
-        <View collapsable={false}>{inner}</View>
+        <View
+          collapsable={false}
+          accessible={Boolean(onPress)}
+          accessibilityRole={onPress ? 'button' : undefined}
+          accessibilityLabel={onPress ? cardLabel : undefined}
+          aria-label={onPress ? cardLabel : undefined}
+          accessibilityHint={onPress
+            ? highlighted
+              ? 'Available card action. Activate to play this card.'
+              : 'Activate this card.'
+            : undefined}
+          onAccessibilityTap={onPress ? fireTap : undefined}
+        >
+          {inner}
+        </View>
       </GestureDetector>
     </Animated.View>
   );

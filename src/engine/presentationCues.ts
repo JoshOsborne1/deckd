@@ -8,6 +8,7 @@
 
 import type { ZoneId } from './types';
 import type { GameEvent } from './events';
+import type { GameIntent } from './intents';
 
 export type PresentationCue =
   | 'deal'
@@ -86,5 +87,25 @@ export function inferCue(event: GameEvent): PresentationCue | null {
       return 'move';
     default:
       return null;
+  }
+}
+
+/** Prefer the physical meaning of the accepted intent over the wire event. */
+export function cueForIntent(intent: GameIntent, event: GameEvent): PresentationCue | null {
+  switch (intent.type) {
+    case 'pile.draw':
+      return 'draw';
+    case 'pile.take':
+      return 'collect';
+    case 'card.flip':
+      return 'reveal';
+    case 'card.move':
+      return intent.to === 'muck' ? 'muck' : inferCue(event);
+    case 'hand.reorder':
+      return 'move';
+    case 'player.target':
+    case 'turn.pass':
+    case 'choice.commit':
+      return inferCue(event);
   }
 }

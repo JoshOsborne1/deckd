@@ -1,6 +1,5 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo } from 'react';
 import {
-  Alert,
   Pressable,
   StyleSheet,
   Text,
@@ -13,24 +12,18 @@ import Animated, {
   useSharedValue,
   withSpring,
 } from 'react-native-reanimated';
-import { BookOpen, ChevronLeft, Clock, Flag, Undo2 } from 'lucide-react-native';
 import { CardButton } from '@components/CardButton';
-import { EventHistoryModal } from '@components/EventHistoryModal';
 import { PlayingCard } from '@components/PlayingCard';
-import { RulesSheet } from '@components/RulesSheet';
-import { TableSurface } from '@components/TableSurface';
+import { TableShell } from '@components/table/TableShell';
+import { useTableSession } from '@components/table/useTableSession';
 import { useLayerSurfaceEntrance } from '@hooks/useLayerSurfaceEntrance';
 import { useMotion } from '@hooks/useMotion';
 import { useCosmeticsStore } from '@store/cosmeticsStore';
 import { useGameStore } from '@store/gameStore';
-import { useLobbyStore } from '@store/lobbyStore';
 import { useUiStore } from '@store/uiStore';
 import {
   parseCardId,
-  selectCanUndo,
   selectCardFace,
-  selectCurrentPlayerId,
-  selectIsMyTurn,
   selectOpponents,
 } from '@engine/selectors';
 import {
@@ -51,9 +44,8 @@ interface WarTableProps {
 
 /**
  * War is its own surface. The battle is the whole game: two mouth piles, a
- * centre well where the played cards land, and one primary action — FLIP.
- * No guidance box, no duplicated pile counts, no card buttons on top of
- * cards. The count lives on each pile once, and the button IS the instruction.
+ * centre well where the played cards land, and one primary action: tapping
+ * your own pile. The cards are the controls; there is no detached action dock.
  */
 export function WarTable({ active, topInset, bottomInset }: WarTableProps) {
   const { width: viewportWidth } = useWindowDimensions();
@@ -62,30 +54,16 @@ export function WarTable({ active, topInset, bottomInset }: WarTableProps) {
   const surfaceStyle = useLayerSurfaceEntrance(active);
   const setViewMode = useUiStore((s) => s.setViewMode);
   const equippedBackId = useCosmeticsStore((s) => s.equippedBackId);
-  const [historyOpen, setHistoryOpen] = useState(false);
-  const [rulesOpen, setRulesOpen] = useState(false);
 
   const state = useGameStore((s) => s.state);
   const events = useGameStore((s) => s.events);
   const gameAction = useGameStore((s) => s.gameAction);
   const replaySession = useGameStore((s) => s.replaySession);
-  const undoLastAction = useGameStore((s) => s.undoLastAction);
-  const endSession = useGameStore((s) => s.endSession);
-
-  const lobbyStatus = useLobbyStore((s) => s.status);
-  const lobbySession = useLobbyStore((s) => s.session);
-  const localClientId = useLobbyStore((s) => s.localClientId);
-
-  const isOnline = state.meta.mode === 'online-host' || state.meta.mode === 'online-guest';
-  const isGuest = state.meta.mode === 'online-guest';
-  const hostPlayerId = state.meta.hostId || null;
-  const viewerId = isOnline
-    ? isGuest
-      ? localClientId
-      : hostPlayerId
-    : state.meta.mode === 'pass' && state.currentPlayerId
-      ? state.currentPlayerId
-      : hostPlayerId;
+  const {
+    viewerId,
+    isRemoteGuest: isGuest,
+    lobbySession,
+  } = useTableSession(state);
 
   const rules = useMemo(() => getGameRules(state.config.presetId), [state.config.presetId]);
   const ruleActions = useMemo<GameActionSpec[]>(
@@ -96,20 +74,6 @@ export function WarTable({ active, topInset, bottomInset }: WarTableProps) {
     () => (viewerId ? selectOpponents(state, viewerId) : []),
     [state, viewerId],
   );
-  const currentPlayerId = useMemo(() => selectCurrentPlayerId(state), [state]);
-  const isMyTurn = useMemo(
-    () => (viewerId ? selectIsMyTurn(state, viewerId) : false),
-    [state, viewerId],
-  );
-  const canUndo = useMemo(
-    () => (viewerId ? selectCanUndo(state, viewerId) : false),
-    [state, viewerId],
-  );
-  const currentPlayerName = useMemo(
-    () => state.players.find((player) => player.id === currentPlayerId)?.name ?? '',
-    [currentPlayerId, state.players],
-  );
-
   const flipSpec = ruleActions.find((spec) => spec.id === 'flip') ?? null;
   const hasSession = events.length > 0 && state.phase !== 'idle';
 
@@ -128,7 +92,7 @@ export function WarTable({ active, topInset, bottomInset }: WarTableProps) {
   );
   const street = state.game?.street ?? 0;
   const streetLabel = battleIds.length > 0 ? (street >= 2 ? 'WAR' : 'BATTLE') : null;
-  const isWarDown = street === 2 || street === 3;
+
 
   const faceFor = useCallback(
     (card: CardInstance): CardFace => selectCardFace(state, card.id, viewerId),
@@ -158,21 +122,6 @@ export function WarTable({ active, topInset, bottomInset }: WarTableProps) {
     setViewMode('hub');
   }, [haptic, setViewMode]);
 
-  const handleUndo = useCallback(() => {
-    haptic('medium');
-    undoLastAction();
-  }, [haptic, undoLastAction]);
-
-  const handleEndSession = useCallback(() => {
-    Alert.alert(
-      'End the table?',
-      'This ends the session for everyone. You can start a new one from the hub.',
-      [
-        { text: 'Keep playing', style: 'cancel' },
-        { text: 'End table', style: 'destructive', onPress: () => endSession(viewerId ?? undefined) },
-      ],
-    );
-  }, [endSession, viewerId]);
 
   // Battle cards pop in as they land.
   const battleKey = battleIds.length > 0 ? battleIds.join(',') : 'empty';
@@ -187,16 +136,6 @@ export function WarTable({ active, topInset, bottomInset }: WarTableProps) {
     transform: reduceMotion ? [] : [{ scale: 0.8 + battleEntry.value * 0.2 }],
   }));
 
-  const flipScale = useSharedValue(1);
-  const flipMotionStyle = useAnimatedStyle(() => ({
-    transform: reduceMotion ? [] : [{ scale: flipScale.value }],
-  }));
-  const flipPressIn = useCallback(() => {
-    if (!reduceMotion) flipScale.set(withSpring(0.96, motion.spring.press));
-  }, [flipScale, reduceMotion]);
-  const flipPressOut = useCallback(() => {
-    flipScale.set(withSpring(1, motion.spring.press));
-  }, [flipScale]);
 
   if (!hasSession || !viewerId) return null;
 
@@ -237,30 +176,14 @@ export function WarTable({ active, topInset, bottomInset }: WarTableProps) {
       pointerEvents={active ? 'auto' : 'none'}
       style={[styles.root, { bottom: bottomInset }, surfaceStyle]}
     >
-      <TableSurface mode="play" />
-
-      <View style={[styles.header, { paddingTop: topInset + space.sm }]}>
-        <CardButton
-          variant="ghost"
-          size="sm"
-          elevated={false}
-          haptic="light"
-          onPress={handleBackToHub}
-          style={styles.backChip}
-        >
-          <ChevronLeft size={18} color={colors.inkMuted} />
-          <Text style={styles.backText}>Hub</Text>
-        </CardButton>
-        <Text style={styles.eyebrow}>{isMyTurn ? 'YOUR TURN' : `${currentPlayerName.toUpperCase()} · TO PLAY`}</Text>
-        {lobbyStatus === 'connected' && <View style={styles.syncDot} />}
-      </View>
-
+      <TableShell
+        title="WAR"
+        active={active}
+        topInset={topInset}
+        bottomInset={0}
+        onBackToHub={handleBackToHub}
+      >
       <View style={[styles.table, compact && styles.tableCompact]}>
-        <Text style={styles.tableEyebrow}>WAR</Text>
-        <Text style={styles.tableTitle}>
-          {isMyTurn ? (isWarDown ? 'Set a card down' : 'Flip to battle') : 'Watch the battle'}
-        </Text>
-
         <View style={styles.playArea}>
           {battleCard(battleIds.at(-2) ?? null, 0)}
           <View style={styles.streetChip}>
@@ -275,18 +198,26 @@ export function WarTable({ active, topInset, bottomInset }: WarTableProps) {
         </View>
 
         <View style={styles.pileRow}>
-          <View style={styles.pileBlock}>
+          <Pressable
+            style={[styles.pileBlock, flipSpec && styles.pileBlockReady]}
+            onPress={handleFlip}
+            disabled={!flipSpec}
+            accessibilityRole="button"
+            accessibilityLabel={`Play the top card from your pile, ${myPile.length} cards remain`}
+            accessibilityHint={flipSpec ? 'Tap to send the top card into battle.' : 'Wait for your turn.'}
+          >
             <View style={styles.pileStack}>
               <PlayingCard face="down" size="sm" back={equippedBackId} />
               <View style={styles.pileCountChip}>
                 <Text style={styles.pileCountText}>{myPile.length}</Text>
               </View>
             </View>
-            <Text style={styles.pileName}>YOU</Text>
-          </View>
+            <Text style={styles.pileName}>{flipSpec ? 'TAP TO PLAY' : 'YOU'}</Text>
+          </Pressable>
           <View style={styles.vsMark}>
             <Text style={styles.vsText}>VS</Text>
-          </View>          <View style={styles.pileBlock}>
+          </View>
+          <View style={styles.pileBlock}>
             <View style={styles.pileStack}>
               <PlayingCard face="down" size="sm" back={equippedBackId} />
               <View style={styles.pileCountChip}>
@@ -298,57 +229,6 @@ export function WarTable({ active, topInset, bottomInset }: WarTableProps) {
             </Text>
           </View>
         </View>
-      </View>
-
-      <View style={styles.utilityRail}>
-        <Pressable
-          onPress={handleUndo}
-          disabled={!canUndo}
-          accessibilityRole="button"
-          accessibilityLabel="Undo last action"
-          style={[styles.utilityButton, !canUndo && styles.utilityDisabled]}
-        >
-          <Undo2 size={19} color={colors.brand} />
-        </Pressable>
-        {!isMyTurn && (
-          <View style={styles.utilityMessage}>
-            <Text style={styles.utilityText} numberOfLines={1}>
-              {`Waiting for ${currentPlayerName || 'the next player'}`}
-            </Text>
-          </View>
-        )}
-        <Pressable onPress={() => setHistoryOpen(true)} accessibilityRole="button" accessibilityLabel="Open event log" style={styles.utilityButton}>
-          <Clock size={19} color={colors.inkMuted} />
-        </Pressable>
-        <Pressable onPress={() => setRulesOpen(true)} accessibilityRole="button" accessibilityLabel="Read table rules" style={styles.utilityButton}>
-          <BookOpen size={19} color={colors.inkMuted} />
-        </Pressable>
-        <Pressable onPress={handleEndSession} accessibilityRole="button" accessibilityLabel="End table" style={styles.utilityButton}>
-          <Flag size={19} color={colors.brand} />
-        </Pressable>
-      </View>
-
-      <View style={styles.actionDock}>
-        <Animated.View style={flipMotionStyle}>
-          <CardButton
-            variant="primary"
-            size="lg"
-            haptic="medium"
-            onPress={handleFlip}
-            disabled={!flipSpec}
-            onPressIn={flipPressIn}
-            onPressOut={flipPressOut}
-            style={flipSpec ? styles.flipBtn : { ...styles.flipBtn, ...styles.flipBtnDisabled }}
-            innerStyle={styles.flipBtnInner}
-          >
-            <Text style={styles.flipLabelText}>
-              {isWarDown ? 'DOWN CARD' : 'FLIP'}
-            </Text>
-            <Text style={styles.flipBtnHint} numberOfLines={1}>
-              {isMyTurn ? 'PLAY THE TOP CARD' : 'WAITING FOR THE NEXT FLIP'}
-            </Text>
-          </CardButton>
-        </Animated.View>
       </View>
 
       {state.phase === 'ended' && (
@@ -370,9 +250,7 @@ export function WarTable({ active, topInset, bottomInset }: WarTableProps) {
           </View>
         </View>
       )}
-
-      <EventHistoryModal visible={historyOpen} events={events} onClose={() => setHistoryOpen(false)} />
-      <RulesSheet visible={rulesOpen} presetId={state.config.presetId} onClose={() => setRulesOpen(false)} />
+      </TableShell>
     </Animated.View>
   );
 }
@@ -387,36 +265,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     flexDirection: 'column',
   },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: space.lg,
-    gap: space.sm,
-  },
-  backChip: {
-    minWidth: 72,
-    paddingHorizontal: space.sm,
-  },
-  backText: {
-    marginLeft: 2,
-    fontSize: fontSizes.small,
-    fontFamily: fonts.semibold,
-    color: colors.inkMuted,
-  },
-  eyebrow: {
-    flex: 1,
-    textAlign: 'center',
-    fontSize: fontSizes.caption,
-    fontFamily: fonts.bold,
-    color: colors.inkSubtle,
-    letterSpacing: letterSpacing.caps,
-  },
-  syncDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: colors.brand,
-  },
+
   table: {
     flex: 1,
     alignItems: 'center',
@@ -428,19 +277,7 @@ const styles = StyleSheet.create({
     paddingTop: space.xs,
     paddingBottom: space.xs,
   },
-  tableEyebrow: {
-    fontSize: 10,
-    fontFamily: fonts.bold,
-    color: colors.brand,
-    letterSpacing: letterSpacing.caps,
-  },
-  tableTitle: {
-    marginTop: 2,
-    marginBottom: space.sm,
-    fontSize: fontSizes.h3,
-    fontFamily: fonts.extra,
-    color: colors.ink,
-  },
+
   playArea: {
     flexDirection: 'row',
     alignItems: 'flex-end',
@@ -511,6 +348,12 @@ const styles = StyleSheet.create({
     gap: space.xs,
     minWidth: 76,
   },
+  pileBlockReady: {
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: colors.brand,
+    padding: space.xs,
+  },
   pileStack: {
     position: 'relative',
     alignItems: 'center',
@@ -549,71 +392,7 @@ const styles = StyleSheet.create({
     fontFamily: fonts.extra,
     color: colors.inkSubtle,
   },
-  utilityRail: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: space.xs,
-    paddingHorizontal: space.lg,
-    minHeight: 52,
-  },
-  utilityButton: {
-    width: 44,
-    height: 44,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: radii.pill,
-    backgroundColor: colors.surface,
-    ...shadow.card,
-  },
-  utilityDisabled: {
-    opacity: 0.4,
-  },
-  utilityMessage: {
-    flex: 1,
-    minWidth: 0,
-    paddingHorizontal: space.xs,
-  },
-  utilityEyebrow: {
-    fontSize: 9,
-    fontFamily: fonts.bold,
-    color: colors.brand,
-    letterSpacing: letterSpacing.cap,
-  },
-  utilityText: {
-    marginTop: 2,
-    fontSize: fontSizes.micro,
-    fontFamily: fonts.semibold,
-    color: colors.ink,
-  },
-  actionDock: {
-    paddingHorizontal: space.lg,
-    paddingBottom: space.sm,
-  },
-  flipBtn: {
-    alignSelf: 'center',
-    width: '100%',
-    maxWidth: 360,
-  },
-  flipBtnDisabled: {
-    opacity: 0.45,
-  },
-  flipBtnInner: {
-    alignItems: 'center',
-    paddingVertical: space.sm,
-  },
-  flipLabelText: {
-    color: colors.surface,
-    fontFamily: fonts.extra,
-    fontSize: fontSizes.h3,
-    letterSpacing: letterSpacing.caps,
-  },
-  flipBtnHint: {
-    marginTop: 2,
-    fontSize: 9,
-    fontFamily: fonts.bold,
-    color: alpha.whiteOverlay80,
-    letterSpacing: letterSpacing.cap,
-  },
+
   endedOverlay: {
     position: 'absolute',
     left: 0,

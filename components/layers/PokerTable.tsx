@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import Animated, {
   cancelAnimation,
   useAnimatedStyle,
@@ -9,26 +9,22 @@ import Animated, {
   withSpring,
   withTiming,
 } from 'react-native-reanimated';
-import { BookOpen, ChevronLeft, Clock, Flag, Shuffle } from 'lucide-react-native';
 import { AvatarPlaceholder } from '@components/AvatarPlaceholder';
 import { CardButton } from '@components/CardButton';
-import { EventHistoryModal } from '@components/EventHistoryModal';
 import { HandFan } from '@components/HandFan';
 import { HandStack } from '@components/HandStack';
 import { PlayingCard } from '@components/PlayingCard';
-import { RulesSheet } from '@components/RulesSheet';
-import { TableSurface } from '@components/TableSurface';
 import { PotPulse } from '@components/animations/GameFx';
+import { TableShell } from '@components/table/TableShell';
+import { useTableSession } from '@components/table/useTableSession';
 import { useLayerSurfaceEntrance } from '@hooks/useLayerSurfaceEntrance';
 import { useMotion } from '@hooks/useMotion';
 import { useGameAnimations } from '@hooks/useGameAnimations';
 import { useCosmeticsStore } from '@store/cosmeticsStore';
 import { useGameStore } from '@store/gameStore';
-import { useLobbyStore } from '@store/lobbyStore';
 import { useUiStore } from '@store/uiStore';
 import { parseCardId, selectCardFace, selectLocalHand } from '@engine/selectors';
 import { evaluatePokerHand, getGameRules, type GameAction, type GameActionSpec } from '@engine/rules';
-import { makeSeed, mulberry32, shuffleInPlace } from '@engine/index';
 import { communalZoneId, handZoneId, ZONE_MUCK, type CardFace, type CardInstance } from '@engine/types';
 import { alpha, colors, fonts, fontSizes, letterSpacing, motion, radii, shadow, space } from '@theme';
 
@@ -199,29 +195,12 @@ export function PokerTable({ active, topInset, bottomInset }: TableProps) {
   const { haptic, reduceMotion } = useMotion();
   const setViewMode = useUiStore((s) => s.setViewMode);
   const equippedBackId = useCosmeticsStore((s) => s.equippedBackId);
-  const [historyOpen, setHistoryOpen] = useState(false);
-  const [rulesOpen, setRulesOpen] = useState(false);
 
   const state = useGameStore((s) => s.state);
   const events = useGameStore((s) => s.events);
-  const endSession = useGameStore((s) => s.endSession);
   const replaySession = useGameStore((s) => s.replaySession);
   const gameAction = useGameStore((s) => s.gameAction);
-
-  const lobbyStatus = useLobbyStore((s) => s.status);
-  const lobbySession = useLobbyStore((s) => s.session);
-  const localClientId = useLobbyStore((s) => s.localClientId);
-
-  const isOnline = state.meta.mode === 'online-host' || state.meta.mode === 'online-guest';
-  const isGuest = state.meta.mode === 'online-guest';
-  const hostPlayerId = state.meta.hostId || null;
-  const viewerId = isOnline
-    ? isGuest
-      ? localClientId
-      : hostPlayerId
-    : state.meta.mode === 'pass' && state.currentPlayerId
-      ? state.currentPlayerId
-      : hostPlayerId;
+  const { viewerId, isRemoteGuest: isGuest, lobbySession } = useTableSession(state);
 
   const rules = getGameRules(state.config.presetId);
   const betting = state.game?.betting ?? null;
@@ -242,9 +221,6 @@ export function PokerTable({ active, topInset, bottomInset }: TableProps) {
     () => (viewerId ? rules.actions(state, viewerId) : []),
     [rules, state, viewerId],
   );
-  const isMyTurn = viewerId !== null && state.currentPlayerId === viewerId;
-  const isHost = Boolean(hostPlayerId && viewerId === hostPlayerId);
-  const isPassMode = state.meta.mode === 'pass';
 
   const { batch } = useGameAnimations(viewerId);
 
@@ -358,39 +334,6 @@ export function PokerTable({ active, topInset, bottomInset }: TableProps) {
     [viewerId, isGuest, lobbySession, haptic, gameAction],
   );
 
-  const handleShuffle = useCallback(() => {
-    if (!isHost || !viewerId) return;
-    const drawZone = state.zones.draw;
-    if (!drawZone || drawZone.cardIds.length === 0) return;
-    haptic('heavy');
-    const seed = makeSeed();
-    const rng = mulberry32(seed);
-    const newOrder = shuffleInPlace(drawZone.cardIds.slice(), rng);
-    useGameStore.getState().dispatch({
-      type: 'deck/shuffle',
-      actorId: viewerId,
-      zoneId: 'draw',
-      newOrder,
-    });
-  }, [isHost, viewerId, state.zones, haptic]);
-
-  const handleEndSession = useCallback(() => {
-    Alert.alert(
-      'End the table?',
-      'This ends the session for everyone. You can start a new one from the hub.',
-      [
-        { text: 'Keep playing', style: 'cancel' },
-        {
-          text: 'End table',
-          style: 'destructive',
-          onPress: () => {
-            haptic('heavy');
-            endSession(viewerId ?? undefined);
-          },
-        },
-      ],
-    );
-  }, [haptic, endSession, viewerId]);
 
   const handleBackToHub = useCallback(() => {
     haptic('light');
@@ -429,7 +372,6 @@ export function PokerTable({ active, topInset, bottomInset }: TableProps) {
   const streetLabel = state.game?.street
     ? ['FLOP', 'TURN', 'RIVER'][state.game.street - 1] ?? null
     : null;
-  const currentPlayerName = state.players.find((player) => player.id === state.currentPlayerId)?.name ?? '';
   const endedTitle = state.winnerId
     ? state.winnerId === viewerId
       ? 'You take the table'
@@ -441,31 +383,13 @@ export function PokerTable({ active, topInset, bottomInset }: TableProps) {
       pointerEvents={active ? 'auto' : 'none'}
       style={[styles.root, { bottom: bottomInset }, surfaceStyle]}
     >
-      <TableSurface mode="play" />
-
-      {/* Header */}
-      <View style={[styles.header, { paddingTop: topInset + space.md }]}>
-        <CardButton
-          variant="ghost"
-          size="sm"
-          elevated={false}
-          haptic="light"
-          onPress={handleBackToHub}
-          style={styles.backChip}
-        >
-          <ChevronLeft size={18} color={colors.inkMuted} />
-          <Text style={styles.backText}>Hub</Text>
-        </CardButton>
-        <Text style={styles.eyebrow}>
-          {isMyTurn ? 'YOUR TURN' : `${currentPlayerName.toUpperCase()} · TO PLAY`}
-        </Text>
-        {lobbyStatus === 'connected' && (
-          <View style={styles.syncChip}>
-            <View style={styles.syncDot} />
-            <Text style={styles.syncText}>SYNCED</Text>
-          </View>
-        )}
-      </View>
+      <TableShell
+        title="HOLD'EM"
+        active={active}
+        onBackToHub={handleBackToHub}
+        topInset={topInset}
+        bottomInset={0}
+      >
 
       {/* Opponents */}
       <View style={styles.opponents}>
@@ -575,52 +499,6 @@ export function PokerTable({ active, topInset, bottomInset }: TableProps) {
         </View>
       )}
 
-      {/* Utility bar */}
-      <View style={[styles.actionBar, { marginBottom: bottomInset > 0 ? 0 : space.lg }]}>
-        <Pressable
-          onPress={handleShuffle}
-          disabled={!isHost}
-          accessibilityRole="button"
-          accessibilityLabel="Shuffle deck"
-          style={({ pressed }) => [styles.iconBtn, pressed && { opacity: 0.85 }, !isHost && { opacity: 0.5 }]}
-        >
-          <Shuffle size={20} color={colors.inkMuted} />
-        </Pressable>
-        {isPassMode && state.phase !== 'ended' && ruleActions.length === 0 && (
-          <View style={styles.ruleWaiting}>
-            <Text style={styles.ruleWaitingText}>
-              {isMyTurn ? 'WAITING FOR THE NEXT MOVE' : `${currentPlayerName.toUpperCase()} · TO PLAY`}
-            </Text>
-          </View>
-        )}
-        <Pressable
-          onPress={() => setHistoryOpen(true)}
-          accessibilityRole="button"
-          accessibilityLabel="Open event log"
-          style={({ pressed }) => [styles.iconBtn, pressed && { opacity: 0.85 }]}
-        >
-          <Clock size={20} color={colors.inkMuted} />
-        </Pressable>
-        <Pressable
-          onPress={() => setRulesOpen(true)}
-          accessibilityRole="button"
-          accessibilityLabel="Read table rules"
-          style={({ pressed }) => [styles.iconBtn, pressed && { opacity: 0.85 }]}
-        >
-          <BookOpen size={20} color={colors.inkMuted} />
-        </Pressable>
-        {isHost && (
-          <Pressable
-            onPress={handleEndSession}
-            accessibilityRole="button"
-            accessibilityLabel="End table"
-            style={({ pressed }) => [styles.iconBtn, pressed && { opacity: 0.85 }]}
-          >
-            <Flag size={20} color={colors.brand} />
-          </Pressable>
-        )}
-      </View>
-
       {/* Local hand */}
       <View style={[styles.hand, { paddingBottom: bottomInset + space.lg }]}>
         {state.config.fanStyle === 'stacked' ? (
@@ -697,8 +575,7 @@ export function PokerTable({ active, topInset, bottomInset }: TableProps) {
         </Animated.View>
       )}
 
-      <EventHistoryModal visible={historyOpen} events={events} onClose={() => setHistoryOpen(false)} />
-      <RulesSheet visible={rulesOpen} presetId={state.config.presetId} onClose={() => setRulesOpen(false)} />
+      </TableShell>
     </Animated.View>
   );
 }
@@ -711,50 +588,7 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     overflow: 'hidden',
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: space.xl,
-    gap: space.md,
-  },
-  backChip: {
-    paddingHorizontal: space.md,
-  },
-  backText: {
-    marginLeft: 4,
-    fontSize: fontSizes.small + 1,
-    fontFamily: fonts.semibold,
-    color: colors.inkMuted,
-  },
-  eyebrow: {
-    flex: 1,
-    textAlign: 'center',
-    fontSize: fontSizes.caption,
-    fontFamily: fonts.bold,
-    color: colors.inkSubtle,
-    letterSpacing: letterSpacing.caps,
-  },
-  syncChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: alpha.brand10,
-    paddingHorizontal: space.sm,
-    paddingVertical: 2,
-    borderRadius: radii.pill,
-  },
-  syncDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: colors.brand,
-  },
-  syncText: {
-    fontSize: 9,
-    fontFamily: fonts.bold,
-    color: colors.brand,
-    letterSpacing: letterSpacing.caps,
+    flexDirection: 'column',
   },
   opponents: {
     flexDirection: 'row',
@@ -918,41 +752,7 @@ const styles = StyleSheet.create({
     letterSpacing: letterSpacing.cap,
     color: colors.surface,
   },
-  ruleWaiting: {
-    flex: 1,
-    minHeight: 44,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: space.sm,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-  },
-  ruleWaitingText: {
-    fontFamily: fonts.bold,
-    fontSize: fontSizes.micro,
-    color: colors.inkSubtle,
-    letterSpacing: letterSpacing.cap,
-  },
-  actionBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    alignSelf: 'center',
-    width: '100%',
-    maxWidth: 760,
-    paddingHorizontal: space.md,
-    gap: space.md,
-    paddingTop: space.md,
-  },
-  iconBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: radii.pill,
-    backgroundColor: colors.surface,
-    alignItems: 'center',
-    justifyContent: 'center',
-    ...shadow.card,
-  },
+
   hand: {
     justifyContent: 'center',
     width: '100%',

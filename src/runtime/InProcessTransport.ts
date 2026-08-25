@@ -8,10 +8,15 @@
 
 import type { GameIntent } from '@engine/intents';
 import type { GameEvent } from '@engine/events';
-import type { SessionRuntime, CommitResult } from './SessionRuntime';
+import type {
+  SessionRuntime,
+  CommitResult,
+  IntentTranslator,
+} from './SessionRuntime';
+import type { RuntimeSnapshot } from './snapshot';
 
 export interface TransportSender {
-  sendIntent(intent: GameIntent, translate: (i: GameIntent) => GameEvent[]): CommitResult;
+  sendIntent(intent: GameIntent, translate?: IntentTranslator): CommitResult;
 }
 
 export interface TransportReceiver {
@@ -23,7 +28,7 @@ export interface TransportReceiver {
  * straight back. No privacy filtering — the device is the authority.
  */
 export class InProcessTransport implements TransportSender {
-  private runtime: SessionRuntime;
+  private readonly runtime: SessionRuntime;
   private receiver: TransportReceiver | null = null;
 
   constructor(runtime: SessionRuntime) {
@@ -34,11 +39,19 @@ export class InProcessTransport implements TransportSender {
     this.receiver = receiver;
   }
 
-  sendIntent(intent: GameIntent, translate: (i: GameIntent) => GameEvent[]): CommitResult {
+  detach(receiver: TransportReceiver): void {
+    if (this.receiver === receiver) this.receiver = null;
+  }
+
+  sendIntent(intent: GameIntent, translate?: IntentTranslator): CommitResult {
     const result = this.runtime.commit(intent, translate);
     if (result.ok && this.receiver) {
       this.receiver.onEvents(result.events);
     }
     return result;
+  }
+
+  snapshot(): RuntimeSnapshot {
+    return this.runtime.snapshotEnvelope();
   }
 }

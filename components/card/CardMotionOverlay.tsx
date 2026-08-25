@@ -41,6 +41,8 @@ import { getCardFlightStyle, type CardFlightPoint } from '@lib/cardFlight';
 export interface CommittedMove {
   /** Engine/grouping id. Used to dedupe and to avoid replaying stale work. */
   transactionId: string;
+  /** Canonical event id; multiple movements may share one transaction. */
+  eventId?: string;
   cardId: string;
   fromZoneId: string;
   toZoneId: string;
@@ -139,7 +141,7 @@ export function CardMotionOverlay({
   const registry = useZoneRegistry();
   const { reduceMotion } = useMotion();
   const [flights, setFlights] = useState<readonly Flight[]>([]);
-  const seenTransactionsRef = useRef(new Set<string>());
+  const seenMovesRef = useRef(new Set<string>());
   const idRef = useRef(0);
 
   const finishFlight = useCallback((id: string) => {
@@ -152,14 +154,15 @@ export function CardMotionOverlay({
 
   const commitMove = useCallback(
     (move: CommittedMove): boolean => {
-      if (seenTransactionsRef.current.has(move.transactionId)) {
+      const dedupeKey = move.eventId ?? `${move.transactionId}:${move.cardId}:${move.toZoneId}`;
+      if (seenMovesRef.current.has(dedupeKey)) {
         return false;
       }
-      seenTransactionsRef.current.add(move.transactionId);
-      if (seenTransactionsRef.current.size > 256) {
+      seenMovesRef.current.add(dedupeKey);
+      if (seenMovesRef.current.size > 256) {
         // Bounded memory: drop the oldest half once we pass a session's worth.
-        seenTransactionsRef.current = new Set(
-          Array.from(seenTransactionsRef.current).slice(-128),
+        seenMovesRef.current = new Set(
+          Array.from(seenMovesRef.current).slice(-128),
         );
       }
 

@@ -10,7 +10,7 @@ interface ProfilePersisted {
   hapticsEnabled: boolean;
   reduceMotionOverride: boolean;
   gamesPlayed: number;
-  /** Optional LAN / relay multiplayer (supplementary to BLE). */
+  /** Optional online lobby and relay multiplayer. */
   networkMultiplayerEnabled: boolean;
 }
 

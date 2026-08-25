@@ -1,145 +1,187 @@
 /**
- * Viewer-specific projection (blueprint §7.5).
+ * Authority-side viewer projection (blueprint §7.5).
  *
- * Canonical card IDs remain inside the authority boundary. Every client
- * receives opaque per-viewer card IDs until a reveal makes the identity legal.
- * Public clients get no private identities; private-hand clients get their
- * own hand + public state only.
- *
- * This extends the EXISTING `filterEventsForViewer` in src/store/syncLogic.ts
- * to snapshots, reconnect payloads and diagnostics. Never render-then-hide.
+ * Canonical identities and the RNG seed stop here. Events, snapshots,
+ * reconnect payloads and diagnostics all use the same per-viewer opaque map;
+ * clients never receive canonical data and then hide it in presentation code.
  */
 
-import type { GameState, PlayerId, ZoneId } from './types';
 import type { GameEvent } from './events';
-import { handZoneId } from './types';
-import { applyEvent } from './state';
+import type { SurfaceProfile } from './sessionTopology';
+import { applyEvent, emptyState } from './state';
+import { handZoneId, type GameState, type PlayerId, type ZoneId } from './types';
 
-// Re-export the existing filter so engine consumers do not import from store.
-import { filterEventsForViewer } from '@store/syncLogic';
+// Preserve the existing p-* wire family while namespacing it per viewer.
+const OPAQUE_PREFIX = 'p';
 
-const OPAQUE_PREFIX = 'opaque-';
-
-/** Per-viewer projection context. */
 export interface ViewerProjection {
   viewerId: PlayerId;
-  /** Opaque id -> real id for cards the viewer may see. */
+  /** Real id -> real id for identities this viewer may know. */
   revealed: Map<string, string>;
-  /** Real id -> opaque id for cards the viewer may NOT see. */
+  /** Real id -> viewer-specific opaque id. */
   concealed: Map<string, string>;
 }
 
-/**
- * Build a viewer projection from a folded state. Pure and framework-free.
- */
-export function buildViewerProjection(state: GameState, viewerId: PlayerId): ViewerProjection {
-  const revealed = new Map<string, string>();
-  const concealed = new Map<string, string>();
-  let counter = 0;
+export interface ProjectionRequest {
+  surfaceProfile: SurfaceProfile;
+  /** Required when this surface is entitled to one player's private state. */
+  viewerId?: PlayerId | null;
+  /** Stable physical-surface id used to isolate public opaque maps. */
+  surfaceId?: string;
+}
 
-  const visible = visibleCardsForPlayerInState(state, viewerId);
-  for (const cardId of state.deckCardIds) {
-    if (visible.has(cardId)) {
-      revealed.set(cardId, cardId);
-    } else {
-      const opaque = `${OPAQUE_PREFIX}${counter++}`;
-      concealed.set(cardId, opaque);
+class ProjectionTracker {
+  readonly viewerId: PlayerId;
+  readonly namespace: string;
+  readonly revealed = new Set<string>();
+  readonly concealed = new Map<string, string>();
+  private nextOpaque = 0;
+
+  constructor(sessionId: string, viewerId: PlayerId) {
+    this.viewerId = viewerId;
+    this.namespace = projectionNamespace(sessionId, viewerId);
+  }
+
+  initialise(state: GameState): void {
+    const visible = visibleCardsForPlayerInState(state, this.viewerId);
+    for (const cardId of state.deckCardIds) {
+      if (visible.has(cardId)) this.revealed.add(cardId);
+      else this.opaqueFor(cardId);
+    }
+    for (const cardId of Object.keys(state.cards)) {
+      if (visible.has(cardId)) this.revealed.add(cardId);
+      else this.opaqueFor(cardId);
     }
   }
-  return { viewerId, revealed, concealed };
+
+  opaqueFor(realId: string): string {
+    const existing = this.concealed.get(realId);
+    if (existing) return existing;
+    const opaque = `${OPAQUE_PREFIX}-${this.namespace}-${this.nextOpaque++}`;
+    this.concealed.set(realId, opaque);
+    return opaque;
+  }
+
+  projectedId(realId: string): string {
+    return this.revealed.has(realId) ? realId : this.opaqueFor(realId);
+  }
+
+  reveal(realId: string): string | null {
+    if (this.revealed.has(realId)) return null;
+    const opaque = this.opaqueFor(realId);
+    this.revealed.add(realId);
+    return opaque;
+  }
 }
 
-/**
- * Project a folded GameState for a specific viewer. The result contains only
- * what the viewer may know: their own hand cards are real, public zone cards
- * are real, everything else is opaque.
- */
-export function projectStateForViewer(state: GameState, viewerId: PlayerId): GameState {
-  const projection = buildViewerProjection(state, viewerId);
-  const next: GameState = {
-    ...state,
-    zones: { ...state.zones },
-    cards: {},
-    deckCardIds: state.deckCardIds.map((id) => projectCardId(id, projection)),
+/** Build the stable map used by one snapshot projection. */
+export function buildViewerProjection(state: GameState, viewerId: PlayerId): ViewerProjection {
+  const tracker = trackerForState(state, viewerId);
+  return {
+    viewerId,
+    revealed: new Map(Array.from(tracker.revealed, (cardId) => [cardId, cardId])),
+    concealed: new Map(tracker.concealed),
   };
+}
 
-  for (const [zoneId, zone] of Object.entries(state.zones)) {
-    next.zones[zoneId] = {
-      ...zone,
-      cardIds: zone.cardIds.map((id) => projectCardId(id, projection)),
-    };
-  }
+/** Project a folded snapshot for one private viewer (or a synthetic public id). */
+export function projectStateForViewer(state: GameState, viewerId: PlayerId): GameState {
+  return projectStateWithTracker(state, trackerForState(state, viewerId));
+}
 
-  for (const [cardId, card] of Object.entries(state.cards)) {
-    const projectedId = projectCardId(cardId, projection);
-    next.cards[projectedId] = {
-      ...card,
-      id: projectedId,
-      zoneId: card.zoneId,
-    };
-  }
-
-  return next;
+export function projectStateForSurface(
+  state: GameState,
+  request: ProjectionRequest,
+): GameState {
+  return projectStateForViewer(state, projectionViewerId(request));
 }
 
 /**
- * Project an event stream for a specific viewer. Uses the same visibility
- * rules as `projectStateForViewer` but walks the log so reveal timing is
- * correct (identify events are inserted at the exact reveal point).
+ * Project a complete event stream. The projection is deterministic: generated
+ * identify records derive all metadata from the authority event they precede.
  */
 export function projectEventsForViewer(events: GameEvent[], viewerId: PlayerId): GameEvent[] {
-  // Delegate to the existing battle-tested implementation in syncLogic.
-  // This wrapper keeps the engine-side API coherent while the store logic
-  // remains the single source of truth for the privacy filter.
-  return filterEventsForViewer(events, viewerId);
+  let canonical = emptyState();
+  let tracker: ProjectionTracker | null = null;
+  const projected: GameEvent[] = [];
+
+  for (const event of [...events].sort((left, right) => left.seq - right.seq)) {
+    if (event.type === 'session/start') {
+      canonical = applyEvent(canonical, event);
+      tracker = trackerForState(canonical, viewerId);
+      projected.push(projectSessionStart(event, tracker));
+      continue;
+    }
+
+    if (!tracker) {
+      tracker = new ProjectionTracker(canonical.meta.id || 'session', viewerId);
+      tracker.initialise(canonical);
+    }
+    projected.push(...projectIncrementalEvent(canonical, event, tracker));
+    canonical = applyEvent(canonical, event);
+  }
+
+  return projected;
 }
 
-/**
- * Project a snapshot + tail for a reconnecting viewer. The snapshot is
- * folded, projected, then the tail is projected and appended.
- */
+export function projectEventsForSurface(
+  events: GameEvent[],
+  request: ProjectionRequest,
+): GameEvent[] {
+  return projectEventsForViewer(events, projectionViewerId(request));
+}
+
+/** Project a reconnect snapshot and its tail through one shared opaque map. */
 export function projectSnapshotWithTail(
   snapshot: GameState,
   nextSeq: number,
   tail: GameEvent[],
   viewerId: PlayerId,
 ): { state: GameState; events: GameEvent[]; lastSeq: number } {
-  const projectedState = projectStateForViewer(snapshot, viewerId);
-  const projectedTail = projectEventsForViewer(tail, viewerId);
-  const appliedTail = projectedTail.filter((e) => e.seq >= nextSeq).sort((a, b) => a.seq - b.seq);
-  const state = appliedTail.reduce(applyEvent, projectedState);
-  const lastSeq = appliedTail.reduce((max, e) => Math.max(max, e.seq), nextSeq - 1);
-  return { state, events: appliedTail, lastSeq };
+  const tracker = trackerForState(snapshot, viewerId);
+  const projectedSnapshot = projectStateWithTracker(snapshot, tracker);
+  const events: GameEvent[] = [];
+  let canonical = snapshot;
+
+  for (const event of [...tail]
+    .filter((candidate) => candidate.seq >= nextSeq)
+    .sort((left, right) => left.seq - right.seq)) {
+    events.push(...projectIncrementalEvent(canonical, event, tracker));
+    canonical = applyEvent(canonical, event);
+  }
+
+  const state = events.reduce(applyEvent, projectedSnapshot);
+  const lastSeq = events.reduce((maximum, event) => Math.max(maximum, event.seq), nextSeq - 1);
+  return { state, events, lastSeq };
 }
 
-function projectCardId(cardId: string, projection: ViewerProjection): string {
-  if (projection.revealed.has(cardId)) return cardId;
-  return projection.concealed.get(cardId) ?? `${OPAQUE_PREFIX}unknown`;
+export function projectSnapshotWithTailForSurface(
+  snapshot: GameState,
+  nextSeq: number,
+  tail: GameEvent[],
+  request: ProjectionRequest,
+): { state: GameState; events: GameEvent[]; lastSeq: number } {
+  return projectSnapshotWithTail(snapshot, nextSeq, tail, projectionViewerId(request));
 }
 
-/** Which cards are visible to a player per zone privacy + face rules. */
+/** Which card identities are legal for this viewer at the current state. */
 export function visibleCardsForPlayerInState(state: GameState, playerId: PlayerId): Set<string> {
   const visible = new Set<string>();
   for (const zone of Object.values(state.zones)) {
-    const zoneVisible =
-      zone.visibility.kind === 'public' ||
-      (zone.visibility.kind === 'private' && zone.visibility.ownerId === playerId);
+    const zoneVisible = zone.visibility.kind === 'public'
+      || (zone.visibility.kind === 'private' && zone.visibility.ownerId === playerId);
     for (const cardId of zone.cardIds) {
-      const card = state.cards[cardId];
-      if (!card) continue;
-      if (zoneVisible || card.face === 'up') {
-        visible.add(cardId);
-      }
+      if (state.cards[cardId] && zoneVisible) visible.add(cardId);
     }
   }
   return visible;
 }
 
-/**
- * Diagnostics-safe projection: strips all real card identities and returns
- * a summary suitable for crash reports and logs.
- */
-export function projectDiagnosticsForViewer(state: GameState, viewerId: PlayerId): {
+/** Identity-free summary safe for diagnostics and crash reports. */
+export function projectDiagnosticsForViewer(
+  state: GameState,
+  _viewerId: PlayerId,
+): {
   zones: Record<ZoneId, number>;
   handCounts: Record<PlayerId, number>;
   turn: number;
@@ -147,16 +189,158 @@ export function projectDiagnosticsForViewer(state: GameState, viewerId: PlayerId
 } {
   const zones: Record<ZoneId, number> = {};
   const handCounts: Record<PlayerId, number> = {};
-  for (const [zoneId, zone] of Object.entries(state.zones)) {
-    zones[zoneId] = zone.cardIds.length;
-  }
+  for (const [zoneId, zone] of Object.entries(state.zones)) zones[zoneId] = zone.cardIds.length;
   for (const player of state.players) {
     handCounts[player.id] = state.zones[handZoneId(player.id)]?.cardIds.length ?? 0;
   }
+  return { zones, handCounts, turn: state.turn, phase: state.phase };
+}
+
+function trackerForState(state: GameState, viewerId: PlayerId): ProjectionTracker {
+  const tracker = new ProjectionTracker(state.meta.id || 'session', viewerId);
+  tracker.initialise(state);
+  return tracker;
+}
+
+function projectStateWithTracker(state: GameState, tracker: ProjectionTracker): GameState {
+  const zones: GameState['zones'] = {};
+  const cards: GameState['cards'] = {};
+  for (const [zoneId, zone] of Object.entries(state.zones)) {
+    zones[zoneId] = {
+      ...zone,
+      cardIds: zone.cardIds.map((cardId) => tracker.projectedId(cardId)),
+    };
+  }
+  for (const [cardId, card] of Object.entries(state.cards)) {
+    const projectedId = tracker.projectedId(cardId);
+    cards[projectedId] = { ...card, id: projectedId };
+  }
   return {
+    ...state,
+    meta: { ...state.meta, rngSeed: '' },
     zones,
-    handCounts,
-    turn: state.turn,
-    phase: state.phase,
+    cards,
+    deckCardIds: state.deckCardIds.map((cardId) => tracker.projectedId(cardId)),
   };
+}
+
+function projectSessionStart(
+  event: Extract<GameEvent, { type: 'session/start' }>,
+  tracker: ProjectionTracker,
+): GameEvent {
+  return {
+    ...event,
+    meta: { ...event.meta, rngSeed: '' },
+    zones: event.zones.map((zone) => ({
+      ...zone,
+      cardIds: zone.cardIds.map((cardId) => tracker.projectedId(cardId)),
+    })),
+  };
+}
+
+function projectIncrementalEvent(
+  state: GameState,
+  event: GameEvent,
+  tracker: ProjectionTracker,
+): GameEvent[] {
+  const out: GameEvent[] = [];
+  const revealedCardId = cardRevealedByEvent(state, event, tracker.viewerId);
+  if (revealedCardId) {
+    const opaque = tracker.reveal(revealedCardId);
+    if (opaque) out.push(identifyEvent(event, opaque, revealedCardId));
+  }
+  out.push(remapEvent(event, tracker));
+  return out;
+}
+
+function cardRevealedByEvent(
+  state: GameState,
+  event: GameEvent,
+  viewerId: PlayerId,
+): string | null {
+  switch (event.type) {
+    case 'card/deal':
+    case 'card/move': {
+      const destination = state.zones[event.toZoneId];
+      const destinationVisible = destination?.visibility.kind === 'public'
+        || (destination?.visibility.kind === 'private' && destination.visibility.ownerId === viewerId);
+      return destinationVisible ? event.cardId : null;
+    }
+    case 'card/flip': {
+      const card = state.cards[event.cardId];
+      const zone = card ? state.zones[card.zoneId] : undefined;
+      const zoneVisible = zone?.visibility.kind === 'public'
+        || (zone?.visibility.kind === 'private' && zone.visibility.ownerId === viewerId);
+      return card?.face === 'down' && zoneVisible ? event.cardId : null;
+    }
+    case 'card/reveal':
+      return event.cardId;
+    case 'card/peek':
+      return event.byPlayerId === viewerId ? event.cardId : null;
+    case 'card/identify':
+      return event.realId;
+    default:
+      return null;
+  }
+}
+
+function identifyEvent(source: GameEvent, opaque: string, realId: string): GameEvent {
+  return {
+    type: 'card/identify',
+    cardId: opaque,
+    realId,
+    id: `${source.id}:identify:${opaque}`,
+    ts: source.ts,
+    actorId: 'system',
+    seq: source.seq,
+    transactionId: source.transactionId,
+    schemaVersion: 1,
+  };
+}
+
+function remapEvent(event: GameEvent, tracker: ProjectionTracker): GameEvent {
+  switch (event.type) {
+    case 'card/deal':
+    case 'card/move':
+    case 'card/flip':
+    case 'card/peek':
+    case 'card/reveal':
+      return { ...event, cardId: tracker.projectedId(event.cardId) };
+    case 'card/identify':
+      return {
+        ...event,
+        cardId: tracker.projectedId(event.cardId),
+        realId: event.realId,
+      };
+    case 'hand/reorder':
+      return { ...event, order: event.order.map((cardId) => tracker.projectedId(cardId)) };
+    case 'deck/shuffle':
+      return { ...event, newOrder: event.newOrder.map((cardId) => tracker.projectedId(cardId)) };
+    case 'session/start':
+      return projectSessionStart(event, tracker);
+    default:
+      return event;
+  }
+}
+
+function projectionNamespace(sessionId: string, viewerId: string): string {
+  // FNV-1a is used only for a compact, per-viewer namespace. The opaque map's
+  // counter carries no card identity and the authority never serialises the map.
+  let hash = 0x811c9dc5;
+  const input = `${sessionId}\u0000${viewerId}`;
+  for (let index = 0; index < input.length; index += 1) {
+    hash ^= input.charCodeAt(index);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return (hash >>> 0).toString(36);
+}
+
+function projectionViewerId(request: ProjectionRequest): PlayerId {
+  if (request.surfaceProfile === 'public-table') {
+    return `@public:${request.surfaceId ?? 'table'}`;
+  }
+  if (!request.viewerId) {
+    throw new Error(`${request.surfaceProfile} projection requires a viewerId`);
+  }
+  return request.viewerId;
 }

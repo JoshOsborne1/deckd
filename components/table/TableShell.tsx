@@ -11,11 +11,12 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { ChevronLeft, Menu, X } from 'lucide-react-native';
 import { useGameStore } from '@store/gameStore';
 import { useUiStore } from '@store/uiStore';
-import { useLobbyStore } from '@store/lobbyStore';
 import { useMotion } from '@hooks/useMotion';
 import { selectCurrentPlayerId, selectIsMyTurn } from '@engine/selectors';
+import { TableSurface } from '@components/TableSurface';
 import { colors, fonts, fontSizes, letterSpacing, space } from '@theme';
 import { UtilityDrawer } from './UtilityDrawer';
+import { useTableSession } from './useTableSession';
 
 interface TableShellProps {
   children: React.ReactNode;
@@ -52,7 +53,7 @@ export function TableShell({
   const { haptic } = useMotion();
   const setViewMode = useUiStore((s) => s.setViewMode);
   const state = useGameStore((s) => s.state);
-  const lobbyStatus = useLobbyStore((s) => s.status);
+  const { viewerId, connectionLabel } = useTableSession(state);
   const [drawerOpen, setDrawerOpen] = useState(false);
 
   const currentPlayerId = useMemo(() => selectCurrentPlayerId(state), [state]);
@@ -61,7 +62,6 @@ export function TableShell({
     [currentPlayerId, state.players],
   );
 
-  const viewerId = state.meta.hostId || null;
   const isMyTurn = viewerId ? selectIsMyTurn(state, viewerId) : false;
 
   const handleBack = useCallback(() => {
@@ -82,6 +82,7 @@ export function TableShell({
 
   return (
     <View style={[styles.root, { paddingTop: topInset, paddingBottom: bottomInset }]} pointerEvents={active ? 'auto' : 'none'}>
+      <TableSurface mode="play" />
       {/* Header */}
       <View style={styles.header}>
         <Pressable
@@ -98,7 +99,8 @@ export function TableShell({
           {title ? <Text style={styles.title}>{title}</Text> : null}
         </View>
         <View style={styles.headerRight}>
-          {lobbyStatus === 'connected' && <View style={styles.syncDot} />}
+          <View style={[styles.syncDot, connectionLabel !== 'Live' && styles.syncDotIdle]} />
+          <Text style={styles.connectionLabel}>{connectionLabel}</Text>
           {headerAccessory}
           <Pressable
             accessibilityRole="button"
@@ -176,6 +178,14 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     backgroundColor: colors.brand,
     marginRight: space.xs,
+  },
+  syncDotIdle: {
+    backgroundColor: colors.inkSubtle,
+  },
+  connectionLabel: {
+    fontSize: fontSizes.caption,
+    fontFamily: fonts.semibold,
+    color: colors.inkMuted,
   },
   content: {
     flex: 1,

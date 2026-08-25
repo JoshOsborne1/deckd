@@ -19,13 +19,12 @@ import { AvatarPlaceholder } from '@components/AvatarPlaceholder';
 import { CardButton } from '@components/CardButton';
 import { CardDragHand } from '@components/CardDragHand';
 import { PlayingCard, SIZE_MAP } from '@components/PlayingCard';
-import { TableSurface } from '@components/TableSurface';
 import { TableShell } from '@components/table/TableShell';
+import { useTableSession } from '@components/table/useTableSession';
 import { useLayerSurfaceEntrance } from '@hooks/useLayerSurfaceEntrance';
 import { useMotion } from '@hooks/useMotion';
 import { useCosmeticsStore } from '@store/cosmeticsStore';
 import { useGameStore } from '@store/gameStore';
-import { useLobbyStore } from '@store/lobbyStore';
 import { useUiStore } from '@store/uiStore';
 import {
   parseCardId,
@@ -71,19 +70,11 @@ export function CrazyEightsTable({ active, topInset, bottomInset }: CrazyEightsT
   const gameAction = useGameStore((s) => s.gameAction);
   const replaySession = useGameStore((s) => s.replaySession);
 
-  const lobbySession = useLobbyStore((s) => s.session);
-  const localClientId = useLobbyStore((s) => s.localClientId);
-
-  const isOnline = state.meta.mode === 'online-host' || state.meta.mode === 'online-guest';
-  const isGuest = state.meta.mode === 'online-guest';
-  const hostPlayerId = state.meta.hostId || null;
-  const viewerId = isOnline
-    ? isGuest
-      ? localClientId
-      : hostPlayerId
-    : state.meta.mode === 'pass' && state.currentPlayerId
-      ? state.currentPlayerId
-      : hostPlayerId;
+  const {
+    viewerId,
+    isRemoteGuest: isGuest,
+    lobbySession,
+  } = useTableSession(state);
 
   const rules = useMemo(() => getGameRules(state.config.presetId), [state.config.presetId]);
   const ruleActions = useMemo<GameActionSpec[]>(
@@ -234,7 +225,6 @@ export function CrazyEightsTable({ active, topInset, bottomInset }: CrazyEightsT
       pointerEvents={active ? 'auto' : 'none'}
       style={[styles.root, { bottom: bottomInset }, surfaceStyle]}
     >
-      <TableSurface mode="play" />
       <TableShell
         title="CRAZY EIGHTS"
         active={active}
@@ -257,7 +247,6 @@ export function CrazyEightsTable({ active, topInset, bottomInset }: CrazyEightsT
         </View>
 
         <View style={[styles.table, compact && styles.tableCompact]}>
-          <Text style={styles.tableTitle}>{isMyTurn ? 'Choose a card' : 'Watch the table'}</Text>
           <View style={styles.playArea}>
             <Animated.View style={[styles.drawObject, drawMotionStyle]}>
               <Pressable

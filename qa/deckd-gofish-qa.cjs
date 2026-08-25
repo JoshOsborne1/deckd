@@ -4,6 +4,26 @@ const BASE_URL = process.env.DECKD_QA_URL ?? 'http://127.0.0.1:8081';
 const MOBILE = { width: 375, height: 812 };
 const DESKTOP = { width: 1440, height: 900 };
 
+async function lastVisible(locator, timeout = 30000) {
+  const deadline = Date.now() + timeout;
+  while (Date.now() < deadline) {
+    for (let index = (await locator.count()) - 1; index >= 0; index -= 1) {
+      const candidate = locator.nth(index);
+      if (await candidate.isVisible().catch(() => false)) return candidate;
+    }
+    await locator.page().waitForTimeout(100);
+  }
+  throw new Error('Timed out waiting for a visible locator');
+}
+
+async function hasVisibleButton(page, pattern) {
+  const buttons = page.getByRole('button', { name: pattern });
+  for (let index = 0; index < await buttons.count(); index += 1) {
+    if (await buttons.nth(index).isVisible().catch(() => false)) return true;
+  }
+  return false;
+}
+
 async function waitForHome(page) {
   await page.getByRole('button', { name: 'Deal the deck', exact: true }).last().waitFor({ state: 'visible', timeout: 30000 });
 }
@@ -17,18 +37,24 @@ async function reset(page) {
 
 async function startGoFish(page) {
   await page.getByRole('button', { name: 'Deal the deck', exact: true }).last().click();
-  await page.getByText('Choose a recipe', { exact: true }).waitFor({ state: 'visible', timeout: 30000 });
-  const preset = page.getByRole('button', { name: /^Go Fish\./ }).last();
-  await preset.waitFor({ state: 'visible', timeout: 30000 });
+  await lastVisible(page.getByText('Choose a recipe', { exact: true }));
+  const preset = await lastVisible(page.getByRole('button', { name: /^Go Fish\./ }));
   await preset.click();
-  await page.getByRole('button', { name: 'Deal now', exact: true }).last().click();
+  await (await lastVisible(page.getByRole('button', { name: 'Deal now', exact: true }))).click();
   await page.waitForTimeout(1200);
 }
 
-async function firstAskButton(page) {
-  const button = page.getByRole('button', { name: /^ASK / }).first();
-  await button.waitFor({ state: 'visible', timeout: 30000 });
-  return button;
+async function firstHandCardButton(page) {
+  const cards = page.getByRole('button', {
+    name: /^(A|[2-9]|10|J|Q|K) of (clubs|diamonds|hearts|spades)$/i,
+  });
+  const count = await cards.count();
+  for (let index = count - 1; index >= 0; index -= 1) {
+    const card = cards.nth(index);
+    const rect = await card.boundingBox();
+    if (rect && rect.y > 360 && await card.isVisible()) return card;
+  }
+  return null;
 }
 
 async function readGeometry(page) {
@@ -47,7 +73,7 @@ async function readGeometry(page) {
   });
 }
 
-/** Click ASK buttons until a book appears on the felt or the round ends. */
+/** Ask with real hand cards until a book appears on the felt or the round ends. */
 async function playUntilBookOrEnd(page, maxClicks = 120) {
   let clicks = 0;
   let bookSeen = false;
@@ -68,10 +94,8 @@ async function playUntilBookOrEnd(page, maxClicks = 120) {
       await page.waitForTimeout(500);
       continue;
     }
-    const ask = page.getByRole('button', { name: /^ASK / }).first();
-    if (!(await ask.isVisible().catch(() => false))) {
-      break;
-    }
+    const ask = await firstHandCardButton(page);
+    if (!ask) break;
     const before = await page.locator('body').innerText();
     await ask.click();
     await page.waitForTimeout(450);
@@ -116,10 +140,12 @@ async function runViewport(browser, viewport) {
     await page.getByText('Back to the table', { exact: true }).last().click();
     await page.waitForTimeout(400);
 
-    // Ask rail + readout present.
+    // The hand cards are the ask controls; the retired rank dock stays absent.
     const bodyBefore = await page.locator('body').innerText();
+    const cardControl = await firstHandCardButton(page);
     results.table = {
-      hasAsk: /ASK [A-Z0-9]+/.test(bodyBefore),
+      hasCardAskControl: Boolean(cardControl),
+      retiredRankDockAbsent: !(await hasVisibleButton(page, /^ASK /)),
       hasBooksReadout: bodyBefore.includes('BOOKS'),
     };
 
@@ -152,8 +178,9 @@ async function runViewport(browser, viewport) {
     await page.getByRole('button', { name: 'Replay table', exact: true }).click();
     await page.waitForTimeout(800);
     const replayBody = await page.locator('body').innerText();
+    const replayCardControl = await firstHandCardButton(page);
     results.replay = {
-      backToPlay: /ASK [A-Z0-9]+/.test(replayBody) || replayBody.includes('YOUR TURN'),
+      backToPlay: Boolean(replayCardControl) || replayBody.includes('YOUR TURN'),
       endedBannerDismissed: !replayBody.includes('SESSION OVER'),
     };
 
@@ -191,7 +218,8 @@ async function runViewport(browser, viewport) {
   const checks = [mobile, desktop].every((entry) => (
     !entry.error &&
     entry.liveRules.rendered &&
-    entry.table.hasAsk &&
+    entry.table.hasCardAskControl &&
+    entry.table.retiredRankDockAbsent &&
     entry.table.hasBooksReadout &&
     entry.play.bookSeen &&
     entry.endState.rendered &&

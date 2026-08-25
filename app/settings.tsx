@@ -1,7 +1,7 @@
 import { ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Bluetooth, Home, Volume2, Wifi } from 'lucide-react-native';
+import { Home, Smartphone, Volume2, Wifi } from 'lucide-react-native';
 import { CardButton } from '@components/CardButton';
 import { CardSection } from '@components/CardSection';
 import { FeltDrawer } from '@components/FeltDrawer';
@@ -12,7 +12,7 @@ import { alpha, colors, fonts, letterSpacing, space, textStyles } from '@theme';
 
 /**
  * Session / connectivity settings. Identity stays on `/profile`.
- * BLE is the primary USP; optional network multiplayer is explicitly secondary.
+ * Pass-and-play is always local; online lobbies are an optional second surface.
  */
 export default function SettingsScreen() {
   const router = useRouter();
@@ -59,7 +59,7 @@ export default function SettingsScreen() {
 
         <CardSection variant="surface" tab eyebrow="OFFLINE" title="Pass and play" style={styles.card}>
           <View style={styles.row}>
-            <Bluetooth size={22} color={colors.brand} />
+            <Smartphone size={22} color={colors.brand} />
             <View style={styles.rowText}>
               <Text style={styles.body}>
                 One phone, one deck, pass it around. No router, no account, no signal needed.

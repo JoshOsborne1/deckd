@@ -7,6 +7,7 @@ import type {
   ZoneId,
 } from './types';
 import { PYRAMID_ZONE } from './solitaire';
+import { surfaceBindingFromLegacy } from './sessionTopology';
 
 const POKER_STARTING_STACK = 100;
 const POKER_SMALL_BLIND = 5;
@@ -268,7 +269,14 @@ export function applyEvent(prev: GameState, event: GameEvent): GameState {
 
   switch (event.type) {
     case 'session/start': {
-      next.meta = event.meta;
+      const binding = surfaceBindingFromLegacy(
+        event.meta.mode,
+        event.meta.hostId,
+        event.players.map((player) => player.id),
+        event.meta.surfaceProfile,
+        event.meta.seatBinding,
+      );
+      next.meta = { ...event.meta, ...binding };
       next.config = event.config;
       next.players = event.players.map((p) => ({ ...p }));
       const pokerBetting = event.config.presetId === 'poker'

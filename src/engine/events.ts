@@ -8,6 +8,7 @@ import type {
   Zone,
   ZoneId,
 } from './types';
+import type { PresentationCue } from './presentationCues';
 
 export interface BaseEvent {
   readonly id: string;
@@ -18,8 +19,10 @@ export interface BaseEvent {
   readonly transactionId?: string;
   /** Source zone for card movement (presentation cue). */
   readonly fromZoneId?: ZoneId;
+  /** Destination zone for card movement (presentation cue). */
+  readonly toZoneId?: ZoneId;
   /** Optional choreography cue — does not affect reduction. */
-  readonly cue?: string;
+  readonly cue?: PresentationCue;
   /** Schema version for forward compatibility. */
   readonly schemaVersion?: number;
 }

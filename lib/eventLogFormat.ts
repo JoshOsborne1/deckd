@@ -2,16 +2,19 @@ import type { GameEvent } from '@engine/events';
 
 /** One-line summary for the event log UI (debug + history modal). */
 export function formatGameEventLine(e: GameEvent): string {
-  const head = `#${e.seq}`;
+  const schema = e.schemaVersion == null ? '' : ` · v${e.schemaVersion}`;
+  const transaction = e.transactionId ? ` · tx ${e.transactionId}` : '';
+  const cue = e.cue ? ` · ${e.cue}` : '';
+  const head = `#${e.seq}${schema}${transaction}${cue}`;
   switch (e.type) {
     case 'session/start':
       return `${head} session/start · ${e.meta.mode} · ${e.players.length}P · ${e.config.presetId ?? '—'}`;
     case 'deck/shuffle':
       return `${head} deck/shuffle · ${e.zoneId} · n=${e.newOrder.length}`;
     case 'card/deal':
-      return `${head} card/deal · ${e.cardId} → ${e.toZoneId} (${e.face})`;
+      return `${head} card/deal · ${e.cardId} · ${e.fromZoneId ?? 'draw'} → ${e.toZoneId} (${e.face})`;
     case 'card/move':
-      return `${head} card/move · ${e.cardId} → ${e.toZoneId}`;
+      return `${head} card/move · ${e.cardId} · ${e.fromZoneId ?? '?'} → ${e.toZoneId}`;
     case 'card/flip':
       return `${head} card/flip · ${e.cardId}`;
     case 'card/peek':

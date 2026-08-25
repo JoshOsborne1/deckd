@@ -1,6 +1,5 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useMemo } from 'react';
 import {
-  Alert,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -13,23 +12,19 @@ import Animated, {
   useSharedValue,
   withSpring,
 } from 'react-native-reanimated';
-import { BookOpen, ChevronLeft, Clock, Flag, Undo2 } from 'lucide-react-native';
 import { AvatarPlaceholder } from '@components/AvatarPlaceholder';
 import { CardButton } from '@components/CardButton';
-import { EventHistoryModal } from '@components/EventHistoryModal';
 import { HandFan } from '@components/HandFan';
 import { PlayingCard } from '@components/PlayingCard';
-import { RulesSheet } from '@components/RulesSheet';
-import { TableSurface } from '@components/TableSurface';
+import { TableShell } from '@components/table/TableShell';
+import { useTableSession } from '@components/table/useTableSession';
 import { useLayerSurfaceEntrance } from '@hooks/useLayerSurfaceEntrance';
 import { useMotion } from '@hooks/useMotion';
 import { useCosmeticsStore } from '@store/cosmeticsStore';
 import { useGameStore } from '@store/gameStore';
-import { useLobbyStore } from '@store/lobbyStore';
 import { useUiStore } from '@store/uiStore';
 import {
   parseCardId,
-  selectCanUndo,
   selectCardFace,
   selectCurrentPlayerId,
   selectIsMyTurn,
@@ -41,6 +36,7 @@ import {
   ZONE_DRAW,
   tableZoneId,
   type CardFace,
+  type CardId,
   type CardInstance,
   type GameState,
 } from '@engine/types';
@@ -54,10 +50,9 @@ interface GoFishTableProps {
 }
 
 /**
- * Go Fish is its own surface. The ask is a question, not a pile of buttons
- * glued over the deck: a target block on the felt, the draw pile beside it,
- * and the rank choices in their own dock under the board. Books collect on
- * the felt as face-up fans. No guidance box, no duplicate status lines.
+ * Go Fish is its own surface. The ask is a question, not a rank-button dock:
+ * tap a card in the real hand to ask for that rank. A target block and draw
+ * pile live on the felt, while collected books remain visible above the hand.
  */
 export function GoFishTable({ active, topInset, bottomInset }: GoFishTableProps) {
   const { width: viewportWidth } = useWindowDimensions();
@@ -66,30 +61,16 @@ export function GoFishTable({ active, topInset, bottomInset }: GoFishTableProps)
   const surfaceStyle = useLayerSurfaceEntrance(active);
   const setViewMode = useUiStore((s) => s.setViewMode);
   const equippedBackId = useCosmeticsStore((s) => s.equippedBackId);
-  const [historyOpen, setHistoryOpen] = useState(false);
-  const [rulesOpen, setRulesOpen] = useState(false);
 
   const state = useGameStore((s) => s.state);
   const events = useGameStore((s) => s.events);
   const gameAction = useGameStore((s) => s.gameAction);
   const replaySession = useGameStore((s) => s.replaySession);
-  const undoLastAction = useGameStore((s) => s.undoLastAction);
-  const endSession = useGameStore((s) => s.endSession);
-
-  const lobbyStatus = useLobbyStore((s) => s.status);
-  const lobbySession = useLobbyStore((s) => s.session);
-  const localClientId = useLobbyStore((s) => s.localClientId);
-
-  const isOnline = state.meta.mode === 'online-host' || state.meta.mode === 'online-guest';
-  const isGuest = state.meta.mode === 'online-guest';
-  const hostPlayerId = state.meta.hostId || null;
-  const viewerId = isOnline
-    ? isGuest
-      ? localClientId
-      : hostPlayerId
-    : state.meta.mode === 'pass' && state.currentPlayerId
-      ? state.currentPlayerId
-      : hostPlayerId;
+  const {
+    viewerId,
+    isRemoteGuest: isGuest,
+    lobbySession,
+  } = useTableSession(state);
 
   const rules = useMemo(() => getGameRules(state.config.presetId), [state.config.presetId]);
   const ruleActions = useMemo<GameActionSpec[]>(
@@ -108,14 +89,6 @@ export function GoFishTable({ active, topInset, bottomInset }: GoFishTableProps)
   const isMyTurn = useMemo(
     () => (viewerId ? selectIsMyTurn(state, viewerId) : false),
     [state, viewerId],
-  );
-  const canUndo = useMemo(
-    () => (viewerId ? selectCanUndo(state, viewerId) : false),
-    [state, viewerId],
-  );
-  const currentPlayerName = useMemo(
-    () => state.players.find((player) => player.id === currentPlayerId)?.name ?? '',
-    [currentPlayerId, state.players],
   );
 
   const drawCount = state.zones[ZONE_DRAW]?.cardIds.length ?? 0;
@@ -158,21 +131,32 @@ export function GoFishTable({ active, topInset, bottomInset }: GoFishTableProps)
     setViewMode('hub');
   }, [haptic, setViewMode]);
 
-  const handleUndo = useCallback(() => {
-    haptic('medium');
-    undoLastAction();
-  }, [haptic, undoLastAction]);
+  const askActionByRank = useMemo(() => {
+    const result = new Map<string, GameActionSpec>();
+    for (const spec of askActions) {
+      const [, targetId, rank] = spec.id.split(':');
+      if (targetOpponent && targetId !== targetOpponent.id) continue;
+      if (rank) result.set(rank, spec);
+    }
+    return result;
+  }, [askActions, targetOpponent]);
+  const askableCardIds = useMemo(
+    () => new Set<CardId>(
+      localHand
+        .filter((card) => {
+          const parsed = parseCardId(card.id);
+          return parsed ? askActionByRank.has(parsed.rank) : false;
+        })
+        .map((card) => card.id),
+    ),
+    [askActionByRank, localHand],
+  );
+  const handleCardPress = useCallback((cardId: CardId) => {
+    const parsed = parseCardId(cardId);
+    const action = parsed ? askActionByRank.get(parsed.rank) : null;
+    if (action) handleGameAction(action.id);
+  }, [askActionByRank, handleGameAction]);
 
-  const handleEndSession = useCallback(() => {
-    Alert.alert(
-      'End the table?',
-      'This ends the session for everyone. You can start a new one from the hub.',
-      [
-        { text: 'Keep playing', style: 'cancel' },
-        { text: 'End table', style: 'destructive', onPress: () => endSession(viewerId ?? undefined) },
-      ],
-    );
-  }, [endSession, viewerId]);
 
   const drawScale = useSharedValue(1);
   const drawMotionStyle = useAnimatedStyle(() => ({
@@ -190,46 +174,18 @@ export function GoFishTable({ active, topInset, bottomInset }: GoFishTableProps)
   const readout = rules.readout?.(state, viewerId) ?? `HAND ${localHand.length} · DRAW ${drawCount}`;
   const canDraw = isMyTurn && drawCount > 0 && drawAction !== null;
 
-  const askTitle = isMyTurn
-    ? askActions.length > 0
-      ? 'Ask for a rank'
-      : drawAction
-        ? 'Draw a card'
-        : endAction
-          ? 'Score the books'
-          : 'Watch the table'
-    : 'Watch the table';
-  const askHint = isMyTurn
-    ? askActions.length > 0
-      ? `Ask ${targetOpponent?.name ?? 'your opponent'}`
-      : drawAction
-        ? 'No matches in hand — draw one'
-        : 'Finish and count the books'
-    : `Waiting for ${currentPlayerName || 'the next player'}`;
-
   return (
     <Animated.View
       pointerEvents={active ? 'auto' : 'none'}
       style={[styles.root, { bottom: bottomInset }, surfaceStyle]}
     >
-      <TableSurface mode="play" />
-
-      <View style={[styles.header, { paddingTop: topInset + space.sm }]}>
-        <CardButton
-          variant="ghost"
-          size="sm"
-          elevated={false}
-          haptic="light"
-          onPress={handleBackToHub}
-          style={styles.backChip}
-        >
-          <ChevronLeft size={18} color={colors.inkMuted} />
-          <Text style={styles.backText}>Hub</Text>
-        </CardButton>
-        <Text style={styles.eyebrow}>{isMyTurn ? 'YOUR TURN' : `${currentPlayerName.toUpperCase()} · TO PLAY`}</Text>
-        {lobbyStatus === 'connected' && <View style={styles.syncDot} />}
-      </View>
-
+      <TableShell
+        title="GO FISH"
+        active={active}
+        topInset={topInset}
+        bottomInset={0}
+        onBackToHub={handleBackToHub}
+      >
       {opponents.length > 1 && (
         <View style={styles.opponents}>
           {opponents.map((opponent) => {
@@ -247,9 +203,6 @@ export function GoFishTable({ active, topInset, bottomInset }: GoFishTableProps)
       )}
 
       <View style={[styles.table, compact && styles.tableCompact]}>
-        <Text style={styles.tableEyebrow}>GO FISH</Text>
-        <Text style={styles.tableTitle}>{askTitle}</Text>
-
         <View style={styles.playArea}>
           <Animated.View style={[styles.drawObject, drawMotionStyle]}>
             <Pressable
@@ -306,70 +259,15 @@ export function GoFishTable({ active, topInset, bottomInset }: GoFishTableProps)
         <View style={styles.readoutPill}>
           <Text style={styles.readoutText}>{readout}</Text>
         </View>
-      </View>
-
-      <View style={styles.utilityRail}>
-        <Pressable
-          onPress={handleUndo}
-          disabled={!canUndo}
-          accessibilityRole="button"
-          accessibilityLabel="Undo last action"
-          style={[styles.utilityButton, !canUndo && styles.utilityDisabled]}
-        >
-          <Undo2 size={19} color={colors.brand} />
-        </Pressable>
-        <View style={styles.utilityMessage}>
-          <Text style={styles.utilityText} numberOfLines={1}>{askHint}</Text>
-        </View>
-        <Pressable onPress={() => setHistoryOpen(true)} accessibilityRole="button" accessibilityLabel="Open event log" style={styles.utilityButton}>
-          <Clock size={19} color={colors.inkMuted} />
-        </Pressable>
-        <Pressable onPress={() => setRulesOpen(true)} accessibilityRole="button" accessibilityLabel="Read table rules" style={styles.utilityButton}>
-          <BookOpen size={19} color={colors.inkMuted} />
-        </Pressable>
-        <Pressable onPress={handleEndSession} accessibilityRole="button" accessibilityLabel="End table" style={styles.utilityButton}>
-          <Flag size={19} color={colors.brand} />
-        </Pressable>
-      </View>
-
-      <View style={styles.askDock}>
-        {isMyTurn && askActions.length > 0 ? (
-          <View style={styles.askRow}>
-            {askActions.map((spec) => (
-              <CardButton
-                key={spec.id}
-                variant="primary"
-                size="sm"
-                haptic="medium"
-                onPress={() => handleGameAction(spec.id)}
-                style={styles.askBtn}
-              >
-                <Text style={styles.askBtnText}>{spec.label}</Text>
-              </CardButton>
-            ))}
-          </View>
-        ) : isMyTurn && drawAction ? (
-          <View style={styles.askHintRow}>
-            <Text style={styles.askHintText}>No matches — draw from the pile</Text>
-          </View>
-        ) : isMyTurn && endAction ? (
-          <View style={styles.askHintRow}>
-            <CardButton
-              variant="secondary"
-              size="sm"
-              haptic="medium"
-              onPress={() => handleGameAction(endAction.id)}
-              style={styles.askBtn}
-            >
-              <Text style={styles.askBtnText}>{endAction.label}</Text>
-            </CardButton>
-          </View>
-        ) : (
-          <View style={styles.askHintRow}>
-            <Text style={styles.askHintText}>
-              {isMyTurn ? 'No ranks in hand — draw' : `Waiting for ${currentPlayerName || 'the next player'}`}
-            </Text>
-          </View>
+        {endAction && (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={endAction.label}
+            onPress={() => handleGameAction(endAction.id)}
+            style={styles.scoreObject}
+          >
+            <Text style={styles.scoreObjectText}>{endAction.label}</Text>
+          </Pressable>
         )}
       </View>
 
@@ -386,6 +284,8 @@ export function GoFishTable({ active, topInset, bottomInset }: GoFishTableProps)
             fanStyle="wide"
             size="md"
             dealTrigger={dealTrigger}
+            highlightCardIds={askableCardIds}
+            onCardPress={isMyTurn ? handleCardPress : undefined}
           />
         )}
       </View>
@@ -409,9 +309,7 @@ export function GoFishTable({ active, topInset, bottomInset }: GoFishTableProps)
           </View>
         </View>
       )}
-
-      <EventHistoryModal visible={historyOpen} events={events} onClose={() => setHistoryOpen(false)} />
-      <RulesSheet visible={rulesOpen} presetId={state.config.presetId} onClose={() => setRulesOpen(false)} />
+      </TableShell>
     </Animated.View>
   );
 }
@@ -478,36 +376,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     flexDirection: 'column',
   },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: space.lg,
-    gap: space.sm,
-  },
-  backChip: {
-    minWidth: 72,
-    paddingHorizontal: space.sm,
-  },
-  backText: {
-    marginLeft: 2,
-    fontSize: fontSizes.small,
-    fontFamily: fonts.semibold,
-    color: colors.inkMuted,
-  },
-  eyebrow: {
-    flex: 1,
-    textAlign: 'center',
-    fontSize: fontSizes.caption,
-    fontFamily: fonts.bold,
-    color: colors.inkSubtle,
-    letterSpacing: letterSpacing.caps,
-  },
-  syncDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: colors.brand,
-  },
+
   opponents: {
     flexDirection: 'row',
     justifyContent: 'center',
@@ -549,19 +418,7 @@ const styles = StyleSheet.create({
     paddingTop: space.xs,
     paddingBottom: space.xs,
   },
-  tableEyebrow: {
-    fontSize: 10,
-    fontFamily: fonts.bold,
-    color: colors.brand,
-    letterSpacing: letterSpacing.caps,
-  },
-  tableTitle: {
-    marginTop: 2,
-    marginBottom: space.sm,
-    fontSize: fontSizes.h3,
-    fontFamily: fonts.extra,
-    color: colors.ink,
-  },
+
   playArea: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -701,73 +558,21 @@ const styles = StyleSheet.create({
     color: colors.surface,
     letterSpacing: letterSpacing.cap,
   },
-  utilityRail: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: space.xs,
-    paddingHorizontal: space.lg,
-    minHeight: 52,
-  },
-  utilityButton: {
-    width: 44,
-    height: 44,
-    alignItems: 'center',
+  scoreObject: {
+    marginTop: space.sm,
+    minHeight: 44,
     justifyContent: 'center',
+    paddingHorizontal: space.lg,
     borderRadius: radii.pill,
+    borderWidth: 1,
+    borderColor: colors.brand,
     backgroundColor: colors.surface,
-    ...shadow.card,
   },
-  utilityDisabled: {
-    opacity: 0.4,
-  },
-  utilityMessage: {
-    flex: 1,
-    minWidth: 0,
-    paddingHorizontal: space.xs,
-  },
-  utilityEyebrow: {
-    fontSize: 9,
+  scoreObjectText: {
+    fontSize: fontSizes.small,
     fontFamily: fonts.bold,
     color: colors.brand,
     letterSpacing: letterSpacing.cap,
-  },
-  utilityText: {
-    marginTop: 2,
-    fontSize: fontSizes.micro,
-    fontFamily: fonts.semibold,
-    color: colors.ink,
-  },
-  askDock: {
-    minHeight: 54,
-    justifyContent: 'center',
-    paddingHorizontal: space.lg,
-  },
-  askRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'center',
-    gap: space.sm,
-    alignItems: 'center',
-    paddingVertical: space.xs,
-  },
-  askBtn: {
-    minWidth: 84,
-  },
-  askBtnText: {
-    color: colors.surface,
-    fontFamily: fonts.bold,
-    fontSize: fontSizes.small,
-    letterSpacing: letterSpacing.cap,
-  },
-  askHintRow: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    minHeight: 44,
-  },
-  askHintText: {
-    fontSize: fontSizes.micro,
-    fontFamily: fonts.semibold,
-    color: colors.inkSubtle,
   },
   hand: {
     width: '100%',

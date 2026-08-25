@@ -4,14 +4,15 @@
  */
 
 import React, { useCallback } from 'react';
-import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import { BookOpen, Clock, Flag, Undo2 } from 'lucide-react-native';
 import { EventHistoryModal } from '@components/EventHistoryModal';
 import { RulesSheet } from '@components/RulesSheet';
 import { useGameStore } from '@store/gameStore';
 import { useMotion } from '@hooks/useMotion';
 import { selectCanUndo } from '@engine/selectors';
-import { colors, fonts, fontSizes, radii, shadow, space } from '@theme';
+import { alpha, colors, fonts, fontSizes, radii, shadow, space } from '@theme';
+import { useTableSession } from './useTableSession';
 
 interface UtilityDrawerProps {
   visible: boolean;
@@ -29,8 +30,10 @@ export function UtilityDrawer({ visible, onClose, viewerId: viewerIdProp }: Util
   const [rulesOpen, setRulesOpen] = React.useState(false);
   const [historyOpen, setHistoryOpen] = React.useState(false);
 
-  const viewerId = viewerIdProp ?? state.meta.hostId ?? '';
+  const tableSession = useTableSession(state);
+  const viewerId = viewerIdProp ?? tableSession.viewerId ?? '';
   const canUndo = selectCanUndo(state, viewerId);
+  const undoEnabled = canUndo && !tableSession.isRemoteGuest;
 
   const handleUndo = useCallback(() => {
     haptic('medium');
@@ -40,65 +43,95 @@ export function UtilityDrawer({ visible, onClose, viewerId: viewerIdProp }: Util
 
   const handleEnd = useCallback(() => {
     haptic('medium');
-    endSession(viewerId || undefined);
-    onClose();
+    Alert.alert('End table?', 'This closes the table for everyone.', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'End table',
+        style: 'destructive',
+        onPress: () => {
+          endSession(viewerId || undefined);
+          onClose();
+        },
+      },
+    ]);
   }, [endSession, haptic, onClose, viewerId]);
 
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <Pressable style={styles.backdrop} onPress={onClose} accessibilityRole="button" accessibilityLabel="Close utility drawer">
-        <View style={styles.drawer}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Read table rules"
-            onPress={() => setRulesOpen(true)}
-            style={styles.item}
-          >
-            <BookOpen size={20} color={colors.inkMuted} />
-            <Text style={styles.itemText}>Rules</Text>
-          </Pressable>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Open event log"
-            onPress={() => setHistoryOpen(true)}
-            style={styles.item}
-          >
-            <Clock size={20} color={colors.inkMuted} />
-            <Text style={styles.itemText}>History</Text>
-          </Pressable>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Undo last action"
-            onPress={handleUndo}
-            disabled={!canUndo}
-            style={[styles.item, !canUndo && styles.itemDisabled]}
-          >
-            <Undo2 size={20} color={canUndo ? colors.brand : colors.inkSubtle} />
-            <Text style={[styles.itemText, !canUndo && styles.itemTextDisabled]}>Undo</Text>
-          </Pressable>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="End table"
-            onPress={handleEnd}
-            style={styles.item}
-          >
-            <Flag size={20} color={colors.brand} />
-            <Text style={[styles.itemText, { color: colors.brand }]}>End table</Text>
-          </Pressable>
+    <>
+      {visible ? (
+        <View style={styles.overlay}>
+          <View style={styles.backdrop}>
+            <Pressable
+              style={StyleSheet.absoluteFill}
+              onPress={onClose}
+              accessibilityRole="button"
+              accessibilityLabel="Close utility drawer"
+            />
+            <View style={styles.drawer}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Read table rules"
+                onPress={() => {
+                  setRulesOpen(true);
+                  onClose();
+                }}
+                style={styles.item}
+              >
+                <BookOpen size={20} color={colors.inkMuted} />
+                <Text style={styles.itemText}>Rules</Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Open event log"
+                onPress={() => {
+                  setHistoryOpen(true);
+                  onClose();
+                }}
+                style={styles.item}
+              >
+                <Clock size={20} color={colors.inkMuted} />
+                <Text style={styles.itemText}>History</Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Undo last action"
+                onPress={handleUndo}
+                disabled={!undoEnabled}
+                style={[styles.item, !undoEnabled && styles.itemDisabled]}
+              >
+                <Undo2 size={20} color={undoEnabled ? colors.brand : colors.inkSubtle} />
+                <Text style={[styles.itemText, !undoEnabled && styles.itemTextDisabled]}>Undo</Text>
+              </Pressable>
+              {!tableSession.isRemoteGuest ? (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="End table"
+                  onPress={handleEnd}
+                  style={styles.item}
+                >
+                  <Flag size={20} color={colors.brand} />
+                  <Text style={[styles.itemText, styles.dangerText]}>End table</Text>
+                </Pressable>
+              ) : null}
+            </View>
+          </View>
         </View>
-      </Pressable>
+      ) : null}
 
-      {/* Modals */}
       <RulesSheet visible={rulesOpen} presetId={state.config.presetId} onClose={() => setRulesOpen(false)} />
       <EventHistoryModal visible={historyOpen} events={events} onClose={() => setHistoryOpen(false)} />
-    </Modal>
+    </>
   );
 }
 
 const styles = StyleSheet.create({
+  overlay: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 1000,
+  },
   backdrop: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.3)',
+    backgroundColor: alpha.inkOverlay45,
     justifyContent: 'flex-end',
   },
   drawer: {
@@ -126,5 +159,8 @@ const styles = StyleSheet.create({
   },
   itemTextDisabled: {
     color: colors.inkSubtle,
+  },
+  dangerText: {
+    color: colors.brand,
   },
 });

@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import Animated, {
   cancelAnimation,
   useAnimatedStyle,
@@ -8,23 +8,21 @@ import Animated, {
   withSpring,
   withTiming,
 } from 'react-native-reanimated';
-import { BookOpen, ChevronLeft, Clock, Flag, Shuffle, ArrowDownAZ } from 'lucide-react-native';
+import { Shuffle, ArrowDownAZ } from 'lucide-react-native';
 import { AvatarPlaceholder } from '@components/AvatarPlaceholder';
 import { CardButton } from '@components/CardButton';
-import { EventHistoryModal } from '@components/EventHistoryModal';
 import { FlipCard } from '@components/FlipCard';
 import { HandFan } from '@components/HandFan';
 import { HandStack } from '@components/HandStack';
 import { PlayingCard } from '@components/PlayingCard';
-import { RulesSheet } from '@components/RulesSheet';
-import { TableSurface } from '@components/TableSurface';
 import { CardPop, CrimsonFlash, HandShake } from '@components/animations/GameFx';
+import { TableShell } from '@components/table/TableShell';
+import { useTableSession } from '@components/table/useTableSession';
 import { useLayerSurfaceEntrance } from '@hooks/useLayerSurfaceEntrance';
 import { useMotion } from '@hooks/useMotion';
 import { useGameAnimations, useToggleTrigger } from '@hooks/useGameAnimations';
 import { useCosmeticsStore } from '@store/cosmeticsStore';
 import { useGameStore } from '@store/gameStore';
-import { useLobbyStore } from '@store/lobbyStore';
 import { useUiStore } from '@store/uiStore';
 import { parseCardId, selectLocalHand, sortHandCards, type HandSortMode } from '@engine/selectors';
 import { getGameRules, handValue, isBust, type GameAction, type GameActionSpec } from '@engine/rules';
@@ -129,33 +127,21 @@ export function BlackjackTable({ active, topInset, bottomInset }: TableProps) {
   const { haptic, reduceMotion } = useMotion();
   const setViewMode = useUiStore((s) => s.setViewMode);
   const equippedBackId = useCosmeticsStore((s) => s.equippedBackId);
-  const [historyOpen, setHistoryOpen] = useState(false);
-  const [rulesOpen, setRulesOpen] = useState(false);
 
   const state = useGameStore((s) => s.state);
   const events = useGameStore((s) => s.events);
-  const endSession = useGameStore((s) => s.endSession);
   const startNextHand = useGameStore((s) => s.startNextHand);
   const replaySession = useGameStore((s) => s.replaySession);
   const gameAction = useGameStore((s) => s.gameAction);
   const handSortMode = useUiStore((s) => s.handSortMode);
   const toggleHandSortMode = useUiStore((s) => s.toggleHandSortMode);
   const reorderHand = useGameStore((s) => s.reorderHand);
-
-  const lobbyStatus = useLobbyStore((s) => s.status);
-  const lobbySession = useLobbyStore((s) => s.session);
-  const localClientId = useLobbyStore((s) => s.localClientId);
-
-  const isOnline = state.meta.mode === 'online-host' || state.meta.mode === 'online-guest';
-  const isGuest = state.meta.mode === 'online-guest';
-  const hostPlayerId = state.meta.hostId || null;
-  const viewerId = isOnline
-    ? isGuest
-      ? localClientId
-      : hostPlayerId
-    : state.meta.mode === 'pass' && state.currentPlayerId
-      ? state.currentPlayerId
-      : hostPlayerId;
+  const {
+    viewerId,
+    hostPlayerId,
+    isRemoteGuest: isGuest,
+    lobbySession,
+  } = useTableSession(state);
 
   const rules = getGameRules(state.config.presetId);
   const dealer = state.players[state.players.length - 1] ?? null;
@@ -220,7 +206,6 @@ export function BlackjackTable({ active, topInset, bottomInset }: TableProps) {
   const dealerWinPop = batch?.kind === 'session-end' && batch.winnerId === dealer?.id ? batch.key : null;
 
   const isHost = Boolean(hostPlayerId && viewerId === hostPlayerId);
-  const isPassMode = state.meta.mode === 'pass';
 
   const handleGameAction = useCallback(
     (action: GameAction) => {
@@ -254,23 +239,6 @@ export function BlackjackTable({ active, topInset, bottomInset }: TableProps) {
     });
   }, [isHost, viewerId, state.zones, haptic]);
 
-  const handleEndSession = useCallback(() => {
-    Alert.alert(
-      'End the table?',
-      'This ends the session for everyone. You can start a new one from the hub.',
-      [
-        { text: 'Keep playing', style: 'cancel' },
-        {
-          text: 'End table',
-          style: 'destructive',
-          onPress: () => {
-            haptic('heavy');
-            endSession(viewerId ?? undefined);
-          },
-        },
-      ],
-    );
-  }, [haptic, endSession, viewerId]);
 
   const handleBackToHub = useCallback(() => {
     haptic('light');
@@ -332,31 +300,13 @@ export function BlackjackTable({ active, topInset, bottomInset }: TableProps) {
       pointerEvents={active ? 'auto' : 'none'}
       style={[styles.root, { bottom: bottomInset }, surfaceStyle]}
     >
-      <TableSurface mode="play" />
-
-      {/* Header */}
-      <View style={[styles.header, { paddingTop: topInset + space.md }]}>
-        <CardButton
-          variant="ghost"
-          size="sm"
-          elevated={false}
-          haptic="light"
-          onPress={handleBackToHub}
-          style={styles.backChip}
-        >
-          <ChevronLeft size={18} color={colors.inkMuted} />
-          <Text style={styles.backText}>Hub</Text>
-        </CardButton>
-        <Text style={styles.eyebrow}>
-          {isMyTurn ? 'YOUR TURN' : `${state.players.find((player) => player.id === state.currentPlayerId)?.name.toUpperCase() ?? ''} · TO PLAY`}
-        </Text>
-        {lobbyStatus === 'connected' && (
-          <View style={styles.syncChip}>
-            <View style={styles.syncDot} />
-            <Text style={styles.syncText}>SYNCED</Text>
-          </View>
-        )}
-      </View>
+      <TableShell
+        title="BLACKJACK"
+        active={active}
+        onBackToHub={handleBackToHub}
+        topInset={topInset}
+        bottomInset={0}
+      >
 
       {/* Other opponents (the dealer renders as the felt hand below) */}
       {opponents.length > 0 && (
@@ -405,12 +355,25 @@ export function BlackjackTable({ active, topInset, bottomInset }: TableProps) {
         </CardPop>
       </View>
 
-      {/* Middle: shoe object (display-only; TWIST is the rail action) */}
+      {/* Middle: the shoe remains the shuffle control; TWIST stays rule-owned. */}
       <View style={styles.middle}>
-        <View style={styles.deckStack}>
+        <Pressable
+          onPress={handleShuffle}
+          disabled={!isHost}
+          accessibilityRole="button"
+          accessibilityLabel={`Shoe, ${drawCount} cards left`}
+          accessibilityHint={isHost ? 'Tap to shuffle the shoe' : undefined}
+          style={({ pressed }) => [styles.deckStack, pressed && isHost && { opacity: 0.82 }]}
+        >
           <PlayingCard face="down" size="md" back={equippedBackId} />
           <Text style={styles.deckLeftText}>{drawCount} LEFT</Text>
-        </View>
+          {isHost && (
+            <View style={styles.shoeAffordance}>
+              <Shuffle size={13} color={colors.inkMuted} />
+              <Text style={styles.shoeAffordanceText}>SHUFFLE</Text>
+            </View>
+          )}
+        </Pressable>
       </View>
 
       {/* Action rail */}
@@ -440,62 +403,6 @@ export function BlackjackTable({ active, topInset, bottomInset }: TableProps) {
         </View>
       )}
 
-      {/* Utility bar */}
-      <View style={[styles.actionBar, { marginBottom: bottomInset > 0 ? 0 : space.lg }]}>
-        <Pressable
-          onPress={handleShuffle}
-          disabled={!isHost}
-          accessibilityRole="button"
-          accessibilityLabel="Shuffle deck"
-          style={({ pressed }) => [styles.iconBtn, pressed && { opacity: 0.85 }, !isHost && { opacity: 0.5 }]}
-        >
-          <Shuffle size={20} color={colors.inkMuted} />
-        </Pressable>
-        {canSortHand && (
-          <Pressable
-            onPress={handleSortHand}
-            accessibilityRole="button"
-            accessibilityLabel={`Sort hand by ${handSortMode === 'rank' ? 'suit' : 'rank'}`}
-            style={({ pressed }) => [styles.iconBtn, pressed && { opacity: 0.85 }]}
-          >
-            <ArrowDownAZ size={20} color={colors.inkMuted} />
-          </Pressable>
-        )}
-        {isPassMode && state.phase !== 'ended' && ruleActions.length === 0 && (
-          <View style={styles.ruleWaiting}>
-            <Text style={styles.ruleWaitingText}>
-              {isMyTurn ? 'WAITING FOR THE NEXT MOVE' : `${state.players.find((player) => player.id === state.currentPlayerId)?.name.toUpperCase() ?? ''} · TO PLAY`}
-            </Text>
-          </View>
-        )}
-        <Pressable
-          onPress={() => setHistoryOpen(true)}
-          accessibilityRole="button"
-          accessibilityLabel="Open event log"
-          style={({ pressed }) => [styles.iconBtn, pressed && { opacity: 0.85 }]}
-        >
-          <Clock size={20} color={colors.inkMuted} />
-        </Pressable>
-        <Pressable
-          onPress={() => setRulesOpen(true)}
-          accessibilityRole="button"
-          accessibilityLabel="Read table rules"
-          style={({ pressed }) => [styles.iconBtn, pressed && { opacity: 0.85 }]}
-        >
-          <BookOpen size={20} color={colors.inkMuted} />
-        </Pressable>
-        {isHost && (
-          <Pressable
-            onPress={handleEndSession}
-            accessibilityRole="button"
-            accessibilityLabel="End table"
-            style={({ pressed }) => [styles.iconBtn, pressed && { opacity: 0.85 }]}
-          >
-            <Flag size={20} color={colors.brand} />
-          </Pressable>
-        )}
-      </View>
-
       {/* Local hand */}
       <CardPop reduceMotion={reduceMotion} trigger={myWinPop} style={styles.hand}>
         {state.config.fanStyle === 'stacked' ? (
@@ -515,32 +422,20 @@ export function BlackjackTable({ active, topInset, bottomInset }: TableProps) {
             dealTrigger={dealTrigger}
           />
         )}
+        {canSortHand && (
+          <Pressable
+            onPress={handleSortHand}
+            accessibilityRole="button"
+            accessibilityLabel={`Sort hand by ${handSortMode === 'rank' ? 'suit' : 'rank'}`}
+            style={({ pressed }) => [styles.sortHandButton, pressed && { opacity: 0.82 }]}
+          >
+            <ArrowDownAZ size={14} color={colors.inkMuted} />
+            <Text style={styles.sortHandText}>SORT {handSortMode === 'rank' ? 'BY SUIT' : 'BY RANK'}</Text>
+          </Pressable>
+        )}
         <BustPill value={myHandValue} bust={myBust} reduceMotion={reduceMotion} haptic={haptic} />
       </CardPop>
 
-      {/* Guidance */}
-      {state.phase === 'playing' && (
-        <View
-          style={styles.guidance}
-          pointerEvents="none"
-          accessible
-          accessibilityRole="text"
-          accessibilityLabel={
-            isMyTurn ? 'Your turn. Twist to take a card, or stick.' : `Waiting for ${state.players.find((player) => player.id === state.currentPlayerId)?.name ?? 'the next player'}.`
-          }
-        >
-          <View style={styles.guidanceMark} />
-          <View style={styles.guidanceCopy}>
-            <Text style={styles.guidanceEyebrow}>{isMyTurn ? 'YOUR TURN' : 'PASS THE TABLE'}</Text>
-            <Text style={styles.guidanceTitle} numberOfLines={1}>
-              {isMyTurn ? (myBust ? 'Bust — stick or pass' : 'Twist to 21, or stick') : `${state.players.find((player) => player.id === state.currentPlayerId)?.name ?? 'The next player'} is choosing`}
-            </Text>
-            <Text style={styles.guidanceDetail} numberOfLines={2}>
-              {isMyTurn ? 'TWIST slides a card from the shoe. STICK keeps your hand and ends your turn.' : 'Watch the felt; your hand will be ready when the turn comes around.'}
-            </Text>
-          </View>
-        </View>
-      )}
 
       {/* Ended banner */}
       {state.phase === 'ended' && (
@@ -586,8 +481,7 @@ export function BlackjackTable({ active, topInset, bottomInset }: TableProps) {
         </Animated.View>
       )}
 
-      <EventHistoryModal visible={historyOpen} events={events} onClose={() => setHistoryOpen(false)} />
-      <RulesSheet visible={rulesOpen} presetId={state.config.presetId} onClose={() => setRulesOpen(false)} />
+      </TableShell>
     </Animated.View>
   );
 }
@@ -602,50 +496,7 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     overflow: 'hidden',
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: space.xl,
-    gap: space.md,
-  },
-  backChip: {
-    paddingHorizontal: space.md,
-  },
-  backText: {
-    marginLeft: 4,
-    fontSize: fontSizes.small + 1,
-    fontFamily: fonts.semibold,
-    color: colors.inkMuted,
-  },
-  eyebrow: {
-    flex: 1,
-    textAlign: 'center',
-    fontSize: fontSizes.caption,
-    fontFamily: fonts.bold,
-    color: colors.inkSubtle,
-    letterSpacing: letterSpacing.caps,
-  },
-  syncChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: alpha.brand10,
-    paddingHorizontal: space.sm,
-    paddingVertical: 2,
-    borderRadius: radii.pill,
-  },
-  syncDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: colors.brand,
-  },
-  syncText: {
-    fontSize: 9,
-    fontFamily: fonts.bold,
-    color: colors.brand,
-    letterSpacing: letterSpacing.caps,
+    flexDirection: 'column',
   },
   opponents: {
     flexDirection: 'row',
@@ -752,6 +603,18 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     letterSpacing: letterSpacing.cap,
   },
+  shoeAffordance: {
+    marginTop: space.xs,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  shoeAffordanceText: {
+    fontSize: 9,
+    fontFamily: fonts.bold,
+    color: colors.inkMuted,
+    letterSpacing: letterSpacing.cap,
+  },
   ruleRail: {
     alignSelf: 'center',
     width: '100%',
@@ -778,54 +641,21 @@ const styles = StyleSheet.create({
     letterSpacing: letterSpacing.cap,
     color: colors.surface,
   },
-  ruleWaiting: {
-    flex: 1,
-    minHeight: 44,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: space.sm,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-  },
-  ruleWaitingText: {
-    fontFamily: fonts.bold,
-    fontSize: fontSizes.micro,
-    color: colors.inkSubtle,
-    letterSpacing: letterSpacing.cap,
-  },
-  actionBar: {
+  sortHandButton: {
+    alignSelf: 'center',
+    minHeight: 34,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    alignSelf: 'center',
-    width: '100%',
-    maxWidth: 520,
+    gap: space.xs,
     paddingHorizontal: space.md,
-    gap: space.md,
-    paddingTop: space.md,
-  },
-  iconBtn: {
-    width: 44,
-    height: 44,
     borderRadius: radii.pill,
     backgroundColor: colors.surface,
-    alignItems: 'center',
-    justifyContent: 'center',
     ...shadow.card,
   },
-  passBtn: {
-    minWidth: 128,
-    maxWidth: 168,
-    flexShrink: 1,
-  },
-  passBtnInner: {
-    minWidth: 0,
-    paddingHorizontal: space.sm,
-  },
-  passBtnText: {
-    color: colors.surface,
-    fontSize: fontSizes.small,
-    fontFamily: fonts.extra,
+  sortHandText: {
+    fontFamily: fonts.bold,
+    fontSize: 9,
+    color: colors.inkMuted,
     letterSpacing: letterSpacing.cap,
   },
   hand: {
@@ -846,65 +676,13 @@ const styles = StyleSheet.create({
     paddingVertical: space.xs,
     borderRadius: radii.pill,
   },
-  valuePill: {
-    alignSelf: 'center',
-    marginTop: space.xs,
-    paddingHorizontal: space.md,
-    paddingVertical: space.xs,
-    borderRadius: radii.pill,
-    backgroundColor: colors.brand,
-  },
   valuePillText: {
     fontFamily: fonts.bold,
     fontSize: fontSizes.caption,
     letterSpacing: letterSpacing.cap,
     color: colors.surface,
   },
-  guidance: {
-    width: '100%',
-    maxWidth: 420,
-    alignSelf: 'center',
-    flexDirection: 'row',
-    alignItems: 'center',
-    minHeight: 58,
-    paddingHorizontal: space.md,
-    paddingVertical: space.sm,
-    gap: space.sm,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderColor: alpha.inkOverlay12,
-    backgroundColor: alpha.whiteOverlay45,
-  },
-  guidanceMark: {
-    width: 3,
-    height: 34,
-    borderRadius: radii.xs,
-    backgroundColor: colors.brand,
-  },
-  guidanceCopy: {
-    flex: 1,
-    minWidth: 0,
-  },
-  guidanceEyebrow: {
-    fontSize: 9,
-    lineHeight: 12,
-    fontFamily: fonts.bold,
-    color: colors.brand,
-    letterSpacing: letterSpacing.cap,
-  },
-  guidanceTitle: {
-    marginTop: 1,
-    fontSize: fontSizes.small,
-    lineHeight: 17,
-    fontFamily: fonts.extra,
-    color: colors.ink,
-  },
-  guidanceDetail: {
-    fontSize: fontSizes.micro,
-    lineHeight: 16,
-    fontFamily: fonts.regular,
-    color: colors.inkMuted,
-  },
+
   endedBanner: {
     position: 'absolute',
     left: 0,

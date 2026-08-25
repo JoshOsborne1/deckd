@@ -1,19 +1,14 @@
 /**
  * Typed physical-card intents (blueprint §7.3, Phase 1 subset).
  *
- * These are the UI contract: gesture surfaces and accessibility action sheets
- * BOTH dispatch these same shapes. Phase 1 keeps them as plain typed objects;
- * Phase 2 wires them into the session runtime and engine legality provider.
+ * Gesture surfaces and accessibility action sheets BOTH dispatch the engine's
+ * canonical GameIntent union. This compatibility name prevents card-surface
+ * components from carrying a second, drifting copy of the contract.
  */
 
-export type PhysicalIntent =
-  | { id: string; type: 'card.move'; actorId: string; cardIds: string[]; from: string; to: string; toIndex?: number }
-  | { id: string; type: 'pile.draw'; actorId: string; pileId: string; to: string }
-  | { id: string; type: 'card.flip'; actorId: string; cardId: string }
-  | { id: string; type: 'hand.reorder'; actorId: string; cardId: string; toIndex: number }
-  | { id: string; type: 'pile.take'; actorId: string; pileId: string; to: string }
-  | { id: string; type: 'player.target'; actorId: string; sourceCardId?: string; targetPlayerId: string; verb: string }
-  | { id: string; type: 'turn.pass'; actorId: string };
+import type { GameIntent } from '@engine/intents';
+
+export type PhysicalIntent = GameIntent;
 
 export type PhysicalIntentType = PhysicalIntent['type'];
 
@@ -44,5 +39,5 @@ export interface LegalTargets {
 
 export type LegalTargetsProvider = (query: LegalTargetsQuery) => LegalTargets;
 
-/** A dispatcher consumes typed intents. The lab logs them; the runtime will commit them. */
+/** A dispatcher consumes typed intents; the authority runtime commits them. */
 export type PhysicalIntentDispatcher = (intent: PhysicalIntent) => void;

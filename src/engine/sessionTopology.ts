@@ -33,8 +33,12 @@ export interface SessionTopology {
   seatBinding: SeatBinding;
 }
 
-/** Legacy mode string for compat during migration. */
-export type LegacyMode = 'pass' | 'solo' | 'ble-host' | 'ble-guest' | 'online-host' | 'online-guest';
+/**
+ * Legacy presentation value retained only while persisted sessions and the
+ * current relay adapter migrate. Nearby is a transport, so it deliberately has
+ * no legacy mode value.
+ */
+export type LegacyMode = 'pass' | 'solo' | 'online-host' | 'online-guest';
 
 /**
  * Compat adapter: derive the four separated concerns from a legacy mode.
@@ -46,6 +50,7 @@ export function topologyFromLegacyMode(
   hostId: string,
   playerIds: string[],
 ): SessionTopology {
+  const guestId = playerIds.find((playerId) => playerId !== hostId) ?? playerIds[0] ?? '';
   switch (mode) {
     case 'solo':
       return {
@@ -61,20 +66,6 @@ export function topologyFromLegacyMode(
         surfaceProfile: 'hot-seat',
         seatBinding: { kind: 'shared-device', playerIds },
       };
-    case 'ble-host':
-      return {
-        authority: { kind: 'nearby-host', peerId: '' },
-        transport: 'nearby',
-        surfaceProfile: 'personal-table',
-        seatBinding: { kind: 'single-seat', playerId: hostId },
-      };
-    case 'ble-guest':
-      return {
-        authority: { kind: 'nearby-host', peerId: '' },
-        transport: 'nearby',
-        surfaceProfile: 'personal-table',
-        seatBinding: { kind: 'single-seat', playerId: playerIds[0] ?? '' },
-      };
     case 'online-host':
       return {
         authority: { kind: 'cloud-server', roomId: '' },
@@ -87,15 +78,45 @@ export function topologyFromLegacyMode(
         authority: { kind: 'cloud-server', roomId: '' },
         transport: 'relay',
         surfaceProfile: 'personal-table',
-        seatBinding: { kind: 'single-seat', playerId: playerIds[0] ?? '' },
+        seatBinding: { kind: 'single-seat', playerId: guestId },
       };
-    default:
-      return {
-        authority: { kind: 'local' },
-        transport: 'in-process',
-        surfaceProfile: 'hot-seat',
-        seatBinding: { kind: 'shared-device', playerIds },
-      };
+  }
+}
+
+/**
+ * Fill the two topology fields carried by canonical state without changing a
+ * legacy event on the wire. This is the migration boundary: reducers and
+ * presentation code consume the returned fields rather than branching on
+ * `mode`.
+ */
+export function surfaceBindingFromLegacy(
+  mode: LegacyMode,
+  hostId: string,
+  playerIds: string[],
+  surfaceProfile?: SurfaceProfile,
+  seatBinding?: SeatBinding,
+): Pick<SessionTopology, 'surfaceProfile' | 'seatBinding'> {
+  const fallback = topologyFromLegacyMode(mode, hostId, playerIds);
+  return {
+    surfaceProfile: surfaceProfile ?? fallback.surfaceProfile,
+    seatBinding: seatBinding ?? fallback.seatBinding,
+  };
+}
+
+/** Resolve the active private viewer without consulting the legacy mode. */
+export function boundViewerId(
+  binding: SeatBinding,
+  currentPlayerId: string,
+): string | null {
+  switch (binding.kind) {
+    case 'single-seat':
+      return binding.playerId || null;
+    case 'shared-device':
+      return binding.playerIds.includes(currentPlayerId)
+        ? currentPlayerId
+        : binding.playerIds[0] ?? null;
+    case 'table-only':
+      return null;
   }
 }
 

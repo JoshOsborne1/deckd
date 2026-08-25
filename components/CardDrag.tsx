@@ -177,22 +177,6 @@ export function CardDrag({
           style,
           animatedStyle,
         ]}
-        accessible
-        accessibilityRole="button"
-        accessibilityLabel={accessibilityLabel ?? `Card ${cardId}`}
-        accessibilityHint={
-          fallbackActions.length > 0
-            ? 'Drag after holding, or use the actions menu to play this card.'
-            : 'Hold and drag this card to play it.'
-        }
-        accessibilityActions={fallbackActions.map((action) => ({
-          name: action.id,
-          label: action.label,
-        }))}
-        onAccessibilityAction={({ nativeEvent }) => {
-          const action = fallbackActions.find((candidate) => candidate.id === nativeEvent.actionName);
-          if (action) fireAction(action);
-        }}
       >
         {isDraggingCard
           ? dropTargets.map((target) => (
@@ -204,17 +188,38 @@ export function CardDrag({
               />
             ))
           : null}
-        <GestureDetector gesture={gesture}>
-          <Pressable
-            disabled={disabled}
-            delayLongPress={520}
-            onLongPress={openActionMenu}
-            accessibilityRole="none"
-            style={styles.cardPressTarget}
-          >
-            <View style={cardStyle}>{children}</View>
-          </Pressable>
-        </GestureDetector>
+        <View
+          style={styles.accessibleCard}
+          accessible
+          accessibilityRole="button"
+          accessibilityLabel={accessibilityLabel ?? `Card ${cardId}`}
+          aria-label={accessibilityLabel ?? `Card ${cardId}`}
+          accessibilityHint={
+            fallbackActions.length > 0
+              ? 'Drag after holding, or use the actions menu to play this card.'
+              : 'Hold and drag this card to play it.'
+          }
+          accessibilityActions={fallbackActions.map((action) => ({
+            name: action.id,
+            label: action.label,
+          }))}
+          onAccessibilityAction={({ nativeEvent }) => {
+            const action = fallbackActions.find((candidate) => candidate.id === nativeEvent.actionName);
+            if (action) fireAction(action);
+          }}
+        >
+          <GestureDetector gesture={gesture}>
+            <Pressable
+              disabled={disabled}
+              delayLongPress={520}
+              onLongPress={openActionMenu}
+              accessibilityRole="none"
+              style={styles.cardPressTarget}
+            >
+              <View style={cardStyle}>{children}</View>
+            </Pressable>
+          </GestureDetector>
+        </View>
       </Animated.View>
 
       <Modal
@@ -259,6 +264,9 @@ const styles = StyleSheet.create({
     overflow: 'visible',
   },
   cardPressTarget: {
+    flex: 1,
+  },
+  accessibleCard: {
     flex: 1,
   },
   targetRing: {

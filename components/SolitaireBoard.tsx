@@ -1,12 +1,9 @@
 import React, { useCallback, useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
-import { BookOpen, ChevronLeft, RotateCcw } from 'lucide-react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { PlayingCard } from '@components/PlayingCard';
 import { CardButton } from '@components/CardButton';
-import { RulesSheet } from '@components/RulesSheet';
 import { useMotion } from '@hooks/useMotion';
 import { useGameStore } from '@store/gameStore';
-import { useUiStore } from '@store/uiStore';
 import {
   parseCardId,
 } from '@engine/selectors';
@@ -56,8 +53,6 @@ import {
 export interface SolitaireBoardProps {
   state: GameState;
   viewerId: string;
-  topInset: number;
-  bottomInset: number;
 }
 
 type SolitaireGame = 'klondike' | 'freecell' | 'pyramid' | 'golf';
@@ -120,15 +115,12 @@ function EmptySlot({ label, onPress, selected }: { label?: string; onPress?: () 
   );
 }
 
-export function SolitaireBoard({ state, viewerId, topInset, bottomInset }: SolitaireBoardProps) {
+export function SolitaireBoard({ state, viewerId }: SolitaireBoardProps) {
   const game = solitaireGameId(state.config.presetId);
   const { haptic } = useMotion();
   const gameAction = useGameStore((s) => s.gameAction);
   const startNextHand = useGameStore((s) => s.startNextHand);
-  const setViewMode = useUiStore((s) => s.setViewMode);
-  const [rulesOpen, setRulesOpen] = useState(false);
   const [selectedSource, setSelectedSource] = useState<string | null>(null);
-  const { width: viewportWidth } = useWindowDimensions();
 
   const handleAction = useCallback(
     (action: GameAction) => {
@@ -201,47 +193,7 @@ export function SolitaireBoard({ state, viewerId, topInset, bottomInset }: Solit
   if (!game) return null;
 
   return (
-    <View style={[styles.root, { paddingTop: topInset + space.md, paddingBottom: bottomInset }]}>
-      {/* Header */}
-      <View style={styles.header}>
-        <CardButton
-          variant="ghost"
-          size="sm"
-          elevated={false}
-          haptic="light"
-          onPress={() => setViewMode('hub')}
-          style={styles.backChip}
-        >
-          <ChevronLeft size={18} color={colors.inkMuted} />
-          <Text style={styles.backText}>Hub</Text>
-        </CardButton>
-        <Text style={styles.eyebrow}>
-          {state.phase === 'ended' ? 'COMPLETE' : game === 'klondike' ? 'KLONDIKE' : game === 'freecell' ? 'FREECELL' : game === 'pyramid' ? 'PYRAMID' : 'GOLF'}
-        </Text>
-        <View style={styles.headerActions}>
-          {state.phase !== 'ended' && (
-            <Pressable
-              onPress={() => setRulesOpen(true)}
-              style={({ pressed }) => [styles.iconBtn, pressed && { opacity: 0.85 }]}
-              accessibilityRole="button"
-              accessibilityLabel="Read rules"
-            >
-              <BookOpen size={20} color={colors.inkMuted} />
-            </Pressable>
-          )}
-          {state.phase !== 'ended' && (
-            <Pressable
-              onPress={() => startNextHand()}
-              style={({ pressed }) => [styles.iconBtn, pressed && { opacity: 0.85 }]}
-              accessibilityRole="button"
-              accessibilityLabel="New deal"
-            >
-              <RotateCcw size={18} color={colors.inkMuted} />
-            </Pressable>
-          )}
-        </View>
-      </View>
-
+    <View style={styles.root}>
       {/* Readout */}
       {!!readout && state.phase !== 'ended' && (
         <View style={styles.readoutBar}>
@@ -290,7 +242,7 @@ export function SolitaireBoard({ state, viewerId, topInset, bottomInset }: Solit
 
       {/* Action bar (stock draw / finish) */}
       {state.phase !== 'ended' && (
-        <SolitaireActionBar state={state} game={game} onAction={handleAction} viewportWidth={viewportWidth} />
+        <SolitaireActionBar state={state} onAction={handleAction} />
       )}
 
       {/* Win banner */}
@@ -325,11 +277,6 @@ export function SolitaireBoard({ state, viewerId, topInset, bottomInset }: Solit
         </View>
       )}
 
-      <RulesSheet
-        visible={rulesOpen}
-        presetId={state.config.presetId}
-        onClose={() => setRulesOpen(false)}
-      />
     </View>
   );
 }
@@ -751,14 +698,10 @@ function GolfBoard({
 
 function SolitaireActionBar({
   state,
-  game,
   onAction,
-  viewportWidth,
 }: {
   state: GameState;
-  game: SolitaireGame;
   onAction: (action: GameAction) => void;
-  viewportWidth: number;
 }) {
   const rules = getGameRules(state.config.presetId);
   const actions = rules.actions(state, state.meta.hostId);
@@ -798,36 +741,6 @@ function SolitaireActionBar({
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: space.md,
-    marginBottom: space.sm,
-  },
-  backChip: {
-    paddingHorizontal: 0,
-  },
-  backText: {
-    color: colors.inkMuted,
-    fontSize: fontSizes.small,
-    fontFamily: fonts.medium,
-    marginLeft: space.xs,
-  },
-  eyebrow: {
-    fontSize: fontSizes.caption,
-    fontFamily: fonts.bold,
-    letterSpacing: letterSpacing.caps,
-    color: colors.inkMuted,
-  },
-  headerActions: {
-    flexDirection: 'row',
-    gap: space.sm,
-  },
-  iconBtn: {
-    padding: space.xs,
-    borderRadius: radii.md,
   },
   readoutBar: {
     paddingHorizontal: space.lg,

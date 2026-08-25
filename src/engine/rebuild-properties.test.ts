@@ -11,10 +11,8 @@
 
 import {
   buildDeck,
-  emptyState,
   foldEvents,
   handZoneId,
-  tableZoneId,
   ZONE_DISCARD,
   ZONE_DRAW,
   type GameEvent,
@@ -85,9 +83,13 @@ describe('engine invariants', () => {
       expect(projectedHand).toEqual(viewerHand);
       // Opponent hand is opaque.
       const opponent = viewerId === 'p1' ? 'p2' : 'p1';
+      const canonicalOpponent = state.zones[handZoneId(opponent)]?.cardIds ?? [];
       const projectedOpponent = projected.zones[handZoneId(opponent)]?.cardIds ?? [];
       for (const id of projectedOpponent) {
-        expect(id.startsWith('opaque-')).toBe(true);
+        // Preserve the established p-* wire family while proving that no
+        // canonical card identity crosses the authority boundary.
+        expect(id.startsWith('p-')).toBe(true);
+        expect(canonicalOpponent).not.toContain(id);
       }
     }
   });

@@ -24,7 +24,10 @@ import {
   foldRemoteEvents,
   selectBroadcastDelta,
   applySnapshotWithTail,
+  filterDiagnosticsForViewer,
   filterEventsForViewer,
+  filterReconnectPayloadForViewer,
+  filterSnapshotForViewer,
 } from '@store/syncLogic';
 
 function makeSessionEvents(
@@ -421,5 +424,25 @@ describe('filterEventsForViewer', () => {
       // The same placeholder id is used in the move event.
       expect(move.cardId).toBe(drawPlaceholder);
     }
+  });
+});
+
+describe('viewer projection adapters', () => {
+  it('applies one privacy boundary to snapshots, reconnects, and diagnostics', () => {
+    const events = makeSessionEvents(
+      [{ id: 'host', name: 'Alice' }, { id: 'guest', name: 'Bob' }],
+      'deal-two-each',
+    );
+    const authority = foldEvents(events);
+    const hostCardId = authority.zones[handZoneId('host')]!.cardIds[0]!;
+
+    const snapshot = filterSnapshotForViewer(authority, 'guest');
+    const reconnect = filterReconnectPayloadForViewer(authority, 2, [], 'guest');
+    const diagnostics = filterDiagnosticsForViewer(authority, 'guest');
+
+    expect(snapshot.meta.rngSeed).toBe('');
+    expect(JSON.stringify(snapshot)).not.toContain(hostCardId);
+    expect(JSON.stringify(reconnect.state)).not.toContain(hostCardId);
+    expect(JSON.stringify(diagnostics)).not.toContain(hostCardId);
   });
 });

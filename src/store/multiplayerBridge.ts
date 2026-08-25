@@ -60,9 +60,21 @@ function sessionIdOf(events: GameEvent[]): string | null {
  */
 function markGuestSession(events: GameEvent[]): GameEvent[] {
   if (useLobbyStore.getState().session?.role !== 'guest') return events;
+  const guestPlayerId = useLobbyStore.getState().localClientId;
   return events.map((event) => (
     event.type === 'session/start'
-      ? { ...event, meta: { ...event.meta, mode: 'online-guest' as const } }
+      ? {
+          ...event,
+          meta: {
+            ...event.meta,
+            mode: 'online-guest' as const,
+            surfaceProfile: 'personal-table' as const,
+            seatBinding: {
+              kind: 'single-seat' as const,
+              playerId: guestPlayerId,
+            },
+          },
+        }
       : event
   ));
 }

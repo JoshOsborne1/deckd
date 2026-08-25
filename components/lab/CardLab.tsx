@@ -16,14 +16,15 @@
  *  6.11 Reduced-motion, screen-reader, large-text paths
  *  6.12 Slow-render stress mode (JS busy while drag stays smooth)
  *
- * The lab never touches the engine. Legality comes from a stub provider;
- * committed intents are logged so the reviewer can see the typed-intent stream.
+ * Every interaction crosses the same engine legality + SessionRuntime boundary
+ * as production. Committed intents are logged for review.
  */
 
 import React, {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react';
 import {
@@ -53,6 +54,8 @@ import {
 import { legalIntents } from '@engine/legalIntents';
 import type { GameState, Zone } from '@engine/types';
 import { ZONE_DISCARD, ZONE_DRAW } from '@engine/types';
+import { InProcessTransport } from '../../src/runtime/InProcessTransport';
+import { SessionRuntime } from '../../src/runtime/SessionRuntime';
 import type { Rank, Suit } from '@lib/types';
 import { alpha, colors, fonts, radii, shadow, space } from '@theme';
 
@@ -74,6 +77,28 @@ function makeDeck(count: number): CardSpec[] {
 }
 
 const FULL_DECK = makeDeck(52);
+const LAB_ACTOR = 'lab-actor';
+const LAB_PARTNER = 'lab-partner';
+
+function engineZoneId(zoneId: string): string {
+  switch (zoneId) {
+    case 'lab-deck': return ZONE_DRAW;
+    case 'lab-hand': return `hand:${LAB_ACTOR}`;
+    case 'lab-discard': return ZONE_DISCARD;
+    case 'lab-partner-hand': return `hand:${LAB_PARTNER}`;
+    default: return zoneId;
+  }
+}
+
+function surfaceZoneId(zoneId: string | undefined): string | undefined {
+  switch (zoneId) {
+    case ZONE_DRAW: return 'lab-deck';
+    case `hand:${LAB_ACTOR}`: return 'lab-hand';
+    case ZONE_DISCARD: return 'lab-discard';
+    case `hand:${LAB_PARTNER}`: return 'lab-partner-hand';
+    default: return zoneId;
+  }
+}
 
 /** Minimal engine state for the lab so legalIntents can run. */
 function labEngineState(hand: CardSpec[], pile: CardSpec[], discard: CardSpec[], partnerHand: CardSpec[]): GameState {
@@ -121,11 +146,13 @@ function labEngineState(hand: CardSpec[], pile: CardSpec[], discard: CardSpec[],
           : partnerZone.cardIds.includes(spec.id)
             ? partnerZone.id
             : drawZone.id;
+    const zone = [handZone, pileZone, discardZone, partnerZone, drawZone]
+      .find((candidate) => candidate.id === zoneId)!;
     cards[spec.id] = {
       id: spec.id,
-      face: 'up',
+      face: zoneId === drawZone.id || zoneId === partnerZone.id ? 'down' : 'up',
       zoneId,
-      order: 0,
+      order: zone.cardIds.indexOf(spec.id),
     };
   }
 
@@ -135,6 +162,11 @@ function labEngineState(hand: CardSpec[], pile: CardSpec[], discard: CardSpec[],
       createdAt: 0,
       rngSeed: '',
       mode: 'pass',
+      surfaceProfile: 'hot-seat',
+      seatBinding: {
+        kind: 'shared-device',
+        playerIds: [LAB_ACTOR, LAB_PARTNER],
+      },
       hostId: 'lab-actor',
     },
     config: {
@@ -164,6 +196,43 @@ function labEngineState(hand: CardSpec[], pile: CardSpec[], discard: CardSpec[],
   };
 }
 
+function createLabAuthority(handCount: number): {
+  runtime: SessionRuntime;
+  transport: InProcessTransport;
+} {
+  const runtime = new SessionRuntime(
+    { sessionId: 'lab', hostId: LAB_ACTOR },
+    labEngineState(FULL_DECK.slice(0, handCount), [], [], []),
+  );
+  return { runtime, transport: new InProcessTransport(runtime) };
+}
+
+function cardsInZone(state: GameState, zoneId: string): CardSpec[] {
+  return (state.zones[zoneId]?.cardIds ?? [])
+    .map((cardId) => FULL_DECK.find((candidate) => candidate.id === cardId))
+    .filter((card): card is CardSpec => Boolean(card));
+}
+
+function toEngineIntent(intent: PhysicalIntent): PhysicalIntent {
+  switch (intent.type) {
+    case 'card.move':
+      return {
+        ...intent,
+        from: engineZoneId(intent.from),
+        to: engineZoneId(intent.to),
+      };
+    case 'pile.draw':
+    case 'pile.take':
+      return {
+        ...intent,
+        pileId: engineZoneId(intent.pileId),
+        to: engineZoneId(intent.to),
+      };
+    default:
+      return intent;
+  }
+}
+
 function renderCardFace(spec: CardSpec, concealed: boolean): React.ReactNode {
   return (
     <PlayingCard
@@ -182,15 +251,22 @@ function LabSurface() {
   const coordinator = useCardMotionCoordinator();
 
   const [fanCount, setFanCount] = useState<2 | 5 | 10 | 20>(5);
-  const [hand, setHand] = useState<CardSpec[]>(() => FULL_DECK.slice(0, 5));
-  const [pile, setPile] = useState<CardSpec[]>([]);
-  const [discard, setDiscard] = useState<CardSpec[]>([]);
-  const [flipped, setFlipped] = useState<Set<string>>(new Set());
+  const authorityRef = useRef<ReturnType<typeof createLabAuthority> | null>(null);
+  if (!authorityRef.current) authorityRef.current = createLabAuthority(5);
+  const [engineState, setEngineState] = useState<GameState>(
+    () => authorityRef.current!.runtime.getState(),
+  );
   const [logLines, setLogLines] = useState<string[]>([]);
   const [largeText, setLargeText] = useState(false);
   const [veilUp, setVeilUp] = useState(false);
   const [busyStress, setBusyStress] = useState(false);
-  const [partnerHand, setPartnerHand] = useState<CardSpec[]>([]);
+  const hand = useMemo(() => cardsInZone(engineState, `hand:${LAB_ACTOR}`), [engineState]);
+  const pile = useMemo(() => cardsInZone(engineState, 'lab-pile'), [engineState]);
+  const discard = useMemo(() => cardsInZone(engineState, ZONE_DISCARD), [engineState]);
+  const partnerHand = useMemo(
+    () => cardsInZone(engineState, `hand:${LAB_PARTNER}`),
+    [engineState],
+  );
 
   // Blueprint 6.12: keep the JS thread visibly busy while gestures stay smooth.
   useEffect(() => {
@@ -218,135 +294,61 @@ function LabSurface() {
 
   const dispatchIntent = useCallback(
     (intent: PhysicalIntent) => {
-      appendLog(
-        `${intent.type} (${intent.id})` +
-          (intent.type === 'card.move'
-            ? ` ${intent.cardIds.join(',')} ${intent.from}->${intent.to}`
-            : intent.type === 'hand.reorder'
-              ? ` ${intent.cardId} -> ${intent.toIndex}`
-              : intent.type === 'pile.draw'
-                ? ` ${intent.pileId} -> ${intent.to}`
-                : intent.type === 'turn.pass'
-                  ? ' pass'
-                  : ''),
-      );
-
-      if (intent.type === 'card.move') {
-        const [cardId] = intent.cardIds;
-        setHand((current) => {
-          const card = current.find((candidate) => candidate.id === cardId);
-          if (!card) return current;
-          const without = current.filter((candidate) => candidate.id !== cardId);
-          if (intent.to === 'lab-pile') {
-            setPile((p) => [...p, card]);
-            coordinator.commitMove({
-              transactionId: intent.id,
-              cardId: card.id,
-              fromZoneId: intent.from,
-              toZoneId: intent.to,
-              cue: 'move',
-            });
-          } else if (intent.to === 'lab-discard') {
-            setDiscard((d) => [...d, card]);
-            coordinator.commitMove({
-              transactionId: intent.id,
-              cardId: card.id,
-              fromZoneId: intent.from,
-              toZoneId: intent.to,
-              cue: 'discard',
-            });
-          } else if (intent.to === 'lab-partner-hand') {
-            setPartnerHand((p) => [...p, card]);
-            coordinator.commitMove({
-              transactionId: intent.id,
-              cardId: card.id,
-              fromZoneId: intent.from,
-              toZoneId: intent.to,
-              cue: 'draw',
-              concealed: true,
-            });
-          }
-          return without;
-        });
-        setPartnerHand((current) => {
-          const card = current.find((candidate) => candidate.id === cardId);
-          if (!card) return current;
-          if (intent.to !== 'lab-hand') return current;
-          setHand((h) => [...h, card]);
-          coordinator.commitMove({
-            transactionId: intent.id,
-            cardId: card.id,
-            fromZoneId: intent.from,
-            toZoneId: intent.to,
-            cue: 'draw',
-          });
-          return current.filter((candidate) => candidate.id !== cardId);
-        });
-        setPile((current) => {
-          const card = current.find((candidate) => candidate.id === cardId);
-          if (!card) return current;
-          if (intent.to !== 'lab-hand') return current;
-          setHand((h) => [...h, card]);
-          coordinator.commitMove({
-            transactionId: intent.id,
-            cardId: card.id,
-            fromZoneId: intent.from,
-            toZoneId: intent.to,
-            cue: 'collect',
-          });
-          return current.filter((candidate) => candidate.id !== cardId);
-        });
-      } else if (intent.type === 'pile.draw') {
-        // Lab deck semantics: deal the next unused card from FULL_DECK.
-        const used = new Set([...hand, ...pile, ...partnerHand, ...discard].map((spec) => spec.id));
-        const next = FULL_DECK.find((spec) => !used.has(spec.id));
-        if (next) {
-          setHand((current) => [...current, next]);
-          coordinator.commitMove({
-            transactionId: intent.id,
-            cardId: next.id,
-            fromZoneId: intent.pileId,
-            toZoneId: intent.to,
-            cue: 'draw',
-          });
-        }
-      } else if (intent.type === 'hand.reorder') {
-        setHand((current) => {
-          const index = current.findIndex((card) => card.id === intent.cardId);
-          if (index < 0) return current;
-          const copy = [...current];
-          const [moved] = copy.splice(index, 1);
-          const clamped = Math.max(0, Math.min(copy.length, intent.toIndex));
-          copy.splice(clamped, 0, moved);
-          return copy;
-        });
-      } else if (intent.type === 'turn.pass') {
-        setVeilUp(true);
+      const canonicalIntent = toEngineIntent(intent);
+      const result = authorityRef.current!.transport.sendIntent(canonicalIntent);
+      if (!result.ok) {
+        appendLog(`REJECTED ${intent.type} (${intent.id}) · ${result.error ?? 'illegal'}`);
+        return;
       }
+
+      appendLog(`${intent.type} (${intent.id}) · ${result.events.length} event(s)`);
+      setEngineState(result.state);
+      for (const event of result.events) {
+        if (!('cardId' in event) || !event.fromZoneId || !event.toZoneId) continue;
+        if (event.fromZoneId === event.toZoneId) continue;
+        const fromZoneId = surfaceZoneId(event.fromZoneId);
+        const toZoneId = surfaceZoneId(event.toZoneId);
+        if (!fromZoneId || !toZoneId) continue;
+        const cue = event.cue === 'deal'
+          || event.cue === 'draw'
+          || event.cue === 'discard'
+          || event.cue === 'collect'
+          || event.cue === 'reveal'
+          || event.cue === 'muck'
+          || event.cue === 'move'
+          ? event.cue
+          : 'move';
+        coordinator.commitMove({
+          eventId: event.id,
+          transactionId: event.transactionId ?? intent.id,
+          cardId: event.cardId,
+          fromZoneId,
+          toZoneId,
+          cue,
+          concealed: result.state.cards[event.cardId]?.face === 'down',
+        });
+      }
+      if (intent.type === 'turn.pass') setVeilUp(true);
     },
-    [appendLog, coordinator, discard, hand, partnerHand, pile],
+    [appendLog, coordinator],
   );
 
   const legalTargets = useMemo<LegalTargetsProvider>(
     () =>
-      ({ fromZoneId }) => {
-        // Real engine legality via legalIntents (Phase 2 wiring).
-        // The lab builds a minimal engine state so the engine is the ONLY legality authority.
-        const state = labEngineState(hand, pile, discard, partnerHand);
-        const result = legalIntents(state, 'lab-actor', 'player');
-        const targetZoneIds = result.targets.map((t) => t.zoneId);
-        // Map engine zone ids back to lab zone ids.
-        const labTargets = targetZoneIds.map((zoneId) => {
-          if (zoneId === 'draw') return 'lab-deck';
-          if (zoneId === 'discard') return 'lab-discard';
-          if (zoneId.startsWith('hand:')) return zoneId === 'hand:lab-actor' ? 'lab-hand' : 'lab-partner-hand';
-          return zoneId;
-        });
-        // Fallback: if no legal targets, allow all lab zones (lab is a sandbox).
-        const base = ['lab-pile', 'lab-discard', 'lab-partner-hand', 'lab-hand'];
-        return { zoneIds: labTargets.length > 0 ? labTargets.filter((z) => z !== fromZoneId) : base.filter((z) => z !== fromZoneId) };
+      ({ cardId, fromZoneId }) => {
+        const result = legalIntents(engineState, LAB_ACTOR, 'player', 'hot-seat');
+        const source = result.sources.find(
+          (candidate) => candidate.zoneId === engineZoneId(fromZoneId),
+        );
+        if (!source?.cardIds.includes(cardId)) return { zoneIds: [] };
+        return {
+          zoneIds: result.targets
+            .filter((target) => target.intentType === 'card.move')
+            .map((target) => surfaceZoneId(target.zoneId))
+            .filter((zoneId): zoneId is string => Boolean(zoneId) && zoneId !== fromZoneId),
+        };
       },
-    [discard, hand, partnerHand, pile],
+    [engineState],
   );
 
   const fanCards = useMemo<HandFanCard[]>(
@@ -356,7 +358,7 @@ function LabSurface() {
         accessibilityLabel: `${spec.rank} of ${spec.suit}`,
         render: (concealed) => renderCardFace(spec, Boolean(concealed)),
       })),
-    [fanCount, flipped, hand],
+    [fanCount, hand],
   );
 
   const partnerCards = useMemo<HandFanCard[]>(
@@ -375,9 +377,9 @@ function LabSurface() {
     return {
       id: top.id,
       accessibilityLabel: `Top of pile: ${top.rank} of ${top.suit}`,
-      render: () => renderCardFace(top, false),
+      render: () => renderCardFace(top, engineState.cards[top.id]?.face === 'down'),
     };
-  }, [pile]);
+  }, [engineState.cards, pile]);
 
   const pileFollowers = useMemo(
     () =>
@@ -391,45 +393,35 @@ function LabSurface() {
   const flipTopOfPile = useCallback(() => {
     const top = pile[pile.length - 1];
     if (!top) return;
-    const nextFlip = new Set(flipped);
-    if (nextFlip.has(top.id)) {
-      nextFlip.delete(top.id);
-    } else {
-      nextFlip.add(top.id);
-    }
-    setFlipped(nextFlip);
-  }, [flipped, pile]);
+    dispatchIntent({
+      id: nextPhysicalIntentId('flip'),
+      type: 'card.flip',
+      actorId: LAB_ACTOR,
+      cardId: top.id,
+    });
+  }, [dispatchIntent, pile]);
 
   const collectPile = useCallback(() => {
     if (pile.length === 0) return;
-    setDiscard((current) => current.concat(pile));
-    setPile([]);
-    announce(`Collected pile of ${pile.length}`);
-    pile.forEach((spec, index) => {
-      coordinator.commitMove({
-        transactionId: `${nextPhysicalIntentId('collect')}-${index}`,
-        cardId: spec.id,
-        fromZoneId: 'lab-pile',
-        toZoneId: 'lab-discard',
-        cue: 'collect',
-      });
+    dispatchIntent({
+      id: nextPhysicalIntentId('collect'),
+      type: 'pile.take',
+      actorId: LAB_ACTOR,
+      pileId: 'lab-pile',
+      to: 'lab-discard',
     });
-  }, [announce, coordinator, pile]);
+    announce(`Collected pile of ${pile.length}`);
+  }, [announce, dispatchIntent, pile]);
 
   const resetLab = useCallback(() => {
-    setHand(FULL_DECK.slice(0, fanCount));
-    setPile([]);
-    setDiscard([]);
-    setPartnerHand([]);
-    setFlipped(new Set());
+    authorityRef.current = createLabAuthority(fanCount);
+    setEngineState(authorityRef.current.runtime.getState());
+    coordinator.flush();
     setLogLines([]);
     setVeilUp(false);
-  }, [fanCount]);
+  }, [coordinator, fanCount]);
 
-  const deckCount = useMemo(() => {
-    const used = new Set([...hand, ...pile, ...partnerHand].map((spec) => spec.id));
-    return FULL_DECK.length - used.size - discard.length;
-  }, [discard.length, hand, partnerHand, pile]);
+  const deckCount = engineState.zones[ZONE_DRAW]?.cardIds.length ?? 0;
 
   return (
     <View style={styles.root}>
@@ -467,7 +459,9 @@ function LabSurface() {
                 accessibilityLabel={`Fan with ${count} cards`}
                 onPress={() => {
                   setFanCount(count);
-                  setHand(FULL_DECK.slice(0, count));
+                  authorityRef.current = createLabAuthority(count);
+                  setEngineState(authorityRef.current.runtime.getState());
+                  coordinator.flush();
                 }}
                 style={[styles.chip, fanCount === count && styles.chipActive]}
               >
@@ -547,7 +541,6 @@ function LabSurface() {
                     lead={pileLead}
                     run={pileFollowers}
                     legalTargets={legalTargets}
-                    runTargets={['lab-hand', 'lab-discard']}
                     dispatchIntent={dispatchIntent}
                   />
                 ) : (

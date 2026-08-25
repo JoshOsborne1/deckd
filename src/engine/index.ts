@@ -19,16 +19,21 @@ export {
 export {
   buildViewerProjection,
   projectStateForViewer,
+  projectStateForSurface,
   projectEventsForViewer,
+  projectEventsForSurface,
   projectSnapshotWithTail,
+  projectSnapshotWithTailForSurface,
   projectDiagnosticsForViewer,
   visibleCardsForPlayerInState,
+  type ProjectionRequest,
   type ViewerProjection,
 } from './projection';
 export {
   withSemantics,
   semanticsOf,
   inferCue,
+  cueForIntent,
   type PresentationCue,
   type EventSemantics,
 } from './presentationCues';

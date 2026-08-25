@@ -16,25 +16,21 @@ import Animated, {
   withSpring,
   withTiming,
 } from 'react-native-reanimated';
-import { BookOpen, ChevronLeft, Clock, Flag, Undo2 } from 'lucide-react-native';
 import { AvatarPlaceholder } from '@components/AvatarPlaceholder';
 import { CardButton } from '@components/CardButton';
 import { CardDragHand } from '@components/CardDragHand';
 import { PlayingCard } from '@components/PlayingCard';
-import { TableSurface } from '@components/TableSurface';
-import { EventHistoryModal } from '@components/EventHistoryModal';
-import { RulesSheet } from '@components/RulesSheet';
 import { RingPulseB, ChipSlideB } from '@components/animations/GameFxB';
+import { TableShell } from '@components/table/TableShell';
+import { useTableSession } from '@components/table/useTableSession';
 import { useGameFxB, useToggleTriggerB } from '@hooks/useGameFxB';
 import { useLayerSurfaceEntrance } from '@hooks/useLayerSurfaceEntrance';
 import { useMotion } from '@hooks/useMotion';
 import { useUiStore } from '@store/uiStore';
 import { useGameStore } from '@store/gameStore';
-import { useLobbyStore } from '@store/lobbyStore';
 import {
   parseCardId,
   selectCardFace,
-  selectCanUndo,
   selectCurrentPlayerId,
   selectIsMyTurn,
   selectLocalHand,
@@ -79,30 +75,12 @@ export function SevensTable({ active, topInset, bottomInset }: SevensTableProps)
   const compactLayout = viewportWidth <= 480;
   const { haptic, reduceMotion } = useMotion();
   const setViewMode = useUiStore((s) => s.setViewMode);
-  const [historyOpen, setHistoryOpen] = useState(false);
-  const [rulesOpen, setRulesOpen] = useState(false);
 
   const state = useGameStore((s) => s.state);
   const events = useGameStore((s) => s.events);
-  const endSession = useGameStore((s) => s.endSession);
   const replaySession = useGameStore((s) => s.replaySession);
-  const undoLastAction = useGameStore((s) => s.undoLastAction);
   const gameAction = useGameStore((s) => s.gameAction);
-
-  const lobbyStatus = useLobbyStore((s) => s.status);
-  const lobbySession = useLobbyStore((s) => s.session);
-  const localClientId = useLobbyStore((s) => s.localClientId);
-
-  const isOnline = state.meta.mode === 'online-host' || state.meta.mode === 'online-guest';
-  const isGuest = state.meta.mode === 'online-guest';
-  const hostPlayerId = state.meta.hostId || null;
-  const viewerId = isOnline
-    ? isGuest
-      ? localClientId
-      : hostPlayerId
-    : state.meta.mode === 'pass' && state.currentPlayerId
-      ? state.currentPlayerId
-      : hostPlayerId;
+  const { viewerId, isRemoteGuest: isGuest, lobbySession } = useTableSession(state);
 
   const { batch } = useGameFxB(viewerId);
   const surfaceStyle = useLayerSurfaceEntrance(active);
@@ -125,10 +103,7 @@ export function SevensTable({ active, topInset, bottomInset }: SevensTableProps)
     () => (viewerId ? selectIsMyTurn(state, viewerId) : false),
     [state, viewerId],
   );
-  const canUndo = useMemo(
-    () => (viewerId ? selectCanUndo(state, viewerId) : false),
-    [state, viewerId],
-  );
+
   const communityCards = useMemo(
     () => state.zones[communalZoneId(0)]?.cardIds ?? [],
     [state],
@@ -158,16 +133,6 @@ export function SevensTable({ active, topInset, bottomInset }: SevensTableProps)
     },
     [viewerId, isGuest, lobbySession, haptic, gameAction],
   );
-
-  const handleUndo = useCallback(() => {
-    haptic('medium');
-    undoLastAction();
-  }, [haptic, undoLastAction]);
-
-  const handleEndSession = useCallback(() => {
-    haptic('heavy');
-    endSession(viewerId ?? undefined);
-  }, [haptic, endSession, viewerId]);
 
   const handleBackToHub = useCallback(() => {
     haptic('light');
@@ -277,31 +242,13 @@ export function SevensTable({ active, topInset, bottomInset }: SevensTableProps)
       pointerEvents={active ? 'auto' : 'none'}
       style={[styles.root, { bottom: bottomInset }, surfaceStyle]}
     >
-      <TableSurface mode="play" />
-
-      {/* Header */}
-      <View style={[styles.header, { paddingTop: topInset + space.md }]}>
-        <CardButton
-          variant="ghost"
-          size="sm"
-          elevated={false}
-          haptic="light"
-          onPress={handleBackToHub}
-          style={styles.backChip}
-        >
-          <ChevronLeft size={18} color={colors.inkMuted} />
-          <Text style={styles.backText}>Hub</Text>
-        </CardButton>
-        <Text style={styles.eyebrow}>
-          {isMyTurn ? 'YOUR TURN' : `${currentPlayerName.toUpperCase()} · TO PLAY`}
-        </Text>
-        {lobbyStatus === 'connected' && (
-          <View style={styles.syncChip}>
-            <View style={styles.syncDot} />
-            <Text style={styles.syncText}>SYNCED</Text>
-          </View>
-        )}
-      </View>
+      <TableShell
+        title="SEVENS"
+        active={active}
+        onBackToHub={handleBackToHub}
+        topInset={topInset}
+        bottomInset={0}
+      >
 
       {/* Opponents */}
       <View style={styles.opponents}>
@@ -395,19 +342,10 @@ export function SevensTable({ active, topInset, bottomInset }: SevensTableProps)
         </View>
       )}
 
-      {/* Action rail */}
-      <View style={[styles.actionBar, { marginBottom: bottomInset > 0 ? 0 : space.lg }]}>
-        <Pressable
-          onPress={handleUndo}
-          disabled={!canUndo}
-          accessibilityRole="button"
-          accessibilityLabel="Undo last action"
-          style={({ pressed }) => [styles.iconBtn, pressed && { opacity: 0.85 }, !canUndo && { opacity: 0.5 }]}
-        >
-          <Undo2 size={20} color={colors.brand} />
-        </Pressable>
-
-        {state.phase !== 'ended' && railActions.length > 0 ? (
+      {/* Non-card decisions remain available as an accessibility fallback. */}
+      {state.phase !== 'ended' && (
+        <View style={[styles.actionBar, { marginBottom: bottomInset > 0 ? 0 : space.lg }]}>
+          {railActions.length > 0 ? (
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
@@ -430,7 +368,7 @@ export function SevensTable({ active, topInset, bottomInset }: SevensTableProps)
               </CardButton>
             ))}
           </ScrollView>
-        ) : state.phase !== 'ended' ? (
+          ) : (
           <View style={styles.ruleWaiting}>
             <Text style={styles.ruleWaitingText}>
               {isMyTurn && dragSpecs.size > 0
@@ -440,33 +378,9 @@ export function SevensTable({ active, topInset, bottomInset }: SevensTableProps)
                   : `${currentPlayerName.toUpperCase()} · TO PLAY`}
             </Text>
           </View>
-        ) : null}
-
-        <Pressable
-          onPress={() => setHistoryOpen(true)}
-          accessibilityRole="button"
-          accessibilityLabel="Open event log"
-          style={({ pressed }) => [styles.iconBtn, pressed && { opacity: 0.85 }]}
-        >
-          <Clock size={20} color={colors.inkMuted} />
-        </Pressable>
-        <Pressable
-          onPress={() => setRulesOpen(true)}
-          style={({ pressed }) => [styles.iconBtn, pressed && { opacity: 0.85 }]}
-          accessibilityRole="button"
-          accessibilityLabel="Read table rules"
-        >
-          <BookOpen size={20} color={colors.inkMuted} />
-        </Pressable>
-        <Pressable
-          onPress={handleEndSession}
-          accessibilityRole="button"
-          accessibilityLabel="End table"
-          style={({ pressed }) => [styles.iconBtn, pressed && { opacity: 0.85 }]}
-        >
-          <Flag size={20} color={colors.brand} />
-        </Pressable>
-      </View>
+          )}
+        </View>
+      )}
 
       {/* Local hand with drag handles */}
       <View style={[styles.hand, { paddingBottom: bottomInset + space.lg }]}>
@@ -498,16 +412,7 @@ export function SevensTable({ active, topInset, bottomInset }: SevensTableProps)
         )}
       </View>
 
-      <EventHistoryModal
-        visible={historyOpen}
-        events={events}
-        onClose={() => setHistoryOpen(false)}
-      />
-      <RulesSheet
-        visible={rulesOpen}
-        presetId={state.config.presetId}
-        onClose={() => setRulesOpen(false)}
-      />
+      </TableShell>
     </Animated.View>
   );
 }
@@ -637,50 +542,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     flexDirection: 'column',
   },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: space.xl,
-    gap: space.md,
-  },
-  backChip: {
-    paddingHorizontal: space.md,
-  },
-  backText: {
-    marginLeft: 4,
-    fontSize: fontSizes.small + 1,
-    fontFamily: fonts.semibold,
-    color: colors.inkMuted,
-  },
-  eyebrow: {
-    flex: 1,
-    textAlign: 'center',
-    fontSize: fontSizes.caption,
-    fontFamily: fonts.bold,
-    color: colors.inkSubtle,
-    letterSpacing: letterSpacing.caps,
-  },
-  syncChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: alpha.brand10,
-    paddingHorizontal: space.sm,
-    paddingVertical: 2,
-    borderRadius: radii.pill,
-  },
-  syncDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: colors.brand,
-  },
-  syncText: {
-    fontSize: 9,
-    fontFamily: fonts.bold,
-    color: colors.brand,
-    letterSpacing: letterSpacing.caps,
-  },
+
   opponents: {
     flexDirection: 'row',
     justifyContent: 'center',
@@ -906,15 +768,7 @@ const styles = StyleSheet.create({
     color: colors.inkSubtle,
     letterSpacing: letterSpacing.cap,
   },
-  iconBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: radii.pill,
-    backgroundColor: colors.surface,
-    alignItems: 'center',
-    justifyContent: 'center',
-    ...shadow.card,
-  },
+
   hand: {
     justifyContent: 'center',
     width: '100%',
