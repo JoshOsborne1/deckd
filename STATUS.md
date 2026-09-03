@@ -1,5 +1,7 @@
 # Deckd status
 
+- Slice 0e (2026-09-03): jest teardown warning fixed — root cause jest-worker's 500ms force-exit window on Windows/Node 24, not a test leak (`--detectOpenHandles` in-band: zero handles); `maxWorkers: 1` in jest.config.js, 324/324 green with zero warnings across 3 consecutive runs (33s vs 40s with workers).
+
 - Deep audit + cleanup plan 2026-09-03 (`docs/CLEANUP_2026-09-03.md`): gates green (typecheck clean, lint 0e/12w, jest 324/324), live screenshots confirm nav clipping at 375, distorted/off-palette RevK faces, duplicated readouts, store/hub copy defects; slices ordered one-deck-first, no fixes applied.
 - Rebuild started on `rebuild/physical-cards`; Phase 0 complete (2026-08-24): source-of-truth contract, ADRs, and deterministic baseline fixtures frozen.
 
