@@ -42,7 +42,7 @@ export function TurnToken({
   style,
   testID,
 }: TurnTokenProps) {
-  const { haptic, reduceMotion, announce } = useMotion();
+  const { haptic, announce } = useMotion();
   const travel = useSharedValue(0);
   const passed = useSharedValue(false);
 

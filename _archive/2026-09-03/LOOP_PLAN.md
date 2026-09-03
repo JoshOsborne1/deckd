@@ -1,5 +1,7 @@
 # LOOP PLAN — Nav v3: chips on the table edge (t_049705ec)
 
+> SUPERSEDED 2026-09-03: lane landed and merged long ago; kept as history. Live brief is docs/CLEANUP_2026-09-03.md.
+
 ## Goal
 Take directive 13 (chips on the table edge) to the ready bar. The nav must
 read as the table's physical edge with four flat cylinder chips and a deck

@@ -297,7 +297,6 @@ function analyzeGuestFrames(frames, guestClientId, hostClientId) {
     // BURN/FLOP appear only after the preflop round closes. So BURN/FLOP being
     // absent at deal is EXPECTED — the street progression section below
     // closes the round and then asserts BURN → FLOP → TURN → RIVER → SHOWDOWN.
-    const hostTableBody = await body(host);
     await host.screenshot({ path: '.qa-holdem-host-dealt.png', fullPage: false });
     steps.hostTableDealt = true;
     // Visible/interactable controls only — raw body text includes hidden
@@ -337,7 +336,6 @@ function analyzeGuestFrames(frames, guestClientId, hostClientId) {
       document.body.innerText.includes('POT'),
     );
     await guest.waitForTimeout(2000);
-    const guestTableBody = await body(guest);
     await guest.screenshot({ path: '.qa-holdem-guest-dealt.png', fullPage: false });
     steps.guestTableDealt = true;
 
@@ -499,13 +497,13 @@ function analyzeGuestFrames(frames, guestClientId, hostClientId) {
         await guest.waitForTimeout(1200);
         await host.waitForTimeout(1200);
         steps.guestPreflopCheck = true;
-      } catch (e) {
+      } catch (_e) {
         try {
           await guestCallBtn.first().click({ timeout: 5000 });
           await guest.waitForTimeout(1200);
           await host.waitForTimeout(1200);
           steps.guestPreflopCall = true;
-        } catch (e2) {
+        } catch (_e2) {
           // Guest may not be the turn holder (e.g. host's call closed the
           // round if the engine treats the host as last to act). Not a defect.
           steps.guestPreflopCall = 'skipped: guest not the turn holder';
@@ -539,14 +537,14 @@ function analyzeGuestFrames(frames, guestClientId, hostClientId) {
         await host.waitForTimeout(1000);
         steps[`${who}${label}Check`] = true;
         return true;
-      } catch (e) {
+      } catch (_e) {
         try {
           await callBtn.first().click({ timeout: 4000 });
           await guest.waitForTimeout(1000);
           await host.waitForTimeout(1000);
           steps[`${who}${label}Call`] = true;
           return true;
-        } catch (e2) {
+        } catch (_e2) {
           return false;
         }
       }

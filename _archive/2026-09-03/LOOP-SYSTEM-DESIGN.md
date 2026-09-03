@@ -1,5 +1,7 @@
 # Deckd Loop System Design
 
+> SUPERSEDED 2026-09-03: autonomous loop retired by Josh 2026-08-13; kept as history. Live brief is docs/CLEANUP_2026-09-03.md; continuous work runs via the deckd-cleanup cron job.
+
 Date: 2026-08-11
 Author: Josh's agent (GLM-5.2)
 Status: building

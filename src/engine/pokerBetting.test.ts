@@ -14,7 +14,7 @@
  *    the call amount.
  */
 
-import { applyEvent, foldEvents } from './state';
+import { foldEvents } from './state';
 import { eventId } from './events';
 import type { GameEvent } from './events';
 import type { GameState, PlayerId } from './types';

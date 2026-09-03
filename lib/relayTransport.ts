@@ -11,7 +11,6 @@ import {
   parseBatchAck,
   parseEventBatchEnvelope,
   type BatchAckEnvelope,
-  type EventBatchEnvelope,
 } from '@lib/relayAck';
 import {
   envelope,

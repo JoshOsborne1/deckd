@@ -136,7 +136,6 @@ async function readGeometry(page) {
 
     await reset(page);
     await startPreset(page, 'Go Fish');
-    const fishBefore = await page.locator('body').innerText();
     const fishAction = await handCardButton(page);
     await fishAction.click();
     await page.waitForTimeout(500);
@@ -188,7 +187,6 @@ async function readGeometry(page) {
 
     await reset(page);
     await startPreset(page, 'Sevens');
-    const sevensBefore = await page.locator('body').innerText();
     const sevensCard = await optionalHandCardButton(page);
     const sevensPass = page.getByRole('button', { name: /^PASS$/ }).last();
     const sevensHasPass = await sevensPass.isEnabled().catch(() => false);

@@ -9,7 +9,6 @@ import Animated, {
 import { TableSurface } from '@components/TableSurface';
 import { useMotion } from '@hooks/useMotion';
 import { EASING_EMPHASIZED } from '@lib/motion';
-import { getDrawerMotion } from '@lib/surfaceMorph';
 import { alpha, colors, radii, shadow, space } from '@theme';
 
 export interface FeltDrawerProps {

@@ -43,3 +43,9 @@ yarn-error.*
 .vischeck-sweep/
 tmp-animation-audit/
 qa/oldmaid-qa-out.json
+
+# Exported web preview output (rebuild: npx expo export --platform web, copy
+# dist/* into app-serve/, pm2 restart deckd-app). Bundles and hashed assets
+# must never be committed; the server itself stays tracked.
+app-serve/*
+!app-serve/serve.mjs

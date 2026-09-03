@@ -1,5 +1,7 @@
 # Deckd LOOP Runbook
 
+> SUPERSEDED 2026-09-03: autonomous loop retired by Josh 2026-08-13; kept as history. Live brief is docs/CLEANUP_2026-09-03.md; continuous work runs via the deckd-cleanup cron job.
+
 **STATUS: LOOP SHUT DOWN 2026-08-13 (Josh).** All loop crons removed; the
 machinery described below is inert but fully documented for revival. See
 `docs/HANDOFF_2026-08-13.md` for the shutdown snapshot.
