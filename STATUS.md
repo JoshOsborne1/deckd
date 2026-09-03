@@ -1,5 +1,6 @@
 # Deckd status
 
+- Deep audit + cleanup plan 2026-09-03 (`docs/CLEANUP_2026-09-03.md`): gates green (typecheck clean, lint 0e/12w, jest 324/324), live screenshots confirm nav clipping at 375, distorted/off-palette RevK faces, duplicated readouts, store/hub copy defects; slices ordered one-deck-first, no fixes applied.
 - Rebuild started on `rebuild/physical-cards`; Phase 0 complete (2026-08-24): source-of-truth contract, ADRs, and deterministic baseline fixtures frozen.
 
 **LOOP SHUT DOWN 2026-08-13 (Josh).** All deckd crons removed (loop-watchdog,
