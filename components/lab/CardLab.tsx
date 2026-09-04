@@ -44,6 +44,7 @@ import { StackSurface } from '@components/card/StackSurface';
 import { TurnToken } from '@components/card/TurnToken';
 import { ZoneRegistryProvider } from '@components/table/ZoneRegistry';
 import { PlayingCard, type PlayingCardSize } from '@components/PlayingCard';
+import { ZoneWell } from '@components/ZoneWell';
 import { PrivacyVeil } from '@components/PrivacyVeil';
 import { useMotion } from '@hooks/useMotion';
 import {
@@ -527,7 +528,7 @@ function LabSurface() {
                     size="md"
                   />
                 ) : (
-                  <View style={styles.emptyZone} />
+                  <ZoneWell width={90} height={126} />
                 )}
                 <Text style={styles.zoneCount}>{discard.length}</Text>
               </View>
@@ -546,7 +547,7 @@ function LabSurface() {
                     dispatchIntent={dispatchIntent}
                   />
                 ) : (
-                  <View style={styles.emptyZone} />
+                  <ZoneWell width={90} height={126} />
                 )}
                 <Text style={styles.zoneCount}>{pile.length}</Text>
               </View>
@@ -783,7 +784,8 @@ const styles = StyleSheet.create({
   },
   zoneRow: {
     flexDirection: 'row',
-    justifyContent: 'space-around',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
     alignItems: 'flex-start',
     gap: space.lg,
   },
@@ -811,14 +813,6 @@ const styles = StyleSheet.create({
     color: colors.inkSubtle,
     fontFamily: fonts.regular,
     fontSize: 11,
-  },
-  emptyZone: {
-    width: 90,
-    height: 126,
-    borderRadius: radii.card,
-    borderWidth: 1,
-    borderColor: colors.borderStrong,
-    borderStyle: 'dashed',
   },
   pileActions: {
     flexDirection: 'row',

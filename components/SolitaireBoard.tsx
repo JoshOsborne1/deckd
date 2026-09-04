@@ -2,6 +2,7 @@ import React, { useCallback, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { PlayingCard } from '@components/PlayingCard';
 import { CardButton } from '@components/CardButton';
+import { ZoneWell } from '@components/ZoneWell';
 import { useMotion } from '@hooks/useMotion';
 import { useGameStore } from '@store/gameStore';
 import {
@@ -108,9 +109,9 @@ function EmptySlot({ label, onPress, selected }: { label?: string; onPress?: () 
     <Pressable
       onPress={onPress}
       disabled={!onPress}
-      style={[styles.emptySlot, selected && styles.slotSelected]}
+      style={[styles.emptySlot]}
     >
-      {label ? <Text style={styles.emptySlotLabel}>{label}</Text> : null}
+      <ZoneWell width={60} height={84} label={label} active={selected} />
     </Pressable>
   );
 }
@@ -666,7 +667,7 @@ function GolfBoard({
               style={styles.golfColumn}
             >
               {cards.length === 0 ? (
-                <View style={styles.golfEmptySlot} />
+                <ZoneWell width={36} height={50} />
               ) : (
                 cards.map((cardId, idx) => {
                   const card = state.cards[cardId];
@@ -774,18 +775,8 @@ const styles = StyleSheet.create({
   emptySlot: {
     width: 60,
     height: 84,
-    borderRadius: radii.card,
-    borderWidth: 1.5,
-    borderStyle: 'dashed',
-    borderColor: alpha.inkOverlay12,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  emptySlotLabel: {
-    fontSize: fontSizes.caption,
-    fontFamily: fonts.bold,
-    color: colors.inkMuted,
-    letterSpacing: letterSpacing.caps,
   },
   slotSelected: {
     borderColor: colors.brand,
@@ -800,7 +791,7 @@ const styles = StyleSheet.create({
     backgroundColor: alpha.inkOverlay45,
     paddingHorizontal: 4,
     paddingVertical: 1,
-    borderRadius: 4,
+    borderRadius: radii.xs,
     overflow: 'hidden',
   },
 
@@ -920,14 +911,6 @@ const styles = StyleSheet.create({
   golfCardPos: {
     position: 'absolute',
     left: 0,
-  },
-  golfEmptySlot: {
-    width: 36,
-    height: 50,
-    borderRadius: radii.card,
-    borderWidth: 1.5,
-    borderStyle: 'dashed',
-    borderColor: alpha.inkOverlay12,
   },
 
   // Action bar

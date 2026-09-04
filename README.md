@@ -1,5 +1,8 @@
 # Deckd
 
+Status: supporting project overview. Canonical current brief: `CURRENT.md`.
+
+
 Deckd is an Expo/React Native card-table app. The v1 target is deliberately narrow: **a polished pass-and-play card table on one phone, plus multiplayer lobbies hosted by a Deckd Master**. BLE nearby multiplayer is dropped from the first build. Rive, custom rules, and real IAP configuration are parked until the core loop feels good.
 
 ## Current status

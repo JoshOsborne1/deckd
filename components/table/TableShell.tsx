@@ -14,7 +14,7 @@ import { useUiStore } from '@store/uiStore';
 import { useMotion } from '@hooks/useMotion';
 import { selectCurrentPlayerId, selectIsMyTurn } from '@engine/selectors';
 import { TableSurface } from '@components/TableSurface';
-import { colors, fonts, fontSizes, letterSpacing, space } from '@theme';
+import { colors, fonts, fontSizes, letterSpacing, radii, space } from '@theme';
 import { UtilityDrawer } from './UtilityDrawer';
 import { useTableSession } from './useTableSession';
 
@@ -175,7 +175,7 @@ const styles = StyleSheet.create({
   syncDot: {
     width: 8,
     height: 8,
-    borderRadius: 4,
+    borderRadius: radii.xs,
     backgroundColor: colors.brand,
     marginRight: space.xs,
   },

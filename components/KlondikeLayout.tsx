@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { PlayingCard, type PlayingCardBack } from '@components/PlayingCard';
+import { ZoneWell } from '@components/ZoneWell';
 import type { GameAction } from '@engine/rules';
 import {
   KLONDIKE_FOUNDATION_SUITS,
@@ -84,7 +85,7 @@ function CardSlot({
       ) : card ? (
         <PlayingCard face={card.face} size={cardSize} back={back} style={{ transform: [{ scale: cardScale }] }} />
       ) : (
-        <Text style={[styles.emptySlotText, { width: slotWidth, height: slotHeight }]}>{placeholder ?? '·'}</Text>
+        <ZoneWell width={slotWidth} height={slotHeight} label={placeholder ?? '·'} active={selected} />
       )}
     </Pressable>
   );
@@ -315,17 +316,6 @@ const styles = StyleSheet.create({
   },
   cardSlotPressed: {
     transform: [{ scale: 0.96 }],
-  },
-  emptySlotText: {
-    borderWidth: 1,
-    borderStyle: 'dashed',
-    borderColor: colors.borderStrong,
-    borderRadius: radii.sm,
-    textAlign: 'center',
-    textAlignVertical: 'center',
-    fontSize: 16,
-    fontFamily: fonts.extra,
-    color: colors.inkSubtle,
   },
   tableauLabelRow: {
     width: '100%',

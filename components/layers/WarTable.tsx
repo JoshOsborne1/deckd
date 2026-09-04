@@ -14,6 +14,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { CardButton } from '@components/CardButton';
 import { PlayingCard } from '@components/PlayingCard';
+import { ZoneWell } from '@components/ZoneWell';
 import { TableShell } from '@components/table/TableShell';
 import { useTableSession } from '@components/table/useTableSession';
 import { useLayerSurfaceEntrance } from '@hooks/useLayerSurfaceEntrance';
@@ -34,7 +35,7 @@ import {
   type CardInstance,
 } from '@engine/types';
 import { getGameRules, type GameAction, type GameActionSpec } from '@engine/rules';
-import { alpha, colors, fonts, fontSizes, letterSpacing, motion, radii, shadow, space } from '@theme';
+import { colors, fonts, fontSizes, letterSpacing, motion, radii, shadow, space } from '@theme';
 
 interface WarTableProps {
   active: boolean;
@@ -143,7 +144,7 @@ export function WarTable({ active, topInset, bottomInset }: WarTableProps) {
     if (!cardId) {
       return (
         <View key={`slot-${index}`} style={styles.battleSlot}>
-          <View style={styles.battlePlaceholder} />
+          <ZoneWell width={110} height={154} />
           <Text style={styles.battleSlotLabel}>{index === 0 ? 'YOUR CARD' : 'THEIR CARD'}</Text>
         </View>
       );
@@ -290,15 +291,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: space.xs,
     minWidth: 110,
-  },
-  battlePlaceholder: {
-    width: 110,
-    height: 154,
-    borderRadius: radii.card,
-    borderWidth: 1,
-    borderStyle: 'dashed',
-    borderColor: alpha.inkOverlay20,
-    backgroundColor: alpha.whiteOverlay45,
   },
   battleSlotLabel: {
     fontSize: 9,

@@ -598,10 +598,10 @@ export function HubLayer({
             accessibilityRole="button"
             accessibilityLabel={`Read ${activePreset.name} rules`}
             onPress={() => setRulesOpen(true)}
-            style={({ pressed }) => [styles.rulesChip, pressed && styles.rulesChipPressed]}
+            style={({ pressed }) => [styles.rulesLink, pressed && styles.rulesLinkPressed]}
           >
             <BookOpen size={15} color={colors.brand} />
-            <Text style={styles.rulesChipText}>RULES</Text>
+            <Text style={styles.rulesLinkText}>VIEW RULES</Text>
           </Pressable>
         </View>
 
@@ -1316,7 +1316,7 @@ const styles = StyleSheet.create({
   presetMark: {
     width: 8,
     height: 8,
-    borderRadius: 4,
+    borderRadius: radii.xs,
     backgroundColor: alpha.brand45,
   },
   presetMarkActive: {
@@ -1360,22 +1360,18 @@ const styles = StyleSheet.create({
     marginTop: space.md,
     paddingBottom: space.xs,
   },
-  rulesChip: {
+  rulesLink: {
     minHeight: 44,
     flexDirection: 'row',
     alignItems: 'center',
     gap: space.xs,
-    paddingHorizontal: space.sm,
-    borderRadius: radii.md,
-    borderWidth: 1,
-    borderColor: alpha.brand20,
-    backgroundColor: alpha.brand10,
+    paddingHorizontal: space.xs,
   },
-  rulesChipPressed: {
+  rulesLinkPressed: {
+    opacity: 0.65,
     transform: [{ scale: 0.97 }],
-    backgroundColor: colors.brandSoft,
   },
-  rulesChipText: {
+  rulesLinkText: {
     fontSize: 10,
     fontFamily: fonts.bold,
     color: colors.brand,
@@ -1385,7 +1381,7 @@ const styles = StyleSheet.create({
     width: 4,
     height: 22,
     marginTop: 2,
-    borderRadius: 2,
+    borderRadius: radii.xs,
     backgroundColor: colors.brand,
   },
   playerHeading: {
@@ -1457,7 +1453,7 @@ const styles = StyleSheet.create({
     width: 7,
     height: 7,
     marginBottom: 5,
-    borderRadius: 4,
+    borderRadius: radii.xs,
     backgroundColor: alpha.brand45,
   },
   optionTokenDotActive: {
@@ -1579,7 +1575,7 @@ const styles = StyleSheet.create({
     height: 30,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 15,
+    borderRadius: radii.lg,
     backgroundColor: alpha.inkOverlay06,
   },
   hostChipEyebrow: {

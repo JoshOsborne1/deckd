@@ -368,7 +368,7 @@ const styles = StyleSheet.create({
   pulseWrap: {
     width: 120,
     height: 120,
-    borderRadius: 60,
+    borderRadius: radii.pill,
     backgroundColor: colors.surface,
     alignItems: 'center',
     justifyContent: 'center',

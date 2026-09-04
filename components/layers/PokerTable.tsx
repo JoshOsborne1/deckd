@@ -13,6 +13,7 @@ import { AvatarPlaceholder } from '@components/AvatarPlaceholder';
 import { CardButton } from '@components/CardButton';
 import { HandFan } from '@components/HandFan';
 import { HandStack } from '@components/HandStack';
+import { ZoneWell } from '@components/ZoneWell';
 import { PlayingCard } from '@components/PlayingCard';
 import { PotPulse } from '@components/animations/GameFx';
 import { TableShell } from '@components/table/TableShell';
@@ -443,9 +444,7 @@ export function PokerTable({ active, topInset, bottomInset }: TableProps) {
           />
           <View style={styles.communityCards}>
             {communityCards.length === 0 ? (
-              <View style={styles.communityEmpty}>
-                <Text style={styles.communityEmptyText}>COMMUNITY</Text>
-              </View>
+              <ZoneWell width={110} height={22} radius={radii.sm} label="COMMUNITY" />
             ) : (
               communityCards.map((cid) => {
                 const card = state.cards[cid];
@@ -677,22 +676,6 @@ const styles = StyleSheet.create({
     minWidth: 110,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  communityEmpty: {
-    minWidth: 110,
-    height: 22,
-    borderRadius: radii.sm,
-    borderWidth: 1,
-    borderColor: colors.borderStrong,
-    borderStyle: 'dashed',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  communityEmptyText: {
-    fontSize: 9,
-    fontFamily: fonts.bold,
-    color: colors.inkSubtle,
-    letterSpacing: letterSpacing.caps,
   },
   muck: {
     alignItems: 'center',

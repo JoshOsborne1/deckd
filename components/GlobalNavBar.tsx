@@ -16,7 +16,7 @@ import { useMotion } from '@hooks/useMotion';
 import { brand } from '@lib/assets';
 import { useGameStore } from '@store/gameStore';
 import { useUiStore } from '@store/uiStore';
-import { colors, fonts, motion, space } from '@theme';
+import { colors, fonts, motion, radii, space } from '@theme';
 
 type NavIcon = React.ComponentType<{
   size?: number;
@@ -293,7 +293,7 @@ function NavCard({
   };
 
   const iconColor = active ? colors.surface : colors.inkMuted;
-  const labelColor = active ? colors.brandHot : colors.inkMuted;
+  const labelColor = active ? colors.brand : colors.inkMuted;
 
   const pressedRef = useRef(false);
 
@@ -446,7 +446,7 @@ function LogoButton({
           style={[styles.logoMark, logoMotion]}
           accessibilityIgnoresInvertColors
         />
-        <Animated.Text style={[styles.logoLabel, { color: active ? colors.brandHot : colors.inkMuted }, labelMotion]}>
+        <Animated.Text style={[styles.logoLabel, { color: active ? colors.brand : colors.inkMuted }, labelMotion]}>
           Table
         </Animated.Text>
       </Pressable>
@@ -537,7 +537,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.navCard,
     borderWidth: 1,
     borderColor: colors.navCardEdge,
-    borderRadius: 14,
+    borderRadius: radii.card,
     borderCurve: 'continuous',
     shadowColor: colors.ink,
     shadowOffset: { width: 0, height: 4 },

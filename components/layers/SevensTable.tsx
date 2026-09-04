@@ -20,6 +20,7 @@ import { AvatarPlaceholder } from '@components/AvatarPlaceholder';
 import { CardButton } from '@components/CardButton';
 import { CardDragHand } from '@components/CardDragHand';
 import { PlayingCard } from '@components/PlayingCard';
+import { ZoneWell } from '@components/ZoneWell';
 import { RingPulseB, ChipSlideB } from '@components/animations/GameFxB';
 import { TableShell } from '@components/table/TableShell';
 import { useTableSession } from '@components/table/useTableSession';
@@ -280,6 +281,7 @@ export function SevensTable({ active, topInset, bottomInset }: SevensTableProps)
           onLayout={onBoardMeasure}
           collapsable={false}
         >
+          <ZoneWell fill active={isMyTurn && dragSpecs.size > 0} />
           {isMyTurn && dragSpecs.size > 0 && (
             <Text style={styles.dropHint}>DROP A CARD TO BUILD THE RUNS</Text>
           )}
@@ -592,11 +594,6 @@ const styles = StyleSheet.create({
     minHeight: 154,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1,
-    borderStyle: 'dashed',
-    borderColor: alpha.brand45,
-    borderRadius: radii.lg,
-    backgroundColor: alpha.brand10,
   },
   boardDropZoneCompact: {
     minHeight: 96,

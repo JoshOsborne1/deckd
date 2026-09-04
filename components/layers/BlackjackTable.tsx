@@ -15,6 +15,7 @@ import { FlipCard } from '@components/FlipCard';
 import { HandFan } from '@components/HandFan';
 import { HandStack } from '@components/HandStack';
 import { PlayingCard } from '@components/PlayingCard';
+import { ZoneWell } from '@components/ZoneWell';
 import { CardPop, CrimsonFlash, HandShake } from '@components/animations/GameFx';
 import { TableShell } from '@components/table/TableShell';
 import { useTableSession } from '@components/table/useTableSession';
@@ -336,9 +337,7 @@ export function BlackjackTable({ active, topInset, bottomInset }: TableProps) {
         </View>
         <CardPop reduceMotion={reduceMotion} trigger={dealerWinPop} style={styles.dealerHand}>
           {dealerHand.length === 0 ? (
-            <View style={styles.dealerEmpty}>
-              <Text style={styles.dealerEmptyText}>HOUSE HAND</Text>
-            </View>
+            <ZoneWell width={180} height={126} label="HOUSE HAND" />
           ) : (
             dealerHand.map((card, index) => (
               <View
@@ -563,22 +562,6 @@ const styles = StyleSheet.create({
   dealerCardSlot: {
     padding: 2,
   },
-  dealerEmpty: {
-    width: 180,
-    height: 126,
-    borderRadius: radii.card,
-    borderWidth: 1,
-    borderColor: colors.borderStrong,
-    borderStyle: 'dashed',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  dealerEmptyText: {
-    fontSize: 10,
-    fontFamily: fonts.bold,
-    color: colors.inkSubtle,
-    letterSpacing: letterSpacing.caps,
-  },
   middle: {
     flex: 1,
     width: '100%',
@@ -596,7 +579,7 @@ const styles = StyleSheet.create({
     color: colors.surface,
     fontSize: 10,
     fontFamily: fonts.bold,
-    backgroundColor: alpha.brand45,
+    backgroundColor: colors.brand,
     paddingHorizontal: space.sm,
     paddingVertical: 2,
     borderRadius: radii.xs,

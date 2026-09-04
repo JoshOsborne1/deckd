@@ -16,8 +16,10 @@ export const colors = {
   navCardEdge: '#E7E0D6',
   ink: '#1A1A1A',
   inkSoft: '#333333',
-  inkMuted: '#665F59',
-  inkSubtle: '#958C83',
+  /** 7.2:1 on paper - AA-safe for muted copy at any size */
+  inkMuted: '#5C554C',
+  /** 5.2:1 on paper - safe for compact labels and secondary copy */
+  inkSubtle: '#6F665D',
   border: '#EAE5DC',
   borderStrong: '#D8D2C6',
   warn: '#F59E0B',
@@ -64,6 +66,8 @@ export const alpha = {
   inkOverlay20: 'rgba(0,0,0,0.20)',
   /** Modal / sheet scrims */
   inkOverlay45: 'rgba(0,0,0,0.45)',
+  /** Zone-well tint over the paper base — same depth every table */
+  wellWash06: 'rgba(0,0,0,0.06)',
   /** Bottom-nav rule accents (warm ink, not cool UI chrome) */
   navLine: 'rgba(176,32,32,0.14)',
   navBraid: 'rgba(176,32,32,0.08)',
@@ -166,6 +170,11 @@ export const shadow = {
   ctaLift: makeShadow(
     { shadowColor: colors.brand, shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.35, shadowRadius: 20 },
     10,
+  ),
+  /** Sunken felt well - depth reads as inset, not floating */
+  well: makeShadow(
+    { shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.12, shadowRadius: 3 },
+    3,
   ),
   nav: makeShadow(
     { shadowColor: colors.ink, shadowOffset: { width: 0, height: -3 }, shadowOpacity: 0.12, shadowRadius: 8 },

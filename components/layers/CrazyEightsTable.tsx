@@ -19,6 +19,7 @@ import { AvatarPlaceholder } from '@components/AvatarPlaceholder';
 import { CardButton } from '@components/CardButton';
 import { CardDragHand } from '@components/CardDragHand';
 import { PlayingCard, SIZE_MAP } from '@components/PlayingCard';
+import { ZoneWell } from '@components/ZoneWell';
 import { TableShell } from '@components/table/TableShell';
 import { useTableSession } from '@components/table/useTableSession';
 import { useLayerSurfaceEntrance } from '@hooks/useLayerSurfaceEntrance';
@@ -282,10 +283,13 @@ export function CrazyEightsTable({ active, topInset, bottomInset }: CrazyEightsT
                   <DiscardCard card={discardCard} faceFor={faceFor} back={equippedBackId} compact={compact} />
                 </Animated.View>
               ) : (
-                <View style={styles.emptyDiscard}>
-                  <Text style={styles.emptyDiscardLabel}>DISCARD</Text>
-                  <Text style={styles.emptyDiscardSub}>DROP HERE</Text>
-                </View>
+                <ZoneWell
+                  width={(compact ? SIZE_MAP.md.width : SIZE_MAP.lg.width) + space.md}
+                  height={(compact ? SIZE_MAP.md.height : SIZE_MAP.lg.height) + space.md}
+                  label="DISCARD"
+                  hint="DROP HERE"
+                  active={dragSpecs.size > 0}
+                />
               )}
               {dragSpecs.size > 0 && <Text style={styles.dropLabel}>DROP TO PLAY</Text>}
             </View>
@@ -477,35 +481,16 @@ const styles = StyleSheet.create({
     height: SIZE_MAP.lg.height + space.md,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1,
-    borderStyle: 'dashed',
-    borderColor: alpha.inkOverlay20,
     borderRadius: radii.lg,
-    backgroundColor: alpha.whiteOverlay45,
   },
   discardTargetCompact: {
     width: SIZE_MAP.md.width + space.md,
     height: SIZE_MAP.md.height + space.md,
   },
   discardReady: {
+    borderWidth: 1,
     borderColor: colors.brand,
     backgroundColor: alpha.brand10,
-  },
-  emptyDiscard: {
-    alignItems: 'center',
-    gap: space.xs,
-  },
-  emptyDiscardLabel: {
-    fontSize: fontSizes.small,
-    fontFamily: fonts.bold,
-    color: colors.inkSubtle,
-    letterSpacing: letterSpacing.caps,
-  },
-  emptyDiscardSub: {
-    fontSize: 9,
-    fontFamily: fonts.bold,
-    color: colors.brand,
-    letterSpacing: letterSpacing.cap,
   },
   dropLabel: {
     position: 'absolute',

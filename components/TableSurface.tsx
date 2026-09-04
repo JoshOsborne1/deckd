@@ -54,7 +54,7 @@ export function TableSurface({ mode }: TableSurfaceProps) {
         width="100%"
         height="100%"
         viewBox="0 0 100 100"
-        preserveAspectRatio="none"
+        preserveAspectRatio="xMidYMid slice"
         style={styles.grain}
         pointerEvents="none"
       >
@@ -64,7 +64,7 @@ export function TableSurface({ mode }: TableSurfaceProps) {
           stroke={rail}
           strokeWidth={0.7}
           strokeLinecap="round"
-          opacity={isSetup ? 0.3 : 0.36}
+          opacity={isSetup ? 0.15 : 0.18}
           vectorEffect="non-scaling-stroke"
         />
       </Svg>
@@ -86,7 +86,7 @@ const styles = StyleSheet.create({
     right: '7%',
     top: '15%',
     height: '70%',
-    borderRadius: 999,
+    borderRadius: radii.pill,
   },
   frame: {
     position: 'absolute',

@@ -12,6 +12,7 @@ import { ArrowDownAZ } from 'lucide-react-native';
 import { AvatarPlaceholder } from '@components/AvatarPlaceholder';
 import { CardButton } from '@components/CardButton';
 import { CardSection } from '@components/CardSection';
+import { ZoneWell } from '@components/ZoneWell';
 import { TableSurface } from '@components/TableSurface';
 import { PlayingCard } from '@components/PlayingCard';
 
@@ -772,7 +773,7 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
               </Animated.View>
             ) : (
               <Animated.View style={[styles.discardSlot, discardMotionStyle]}>
-                <Text style={styles.discardLabel}>DISCARD</Text>
+                <ZoneWell width={110} height={154} label="DISCARD" />
               </Animated.View>
             )}
           </View>
@@ -1097,7 +1098,7 @@ const styles = StyleSheet.create({
     color: colors.surface,
     fontSize: 10,
     fontFamily: fonts.bold,
-    backgroundColor: alpha.brand45,
+    backgroundColor: colors.brand,
     paddingHorizontal: space.sm,
     paddingVertical: 2,
     borderRadius: radii.xs,
@@ -1106,27 +1107,14 @@ const styles = StyleSheet.create({
   },
   activeSlot: {
     padding: space.xs,
-    borderWidth: 2,
-    borderColor: alpha.brand10,
     borderRadius: radii.lg,
-    borderStyle: 'dashed',
   },
   discardSlot: {
     width: 110,
     height: 154,
-    borderRadius: radii.card,
-    borderWidth: 2,
-    borderColor: colors.borderStrong,
-    borderStyle: 'dashed',
     alignItems: 'center',
     justifyContent: 'center',
     gap: space.sm,
-  },
-  discardLabel: {
-    color: colors.inkSubtle,
-    fontSize: 10,
-    fontFamily: fonts.bold,
-    letterSpacing: letterSpacing.caps,
   },
   actionBar: {
     flexDirection: 'row',

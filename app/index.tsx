@@ -26,7 +26,7 @@ import { useLobbyStore } from '@store/lobbyStore';
 import { useCosmeticsStore } from '@store/cosmeticsStore';
 import { findTableThemeById } from '@engine/visuals';
 import { useMotion } from '@hooks/useMotion';
-import { alpha, colors } from '@theme';
+import { alpha, colors, radii } from '@theme';
 import {
   getSurfaceTransitionKind,
   isSurfaceTableTransition,
@@ -196,8 +196,8 @@ function FeltBackground() {
       <View style={[styles.feltGlow, { backgroundColor: well }]} />
       <View style={[styles.tableRail, { borderColor: rail }]} />
       <View style={[styles.tableWell, { backgroundColor: well }]} />
-      <Svg width="100%" height="100%" viewBox="0 0 100 100" preserveAspectRatio="none" style={styles.tableGrain} pointerEvents="none">
-        <Path d={PAPER_GRAIN_PATH} fill="none" stroke={grainTint} strokeWidth={0.55} strokeLinecap="round" opacity={0.22} vectorEffect="non-scaling-stroke" />
+      <Svg width="100%" height="100%" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid slice" style={styles.tableGrain} pointerEvents="none">
+        <Path d={PAPER_GRAIN_PATH} fill="none" stroke={grainTint} strokeWidth={0.55} strokeLinecap="round" opacity={0.11} vectorEffect="non-scaling-stroke" />
       </Svg>
       <View style={styles.feltVignetteTop} />
       <View style={styles.feltVignetteBottom} />
@@ -208,8 +208,8 @@ function FeltBackground() {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.bg, overflow: 'hidden' },
   layers: { flex: 1, minHeight: 0 },
-  felt: { ...StyleSheet.absoluteFillObject },
-  feltGlow: { position: 'absolute', left: '12%', right: '12%', top: '18%', height: '64%', borderRadius: 999, opacity: 0.5 },
+  felt: { ...StyleSheet.absoluteFillObject, overflow: 'hidden' },
+  feltGlow: { position: 'absolute', left: '12%', right: '12%', top: '18%', height: '64%', borderRadius: radii.pill, opacity: 0.5 },
   tableRail: { position: 'absolute', left: 0, right: 0, top: '23%', height: '62%', borderRadius: 260, borderWidth: 18, opacity: 0.28 },
   tableWell: { position: 'absolute', left: 44, right: 44, top: '36%', height: '34%', borderRadius: 190, opacity: 0.34 },
   tableGrain: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0 },
