@@ -242,3 +242,5 @@ Expo SDK 57, React Native 0.86, React 19, TypeScript strict. Expo Router app wit
 - Rive animation runtime/assets.
 - RevenueCat/IAP configuration (keys, App Store products, offering setup).
 - Custom rules DSL and full custom game authoring.
+
+- Slice 1 landed (2026-09-04): RevK faces + cover backs + memo cache, deck QA 9/9 (54 faces x 4 sizes, 0 blank/0 aspect off), 324 tests, back PNGs ~175KB, deployed.
