@@ -24,38 +24,46 @@ export interface CardFaceSpec {
  * Render the selected RevK CC0 front as native SVG primitives through SvgXml.
  * This is deliberately not an Image or browser-only external SVG asset: the
  * card remains vector on web and native and scales with the animated shell.
+ *
+ * Memoized: a table renders the same (rank, suit, joker, size) faces many
+ * times per frame during deals and drags, and every SvgXml mount re-parses
+ * its XML document. One memo boundary turns those repeats into a single
+ * cached render per distinct face+size.
  */
-export function CardFaceArtwork({ rank, suit, jokerColor, spec }: {
+const CardFaceArtworkBase = React.memo(function CardFaceArtwork({
+  rank,
+  suit,
+  jokerColor,
+  spec,
+}: {
   rank?: Rank;
   suit?: Suit;
   jokerColor?: JokerColor;
   spec: CardFaceSpec;
 }) {
-  if (jokerColor) {
-    return (
-      <View style={[styles.face, { borderRadius: spec.radius }]} pointerEvents="none">
-        <SvgXml
-          xml={getCardJokerXml(jokerColor)}
-          width="100%"
-          height="100%"
-          accessibilityLabel={`${jokerColor} joker`}
-        />
-      </View>
-    );
-  }
-  if (!rank || !suit) return null;
+  const xml = jokerColor
+    ? getCardJokerXml(jokerColor)
+    : rank && suit
+      ? getRevkCardXml(rank, suit)
+      : null;
+
+  if (!xml) return null;
 
   return (
     <View style={[styles.face, { borderRadius: spec.radius }]} pointerEvents="none">
       <SvgXml
-        xml={getRevkCardXml(rank, suit)}
+        xml={xml}
         width="100%"
         height="100%"
-        accessibilityLabel={`${rank} of ${suit}`}
+        accessibilityLabel={
+          jokerColor ? `${jokerColor} joker` : `${rank} of ${suit}`
+        }
       />
     </View>
   );
-}
+});
+
+export const CardFaceArtwork = CardFaceArtworkBase;
 
 const styles = StyleSheet.create({
   face: {

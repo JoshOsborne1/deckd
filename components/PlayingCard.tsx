@@ -67,7 +67,7 @@ function CardBackFace({ back, spec }: { back: PlayingCardBack; spec: SizeSpec })
     <View style={[styles.backFill, styles.brandedBack, { borderRadius: spec.radius }]}>
       <Image
         source={backAsset(back)}
-        resizeMode="stretch"
+        resizeMode="cover"
         style={styles.brandedBackImage}
         accessibilityIgnoresInvertColors
       />

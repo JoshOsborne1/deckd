@@ -43,7 +43,7 @@ import { HandFanSurface, type HandFanCard } from '@components/card/HandFanSurfac
 import { StackSurface } from '@components/card/StackSurface';
 import { TurnToken } from '@components/card/TurnToken';
 import { ZoneRegistryProvider } from '@components/table/ZoneRegistry';
-import { PlayingCard } from '@components/PlayingCard';
+import { PlayingCard, type PlayingCardSize } from '@components/PlayingCard';
 import { PrivacyVeil } from '@components/PrivacyVeil';
 import { useMotion } from '@hooks/useMotion';
 import {
@@ -77,6 +77,8 @@ function makeDeck(count: number): CardSpec[] {
 }
 
 const FULL_DECK = makeDeck(52);
+/** Every shell size the deck renders at; the deck proof must cover all four. */
+const ALL_SIZES = ['xs', 'sm', 'md', 'lg'] as const satisfies readonly PlayingCardSize[];
 const LAB_ACTOR = 'lab-actor';
 const LAB_PARTNER = 'lab-partner';
 
@@ -612,6 +614,32 @@ function LabSurface() {
           </View>
         </View>
 
+        {/* Full-deck proof: every face + both jokers, one row per size. */}
+        <View style={styles.deckGallerySection}>
+          <Text style={[styles.sectionLabel, largeText && styles.sectionLabelLarge]}>
+            Full deck · 52 + 2 jokers ({FULL_DECK.length + 2} cards)
+          </Text>
+          {(ALL_SIZES as readonly PlayingCardSize[]).map((size) => (
+            <View key={size} style={styles.galleryRowBlock}>
+              <Text style={styles.gallerySizeLabel}>{size}</Text>
+              <View style={styles.galleryRow} testID={`gallery-row-${size}`}>
+                {FULL_DECK.map((card) => (
+                  <PlayingCard
+                    key={card.id}
+                    rank={card.rank}
+                    suit={card.suit}
+                    size={size}
+                    face="up"
+                    testID={`face-${size}-${card.id}`}
+                  />
+                ))}
+                <PlayingCard size={size} jokerColor="red" face="up" testID={`face-${size}-joker-red`} />
+                <PlayingCard size={size} jokerColor="black" face="up" testID={`face-${size}-joker-black`} />
+              </View>
+            </View>
+          ))}
+        </View>
+
         <View style={styles.logSection}>
           <Text style={styles.sectionLabel}>Typed intent log</Text>
           <View style={styles.log}>
@@ -832,6 +860,23 @@ const styles = StyleSheet.create({
   passSection: {
     alignItems: 'center',
     paddingTop: space.sm,
+  },
+  deckGallerySection: {
+    gap: space.sm,
+  },
+  galleryRowBlock: {
+    gap: space.xs,
+  },
+  gallerySizeLabel: {
+    color: colors.inkSubtle,
+    fontFamily: fonts.bold,
+    fontSize: 12,
+    letterSpacing: 0.5,
+  },
+  galleryRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
   },
   logSection: {
     gap: space.sm,
