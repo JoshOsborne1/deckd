@@ -111,7 +111,7 @@ async function runViewport(page, viewport) {
     await visibleLocator(page.getByRole('button', { name: 'Empty waste', exact: true }), 'empty waste slot')
       .catch(() => null),
   );
-  const stock24Visible = true;
+  const stock24Visible = await isActuallyVisible(stockButton);
   const foundationReadout = (await page.locator('body').innerText()).includes('0/52 FOUNDATIONS');
 
   const faceDownCards = page.locator('[role="button"][aria-label*="face down"]:visible');
