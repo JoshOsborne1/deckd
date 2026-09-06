@@ -20,9 +20,9 @@ Phone Deck surface modes. BLE and Multipeer Connectivity are out of scope.
 - Active branch: `rebuild/physical-cards`
 - Public preview: `https://deckd-app.roxai.click`
 - Preview origin: PM2 `deckd-app`, main checkout `app-serve/`, port 8085
-- Landed cleanup slice: Slice 2, felt furniture, type, contrast, and tokens
-- Evidence: Card Lab 16/16 at 375x812 and 1440x900, 324/324 Jest, Expo Doctor 18/18, 5.94 MB export, public preview HTTP 200
-- Next queued slice: Slice 3, nav fit and safe-area proof
+- Landed cleanup slice: Slice 4c, Old Maid dedicated pair-and-draw table
+- Evidence: Old Maid local and public QA 46 assertions across 375x812 and 1440x900, 324/324 Jest, Expo Doctor 18/18, 5.96 MB export
+- Next queued slice: Slice 4d, Klondike re-shoot + fix pass
 
 ## Quality bar
 

@@ -128,6 +128,12 @@ export const GlobalNavBar: React.FC = () => {
     void router.prefetch('/profile');
   }, [router]);
 
+  // Pass privacy is a modal ritual. Keep the route nav out of its hit area,
+  // especially on short phones where the standing table card reaches the veil.
+  if (viewMode === 'pass') {
+    return null;
+  }
+
   // Card Lab is a full-screen internal surface; the nav bar must never
   // overlap its table. Hide it on the lab route.
   if (pathname === '/lab' || pathname.startsWith('/lab/')) {

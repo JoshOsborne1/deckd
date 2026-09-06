@@ -25,6 +25,7 @@ import { CrazyEightsTable } from '@components/layers/CrazyEightsTable';
 import { TableShell } from '@components/table/TableShell';
 import { useTableSession } from '@components/table/useTableSession';
 import { GoFishTable } from '@components/layers/GoFishTable';
+import { OldMaidTable } from '@components/layers/OldMaidTable';
 import { SevensTable } from '@components/layers/SevensTable';
 import { WarTable } from '@components/layers/WarTable';
 import { PokerTable } from '@components/layers/PokerTable';
@@ -57,7 +58,6 @@ import {
 import {
   ZONE_DISCARD,
   handZoneId,
-  tableZoneId,
   type CardFace,
   type CardId,
   type CardInstance,
@@ -84,80 +84,6 @@ interface TableLayerProps {
   active: boolean;
   topInset: number;
   bottomInset: number;
-}
-
-
-interface FeltStackProps {
-  playerName: string;
-  cards: CardInstance[];
-  /** Label shown under the stack, e.g. "BOOK" for four-of-a-kind. */
-  kindLabel: string;
-  back: string;
-  reduceMotion: boolean;
-}
-
-/** Max cards shown in the fan. Books are exactly 4; pairs grow (2 per pair). */
-const FELT_FAN_CAP = 8;
-
-/**
- * A player's collected books (Go Fish) or pairs (Old Maid) sitting on the
- * felt. Cards are laid face-up in a fan so the rank is readable; the label
- * names the pile so QA and assistive tech can find it. Grouped per player so
- * the table shows whose collection is whose at a glance.
- */
-function FeltStack({ playerName, cards, kindLabel, back, reduceMotion }: FeltStackProps) {
-  const opacity = useSharedValue(reduceMotion ? 1 : 0);
-  const translateY = useSharedValue(reduceMotion ? 0 : 12);
-
-  useEffect(() => {
-    cancelAnimation(opacity);
-    cancelAnimation(translateY);
-    if (reduceMotion) {
-      opacity.value = withTiming(1, { duration: motion.duration.fast });
-      translateY.value = 0;
-      return;
-    }
-    opacity.value = withTiming(1, { duration: motion.duration.base });
-    translateY.value = withSpring(0, motion.spring.card);
-  }, [cards.length, opacity, reduceMotion, translateY]);
-
-  const motionStyle = useAnimatedStyle(() => ({
-    opacity: opacity.value,
-    transform: reduceMotion ? [] : [{ translateY: translateY.value }],
-  }));
-
-  if (cards.length === 0) return null;
-
-  return (
-    <Animated.View
-      style={[styles.feltStack, motionStyle]}
-      accessible
-      accessibilityRole="text"
-      accessibilityLabel={`${playerName}, ${cards.length} ${kindLabel} cards on the felt`}
-    >
-      <View style={styles.feltStackFan}>
-        {cards.slice(0, FELT_FAN_CAP).map((card, index) => {
-          const parsed = parseCardId(card.id);
-          if (!parsed) return null;
-          return (
-            <View
-              key={card.id}
-              style={[styles.feltStackCard, { transform: [{ rotate: `${(index - (Math.min(cards.length, FELT_FAN_CAP) - 1) / 2) * 4}deg` }, { translateX: index * 9 }] }]}
-            >
-              <PlayingCard
-                rank={parsed.rank}
-                suit={parsed.suit}
-                face="up"
-                size="xs"
-                back={back}
-              />
-            </View>
-          );
-        })}
-      </View>
-      <Text style={styles.feltStackLabel}>{playerName.toUpperCase()} · {kindLabel}</Text>
-    </Animated.View>
-  );
 }
 
 export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
@@ -232,7 +158,7 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
     () => (viewerId ? selectAvailableActions(state, viewerId) : new Set<TableAction>()),
     [state, viewerId],
   );
-  const canUseGenericHandActions = !['war', 'go-fish', 'old-maid', 'crazy-eights', 'sevens', 'klondike'].includes(state.config.presetId ?? '');
+  const canUseGenericHandActions = !['war', 'go-fish', 'crazy-eights', 'sevens', 'klondike'].includes(state.config.presetId ?? '');
   const canFlipHand = canUseGenericHandActions && availableActions.has('flip');
   const canDiscardHand = canUseGenericHandActions && availableActions.has('discard');
   const canReorderHand = canUseGenericHandActions && availableActions.has('reorder');
@@ -245,9 +171,9 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
   const rules = useMemo(() => getGameRules(state.config.presetId), [state.config.presetId]);
   const isWar = rules.id === 'war';
   const isGoFishTable = rules.id === 'go-fish';
+  const isOldMaidTable = rules.id === 'old-maid';
   const isKlondike = rules.id === 'klondike';
-  const isContextualGame = rules.id === 'old-maid';
-  const usesRuleActionBar = rules.id === 'old-maid' || isKlondike;
+  const usesRuleActionBar = isKlondike;
   const ruleActions = useMemo<GameActionSpec[]>(
     () => (viewerId ? rules.actions(state, viewerId) : []),
     [rules, state, viewerId],
@@ -278,15 +204,6 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
     [rules, state, viewerId],
   );
   const myBust = myHandValue !== null && myHandValue.includes('BUST');
-  // --- Old Maid: who is stuck with the maid joker at the end? ---
-  const maidHolder = useMemo(() => {
-    if (rules.id !== 'old-maid' || state.phase !== 'ended') return null;
-    for (const player of state.players) {
-      const hand = state.zones[handZoneId(player.id)]?.cardIds ?? [];
-      if (hand.some((cardId) => parseJokerId(cardId) !== null)) return player;
-    }
-    return null;
-  }, [rules.id, state.phase, state.players, state.zones]);
   const nextPlayerId = useMemo(() => selectNextPlayerId(state), [state]);
   const isHost = Boolean(hostPlayerId && viewerId === hostPlayerId);
   const dealTrigger = useMemo(() => {
@@ -510,16 +427,12 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
 
   const handHint = isKlondike
     ? 'Tap a face-up card, then a foundation or tableau destination'
-    : rules.id === 'old-maid'
-      ? !isMyTurn
-        ? `Waiting for ${currentPlayerName || 'the next player'} · keep your maid hidden`
-        : 'Pair up first · then draw one card from the next hand'
     : !isMyTurn
       ? `Waiting for ${currentPlayerName || 'the next player'} · your hand stays ready`
       : 'Tap flip · swipe up discard · drag sideways to reorder';
   /** While a recipient must long-press to reveal, hide the hand under the veil. */
   const handLocked = state.privacySeat !== null;
-  const shouldShowHandHint = !handLocked && (localHand.length > 0 || isContextualGame);
+  const shouldShowHandHint = !handLocked && localHand.length > 0;
 
   // --- Empty / loading fallback ---
   if (!hasSession) {
@@ -581,6 +494,17 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
   if (isGoFishTable && viewerId) {
     return (
       <GoFishTable
+        active={active}
+        topInset={topInset}
+        bottomInset={bottomInset}
+      />
+    );
+  }
+
+  // --- Old Maid: dedicated pair-and-draw surface. ---
+  if (isOldMaidTable && viewerId) {
+    return (
+      <OldMaidTable
         active={active}
         topInset={topInset}
         bottomInset={bottomInset}
@@ -692,64 +616,37 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
       <View style={styles.table}>
         {isKlondike ? (
           <KlondikeLayout state={state} onAction={handleGameAction} back={equippedBackId} />
-        ) : rules.id === 'old-maid' ? (
-          <View style={styles.contextualPiles}>
-            {/* Collected Old Maid pairs stay visible on the felt. */}
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.feltStacks}
-            >
-              {state.players.map((player) => {
-                const collected = state.zones[tableZoneId(player.id)]?.cardIds ?? [];
-                if (collected.length === 0) return null;
-                return (
-                  <FeltStack
-                    key={player.id}
-                    playerName={player.name}
-                    cards={collected.map((cardId) => state.cards[cardId]).filter((card): card is CardInstance => Boolean(card))}
-                    kindLabel="PAIRS"
-                    back={equippedBackId}
-                    reduceMotion={reduceMotion}
-                  />
-                );
-              })}
-            </ScrollView>
-          </View>
         ) : (
           <View style={styles.tablePiles}>
-            {/* Generic draw pile. Dedicated games return before this surface. */}
-            {!isContextualGame && (
-              <Animated.View
+            <Animated.View
+              style={[
+                styles.deckStack,
+                drawMotionStyle,
+                suggestedAction === 'draw' && styles.suggestedDeck,
+              ]}
+            >
+              <Pressable
+                onPress={handleDrawCard}
+                onLongPress={isHost ? handleShuffle : undefined}
+                onPressIn={handleDrawPressIn}
+                onPressOut={handleDrawPressOut}
+                disabled={!isMyTurn || drawCount === 0 || !canUseGenericHandActions}
+                accessibilityRole="button"
+                accessibilityLabel={`Draw pile, ${drawCount} cards left`}
+                accessibilityHint={
+                  suggestedAction === 'draw'
+                    ? `Suggested next move. Tap to draw a card.${isHost ? ' Hold to shuffle.' : ''}`
+                    : `Tap to draw a card when it is your turn.${isHost ? ' Hold to shuffle.' : ''}`
+                }
                 style={[
-                  styles.deckStack,
-                  drawMotionStyle,
-                  suggestedAction === 'draw' && styles.suggestedDeck,
+                  styles.deckTrigger,
+                  (!isMyTurn || drawCount === 0 || !canUseGenericHandActions) && { opacity: 0.5 },
                 ]}
               >
-                <Pressable
-                  onPress={handleDrawCard}
-                  onLongPress={isHost ? handleShuffle : undefined}
-                  onPressIn={handleDrawPressIn}
-                  onPressOut={handleDrawPressOut}
-                  disabled={!isMyTurn || drawCount === 0 || !canUseGenericHandActions}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Draw pile, ${drawCount} cards left`}
-                  accessibilityHint={
-                    suggestedAction === 'draw'
-                      ? `Suggested next move. Tap to draw a card.${isHost ? ' Hold to shuffle.' : ''}`
-                      : `Tap to draw a card when it is your turn.${isHost ? ' Hold to shuffle.' : ''}`
-                  }
-                  style={[
-                    styles.deckTrigger,
-                    (!isMyTurn || drawCount === 0 || !canUseGenericHandActions) && { opacity: 0.5 },
-                  ]}
-                >
-                  <PlayingCard face="down" size="md" back={equippedBackId} />
-                  <Text style={styles.deckLeftText}>{drawCount} LEFT</Text>
-                </Pressable>
-              </Animated.View>
-            )}
+                <PlayingCard face="down" size="md" back={equippedBackId} />
+                <Text style={styles.deckLeftText}>{drawCount} LEFT</Text>
+              </Pressable>
+            </Animated.View>
 
             {/* Discard slot */}
             {discardTop && discardParsed ? (
@@ -797,28 +694,13 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
                 ? state.winnerId === viewerId
                   ? 'You beat the house'
                   : 'House wins this hand'
-                : rules.id === 'old-maid'
-                ? state.winnerId === viewerId
-                  ? 'You dodged the maid'
-                  : `${state.players.find((p) => p.id === state.winnerId)?.name ?? 'Winner'} dodged the maid`
                 : state.winnerId
                   ? state.winnerId === viewerId
                     ? 'You take the table'
                     : `${state.players.find((p) => p.id === state.winnerId)?.name ?? 'Winner'} takes the table`
                   : 'Table cleared'}
             </Text>
-            {rules.id === 'old-maid' && maidHolder && (
-              <View style={styles.maidReveal} accessible accessibilityRole="text" accessibilityLabel={`The maid stays with ${maidHolder.name}`}>
-                <PlayingCard jokerColor="red" face="up" size="sm" />
-                <Text style={styles.maidRevealText}>
-                  {maidHolder.id === viewerId ? 'You hold the maid' : `The maid stays with ${maidHolder.name}`}
-                </Text>
-              </View>
-            )}
             <Text style={styles.endedMeta}>
-              {rules.id === 'old-maid'
-                ? `${Math.floor((state.zones[tableZoneId(state.winnerId ?? '')]?.cardIds.length ?? 0) / 2)} pairs · `
-                : ''}
               Round complete · {state.turn} {state.turn === 1 ? 'turn' : 'turns'}
             </Text>
             {isPassMode ? (
@@ -978,7 +860,7 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
             {handHint}
           </Text>
         ) : null}
-        {rules.readout && (localHand.length > 0 || isContextualGame || isKlondike) && myHandValue !== null && (
+        {rules.readout && (localHand.length > 0 || isKlondike) && myHandValue !== null && (
           <View style={[styles.valuePill, myBust && styles.valuePillBust]}>
             <Text style={styles.valuePillText}>{myHandValue}</Text>
           </View>
@@ -1045,40 +927,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: space.xxl,
-  },
-  contextualPiles: {
-    flexDirection: 'column',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: space.md,
-    width: '100%',
-  },
-  feltStacks: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    justifyContent: 'center',
-    gap: space.lg,
-    paddingHorizontal: space.md,
-  },
-  feltStack: {
-    alignItems: 'center',
-    maxWidth: 120,
-  },
-  feltStackFan: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    height: 26,
-  },
-  feltStackCard: {
-    marginLeft: -6,
-  },
-  feltStackLabel: {
-    marginTop: space.xs,
-    fontSize: 9,
-    fontFamily: fonts.bold,
-    color: colors.inkMuted,
-    letterSpacing: letterSpacing.caps,
-    textAlign: 'center',
   },
 
   deckStack: {
@@ -1210,23 +1058,6 @@ const styles = StyleSheet.create({
     fontSize: fontSizes.caption,
     fontFamily: fonts.semibold,
     color: colors.inkMuted,
-    letterSpacing: letterSpacing.cap,
-    textTransform: 'uppercase',
-  },
-  maidReveal: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: space.sm,
-    marginBottom: space.md,
-    paddingHorizontal: space.md,
-    paddingVertical: space.xs,
-    borderRadius: radii.md,
-    backgroundColor: alpha.inkOverlay06,
-  },
-  maidRevealText: {
-    fontSize: fontSizes.caption,
-    fontFamily: fonts.semibold,
-    color: colors.ink,
     letterSpacing: letterSpacing.cap,
     textTransform: 'uppercase',
   },
