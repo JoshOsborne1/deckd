@@ -100,6 +100,7 @@ export function KlondikeLayout({ state, onAction, back }: KlondikeLayoutProps) {
   const cardScale = desktopLayout ? 0.8 : 0.72;
   const stackOverlap = desktopLayout ? 44 : 28;
   const slotProps = { back, cardSize, cardScale, slotWidth, slotHeight };
+  const topSlotProps = { ...slotProps, slotWidth: desktopLayout ? 72 : 48 };
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const tableau = useMemo(
     () => Array.from({ length: KLONDIKE_TABLEAU_COUNT }, (_, index) => state.zones[klondikeTableauZoneId(index)]?.cardIds ?? []),
@@ -141,43 +142,49 @@ export function KlondikeLayout({ state, onAction, back }: KlondikeLayoutProps) {
       </View>
 
       <View style={styles.topRow}>
-        <View style={styles.stockWasteRow}>
-          <CardSlot
-            {...slotProps}
-            card={stockIds.length > 0 ? { id: stockIds[0]!, face: 'down', zoneId: 'draw', order: 0 } : undefined}
-            label={stockIds.length > 0 ? `Stock, ${stockIds.length} cards` : 'Recycle waste'}
-            placeholder="↻"
-            disabled={stockIds.length === 0 && wasteIds.length === 0}
-            onPress={() => onAction(stockIds.length > 0 ? 'draw' : 'recycle')}
-          />
-          <CardSlot
-            {...slotProps}
-            card={wasteIds.length > 0 ? state.cards[wasteIds[wasteIds.length - 1]!] : undefined}
-            label={wasteIds.length > 0 ? `Waste, ${cardLabel(state.cards[wasteIds[wasteIds.length - 1]!]!)}` : 'Empty waste'}
-            placeholder="·"
-            selected={Boolean(wasteIds.length > 0 && selectedId === wasteIds[wasteIds.length - 1])}
-            disabled={wasteIds.length === 0}
-            onPress={wasteIds.length > 0 ? () => moveOrSelect(wasteIds[wasteIds.length - 1]!) : undefined}
-          />
+        <View style={styles.pileGroup}>
+          <Text style={styles.pileGroupLabel}>STOCK {stockIds.length} · WASTE</Text>
+          <View style={styles.stockWasteRow}>
+            <CardSlot
+              {...topSlotProps}
+              card={stockIds.length > 0 ? { id: stockIds[0]!, face: 'down', zoneId: 'draw', order: 0 } : undefined}
+              label={stockIds.length > 0 ? `Stock, ${stockIds.length} cards` : 'Recycle waste'}
+              placeholder="↻"
+              disabled={stockIds.length === 0 && wasteIds.length === 0}
+              onPress={() => onAction(stockIds.length > 0 ? 'draw' : 'recycle')}
+            />
+            <CardSlot
+              {...topSlotProps}
+              card={wasteIds.length > 0 ? state.cards[wasteIds[wasteIds.length - 1]!] : undefined}
+              label={wasteIds.length > 0 ? `Waste, ${cardLabel(state.cards[wasteIds[wasteIds.length - 1]!]!)}` : 'Empty waste'}
+              placeholder="WASTE"
+              selected={Boolean(wasteIds.length > 0 && selectedId === wasteIds[wasteIds.length - 1])}
+              disabled={wasteIds.length === 0}
+              onPress={wasteIds.length > 0 ? () => moveOrSelect(wasteIds[wasteIds.length - 1]!) : undefined}
+            />
+          </View>
         </View>
-        <View style={styles.foundationRow}>
-          {KLONDIKE_FOUNDATION_SUITS.map((suit) => {
-            const ids = state.zones[klondikeFoundationZoneId(suit)]?.cardIds ?? [];
-            const topId = ids[ids.length - 1];
-            const topCard = topId ? state.cards[topId] : undefined;
-            return (
-              <CardSlot
-                {...slotProps}
-                key={suit}
-                card={topCard}
-                label={topCard ? `${suit} foundation, ${cardLabel(topCard)}` : `${SUIT_GLYPHS[suit]} foundation, empty`}
-                placeholder={SUIT_GLYPHS[suit]}
-                selected={Boolean(topId && activeSelectedId === topId)}
-                disabled={!activeSelectedId && !topId}
-                onPress={topId ? () => moveOrSelect(topId) : () => handleFoundationPress(suit)}
-              />
-            );
-          })}
+        <View style={styles.pileGroup}>
+          <Text style={styles.pileGroupLabel}>FOUNDATIONS</Text>
+          <View style={styles.foundationRow}>
+            {KLONDIKE_FOUNDATION_SUITS.map((suit) => {
+              const ids = state.zones[klondikeFoundationZoneId(suit)]?.cardIds ?? [];
+              const topId = ids[ids.length - 1];
+              const topCard = topId ? state.cards[topId] : undefined;
+              return (
+                <CardSlot
+                  {...topSlotProps}
+                  key={suit}
+                  card={topCard}
+                  label={topCard ? `${suit} foundation, ${cardLabel(topCard)}` : `${SUIT_GLYPHS[suit]} foundation, empty`}
+                  placeholder={SUIT_GLYPHS[suit]}
+                  selected={Boolean(topId && activeSelectedId === topId)}
+                  disabled={!activeSelectedId && !topId}
+                  onPress={topId ? () => moveOrSelect(topId) : () => handleFoundationPress(suit)}
+                />
+              );
+            })}
+          </View>
         </View>
       </View>
 
@@ -290,6 +297,18 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     justifyContent: 'center',
     gap: space.sm,
+  },
+  pileGroup: {
+    alignItems: 'center',
+    gap: space.xs,
+  },
+  pileGroupLabel: {
+    minHeight: 12,
+    fontSize: 8,
+    fontFamily: fonts.bold,
+    color: colors.inkSubtle,
+    letterSpacing: letterSpacing.cap,
+    textAlign: 'center',
   },
   stockWasteRow: {
     flexDirection: 'row',

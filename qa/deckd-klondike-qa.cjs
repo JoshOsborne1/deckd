@@ -6,8 +6,36 @@ const VIEWPORTS = [
   { width: 1440, height: 900, key: '1440' },
 ];
 
+async function isActuallyVisible(locator) {
+  const box = await locator.boundingBox().catch(() => null);
+  if (!box || box.width <= 0 || box.height <= 0 || box.bottom <= 0 || box.right <= 0) return false;
+  return locator.evaluate((element) => {
+    let node = element;
+    while (node instanceof HTMLElement) {
+      const style = window.getComputedStyle(node);
+      if (style.display === 'none' || style.visibility === 'hidden' || Number(style.opacity) === 0) return false;
+      node = node.parentElement;
+    }
+    return true;
+  }).catch(() => false);
+}
+
+async function visibleLocator(locator, description) {
+  await locator.first().waitFor({ state: 'attached', timeout: 30000 });
+  const deadline = Date.now() + 30000;
+  while (Date.now() < deadline) {
+    const count = await locator.count();
+    for (let index = count - 1; index >= 0; index -= 1) {
+      const candidate = locator.nth(index);
+      if (await isActuallyVisible(candidate)) return candidate;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  throw new Error(`No visible ${description} found`);
+}
+
 async function waitForHome(page) {
-  await page.getByRole('button', { name: 'Deal the deck', exact: true }).last().waitFor({ state: 'visible', timeout: 30000 });
+  await visibleLocator(page.getByRole('button', { name: 'Deal the deck', exact: true }), 'Deal the deck button');
 }
 
 async function reset(page) {
@@ -33,15 +61,11 @@ async function readGeometry(page) {
 }
 
 async function visibleButton(page, name) {
-  const button = page.getByRole('button', { name, exact: true }).last();
-  await button.waitFor({ state: 'visible', timeout: 30000 });
-  return button;
+  return visibleLocator(page.getByRole('button', { name, exact: true }), `button ${name}`);
 }
 
 async function visibleSheetAction(page, name) {
-  const action = page.getByText(name, { exact: true }).last();
-  await action.waitFor({ state: 'visible', timeout: 30000 });
-  return action;
+  return visibleLocator(page.getByText(name, { exact: true }), `sheet action ${name}`);
 }
 
 async function runViewport(page, viewport) {
@@ -49,16 +73,15 @@ async function runViewport(page, viewport) {
   await reset(page);
 
   await (await visibleButton(page, 'Deal the deck')).click();
-  await page.getByText('Choose a recipe', { exact: true }).waitFor({ state: 'visible', timeout: 30000 });
+  await visibleLocator(page.getByText('Choose a recipe', { exact: true }), 'Choose a recipe heading');
 
-  const klondikeCard = page.getByRole('button', { name: /^Klondike\./ }).last();
-  await klondikeCard.waitFor({ state: 'visible', timeout: 30000 });
+  const klondikeCard = await visibleLocator(page.getByRole('button', { name: /^Klondike\./ }), 'Klondike recipe card');
   await klondikeCard.click();
-  await page.getByText('Solo tableau and foundation play', { exact: true }).waitFor({ state: 'visible', timeout: 30000 });
+  await visibleLocator(page.getByText('Build four foundations from ace to king. Draw one from the stock.', { exact: true }), 'Klondike setup copy');
 
   const rulesButton = await visibleButton(page, 'Read Klondike rules');
   await rulesButton.click();
-  await page.getByText('TABLE RULES', { exact: true }).waitFor({ state: 'visible', timeout: 30000 });
+  await visibleLocator(page.getByText('TABLE RULES', { exact: true }), 'table rules heading');
   const rulesBody = await page.locator('body').innerText();
   const rulesClose = await visibleSheetAction(page, 'Back to the table');
   const rulesCloseBox = await rulesClose.evaluate((element) => {
@@ -69,12 +92,26 @@ async function runViewport(page, viewport) {
   await rulesClose.click();
 
   await (await visibleButton(page, 'Deal now')).click();
-  await page.getByText('KLONDIKE · DRAW ONE', { exact: true }).waitFor({ state: 'visible', timeout: 30000 });
-  await page.getByText('TABLEAU', { exact: true }).waitFor({ state: 'visible', timeout: 30000 });
+  await visibleLocator(page.getByText('KLONDIKE · DRAW ONE', { exact: true }), 'Klondike table marker');
+  await visibleLocator(page.getByText('TABLEAU', { exact: true }), 'Klondike tableau marker');
   await page.waitForTimeout(700);
 
-  const stock24 = page.getByRole('button', { name: 'Stock, 24 cards', exact: true }).last();
-  const stock24Visible = await stock24.isVisible().catch(() => false);
+  const stockButton = await visibleLocator(
+    page.getByRole('button', { name: 'Stock, 24 cards', exact: true }),
+    '24-card stock',
+  );
+  const topLabelsVisible = Boolean(
+    await visibleLocator(page.getByText('STOCK 24 · WASTE', { exact: true }), 'stock and waste label')
+      .catch(() => null),
+  ) && Boolean(
+    await visibleLocator(page.getByText('FOUNDATIONS', { exact: true }), 'foundations label')
+      .catch(() => null),
+  );
+  const emptyWasteVisible = Boolean(
+    await visibleLocator(page.getByRole('button', { name: 'Empty waste', exact: true }), 'empty waste slot')
+      .catch(() => null),
+  );
+  const stock24Visible = true;
   const foundationReadout = (await page.locator('body').innerText()).includes('0/52 FOUNDATIONS');
 
   const faceDownCards = page.locator('[role="button"][aria-label*="face down"]:visible');
@@ -91,25 +128,37 @@ async function runViewport(page, viewport) {
     }
   }
 
-  const drawButton = await visibleButton(page, 'DRAW STOCK');
-  await drawButton.click();
+  await stockButton.click();
   await page.waitForTimeout(250);
-  const stock23Visible = await page.getByRole('button', { name: 'Stock, 23 cards', exact: true }).last().isVisible().catch(() => false);
+  const stock23Visible = await visibleLocator(
+    page.getByRole('button', { name: 'Stock, 23 cards', exact: true }),
+    '23-card stock',
+  ).then(() => true).catch(() => false);
   for (let index = 1; index < 24; index += 1) {
-    await (await visibleButton(page, 'DRAW STOCK')).click();
+    const remaining = 24 - index;
+    await (await visibleLocator(
+      page.getByRole('button', { name: `Stock, ${remaining} cards`, exact: true }),
+      `${remaining}-card stock`,
+    )).click();
     await page.waitForTimeout(35);
   }
-  const recycleButton = await visibleButton(page, 'RECYCLE WASTE');
+  const recycleButton = await visibleButton(page, 'Recycle waste');
   await recycleButton.click();
   await page.waitForTimeout(300);
-  const recycledStockVisible = await page.getByRole('button', { name: 'Stock, 24 cards', exact: true }).last().isVisible().catch(() => false);
+  const recycledStockVisible = await visibleLocator(
+    page.getByRole('button', { name: 'Stock, 24 cards', exact: true }),
+    'recycled 24-card stock',
+  ).then(() => true).catch(() => false);
 
+  const utilityButton = await visibleButton(page, 'Open utility drawer');
+  await utilityButton.click();
   await (await visibleButton(page, 'End table')).click();
-  await page.getByText('TABLE OVER', { exact: true }).waitFor({ state: 'visible', timeout: 30000 });
+  await (await visibleButton(page, 'Confirm end table')).click();
+  await visibleLocator(page.getByText('TABLE OVER', { exact: true }), 'table over marker');
   const endedBody = await page.locator('body').innerText();
   const newDeal = await visibleButton(page, 'New deal');
   await newDeal.click();
-  await page.getByText('KLONDIKE · DRAW ONE', { exact: true }).waitFor({ state: 'visible', timeout: 30000 });
+  await visibleLocator(page.getByText('KLONDIKE · DRAW ONE', { exact: true }), 'replayed Klondike marker');
   const replayBody = await page.locator('body').innerText();
 
   await page.screenshot({ path: `.qa-klondike-${viewport.key}.png`, fullPage: false });
@@ -119,6 +168,8 @@ async function runViewport(page, viewport) {
     rulesCloseBox,
     soloSetup: true,
     stock24Visible,
+    topLabelsVisible,
+    emptyWasteVisible,
     foundationReadout,
     flipAvailable,
     flipWorked,
@@ -133,6 +184,7 @@ async function runViewport(page, viewport) {
 (async () => {
   const browser = await chromium.launch({ headless: true });
   const page = await browser.newPage({ viewport: VIEWPORTS[0], deviceScaleFactor: 1 });
+  page.on('dialog', (dialog) => dialog.accept());
   const errors = [];
   page.on('pageerror', (error) => errors.push(`pageerror: ${error.message}`));
   page.on('console', (message) => {
@@ -146,6 +198,8 @@ async function runViewport(page, viewport) {
       result.rules,
       result.soloSetup,
       result.stock24Visible,
+      result.topLabelsVisible,
+      result.emptyWasteVisible,
       result.foundationReadout,
       !result.flipAvailable || result.flipWorked,
       result.stock23Visible,

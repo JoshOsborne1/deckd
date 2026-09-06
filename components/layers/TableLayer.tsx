@@ -173,7 +173,8 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
   const isGoFishTable = rules.id === 'go-fish';
   const isOldMaidTable = rules.id === 'old-maid';
   const isKlondike = rules.id === 'klondike';
-  const usesRuleActionBar = isKlondike;
+  // KlondikeLayout owns the stock and waste controls beside the foundations.
+  const usesRuleActionBar = false;
   const ruleActions = useMemo<GameActionSpec[]>(
     () => (viewerId ? rules.actions(state, viewerId) : []),
     [rules, state, viewerId],
