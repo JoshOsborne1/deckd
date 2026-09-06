@@ -87,7 +87,7 @@ const BASE_URL = process.env.DECKD_QA_URL ?? 'http://127.0.0.1:8082';
     // STAND is a hidden engine alias of STICK (never offered in the rail).
     hasStand: false,
     hasValuePill: /\b\d{1,2}\b/.test(text),
-    hasPassVeil: text.includes('PASS DEVICE TO'),
+    hasPassVeil: text.includes('PASS TO') && text.includes('Hold to reveal'),
     errors,
   };
   process.stdout.write(JSON.stringify(result, null, 2));

@@ -117,7 +117,7 @@ const BASE_URL = process.env.DECKD_QA_URL ?? 'http://127.0.0.1:8082';
     hasTwoCardHand: bodyText.includes('2 CARDS'),
     hasTenCardDrawState: bodyText.includes('40 LEFT'),
     hasGuidance: bodyText.includes('NEXT USEFUL MOVE'),
-    hasPassVeil: passText.includes('PASS DEVICE TO') && passText.includes('Hold to reveal'),
+    hasPassVeil: passText.includes('PASS TO') && passText.includes('Hold to reveal') && passText.includes('HOLD FOR'),
     passCount,
     errors,
   };
