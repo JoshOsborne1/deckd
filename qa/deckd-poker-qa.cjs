@@ -21,14 +21,42 @@ const QA_SUFFIX = `${VIEWPORT_WIDTH}x${VIEWPORT_HEIGHT}`;
 
   const waitForTable = async () => page.waitForTimeout(900);
   const clickAction = async (name) => {
-    const button = page.getByRole('button', { name, exact: true });
-    await button.first().waitFor({ state: 'visible', timeout: 15000 });
-    await button.first().click();
+    const button = page.getByRole('button', { name: new RegExp(`^${name}(?:\\s|$)`, 'i') });
+    const count = await button.count();
+    let target = null;
+    for (let index = count - 1; index >= 0; index -= 1) {
+      const candidate = button.nth(index);
+      const box = await candidate.boundingBox().catch(() => null);
+      if (box && box.width > 0 && box.height > 0 && box.y >= 0 && box.y < VIEWPORT_HEIGHT) {
+        target = candidate;
+        break;
+      }
+    }
+    if (!target) throw new Error(`no visible ${name} action`);
+    await target.click();
     actions.push(name);
     await waitForTable();
     return true;
   };
   const text = async () => page.locator('body').innerText();
+  const firstVisibleBox = async (locator) => {
+    const count = await locator.count();
+    for (let index = count - 1; index >= 0; index -= 1) {
+      const candidate = locator.nth(index);
+      const box = await candidate.boundingBox().catch(() => null);
+      if (box && box.width > 0 && box.height > 0 && box.y >= 0 && box.y < VIEWPORT_HEIGHT) {
+        return box;
+      }
+    }
+    return null;
+  };
+  const turnStatusIsAdjacentToAction = async () => {
+    const turnBox = await firstVisibleBox(page.getByText('YOUR TURN', { exact: true }));
+    const actionBox = await firstVisibleBox(page.getByRole('button', { name: /^FOLD(?:\s|$)/i }));
+    if (!turnBox || !actionBox) return false;
+    const turnBottom = turnBox.y + turnBox.height;
+    return Math.abs(actionBox.y - turnBottom) <= 80 || Math.abs(turnBox.y - (actionBox.y + actionBox.height)) <= 80;
+  };
 
   await page.goto(`${BASE_URL}/`, { waitUntil: 'commit', timeout: 30000 });
   await page.getByRole('button', { name: /Deal the deck/ }).first().waitFor({ state: 'visible', timeout: 30000 });
@@ -47,6 +75,7 @@ const QA_SUFFIX = `${VIEWPORT_WIDTH}x${VIEWPORT_HEIGHT}`;
 
   await page.screenshot({ path: `.qa-poker-dealt-${QA_SUFFIX}.png`, fullPage: false });
   let bodyText = await text();
+  const muckBox = await firstVisibleBox(page.locator('[aria-label^="Muck zone"]'));
   const initial = {
     hasPot: bodyText.includes('POT'),
     hasStack: bodyText.includes('YOUR STACK'),
@@ -55,6 +84,12 @@ const QA_SUFFIX = `${VIEWPORT_WIDTH}x${VIEWPORT_HEIGHT}`;
     hasCall: bodyText.includes('CALL'),
     hasRaise: bodyText.includes('RAISE'),
     hasNoStreetControlBeforeBetting: !bodyText.includes('BURN') && !bodyText.includes('FLOP'),
+    hasMuckZone: bodyText.includes('MUCK') && bodyText.includes('EMPTY') && Boolean(muckBox && muckBox.width >= 60 && muckBox.height >= 80),
+    hasCallAmount: /\bCALL \d+\b/.test(bodyText),
+    hasRaiseAmount: /\bRAISE TO \d+\b/.test(bodyText),
+    singlePotReadout: (bodyText.match(/\bPOT\b/g) ?? []).length === 1,
+    singleStackReadout: (bodyText.match(/\bYOUR STACK\b/g) ?? []).length === 1,
+    turnAdjacent: await turnStatusIsAdjacentToAction(),
     errors: [...errors],
   };
 
@@ -128,6 +163,10 @@ const QA_SUFFIX = `${VIEWPORT_WIDTH}x${VIEWPORT_HEIGHT}`;
   if (!initial.hasPot || !initial.hasStack || !initial.hasFold || !initial.hasCall || !initial.hasRaise) {
     failures.push('initial poker ledger/actions are missing');
   }
+  if (!initial.hasMuckZone) failures.push('muck is not a visible inset zone with an empty state');
+  if (!initial.hasCallAmount || !initial.hasRaiseAmount) failures.push('call/raise amounts are missing from the action labels');
+  if (!initial.singlePotReadout || !initial.singleStackReadout) failures.push('pot/stack readout is duplicated');
+  if (!initial.turnAdjacent) failures.push('your turn status is not adjacent to the action rail');
   if (!initial.hasNoStreetControlBeforeBetting) failures.push('street controls were exposed before betting closed');
   if (!preflop.callClicked || !preflop.checkClicked || !preflop.potUpdated || !preflop.hasBurn || preflop.hasFlopBeforeBurn) {
     failures.push('preflop call/check did not expose burn-before-flop sequencing');

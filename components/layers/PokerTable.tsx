@@ -25,8 +25,17 @@ import { useCosmeticsStore } from '@store/cosmeticsStore';
 import { useGameStore } from '@store/gameStore';
 import { useUiStore } from '@store/uiStore';
 import { parseCardId, selectCardFace, selectLocalHand } from '@engine/selectors';
+import { checkPokerBet } from '@engine/pokerBetting';
 import { evaluatePokerHand, getGameRules, type GameAction, type GameActionSpec } from '@engine/rules';
-import { communalZoneId, handZoneId, ZONE_MUCK, type CardFace, type CardInstance } from '@engine/types';
+import {
+  communalZoneId,
+  handZoneId,
+  ZONE_MUCK,
+  type CardFace,
+  type CardInstance,
+  type GameState,
+  type PlayerId,
+} from '@engine/types';
 import { alpha, colors, fonts, fontSizes, letterSpacing, motion, radii, shadow, space } from '@theme';
 
 /**
@@ -99,8 +108,7 @@ function PokerCommunityCard({
   );
 }
 
-/** The muck pile: a small face-down stack. The top card rotates 90° in on
- * each burn so the burn reads as a slide-to-muck instead of a pop. */
+/** The muck pile: a proper inset zone with a visible burned-card stack. */
 function MuckPile({
   count,
   burnTrigger,
@@ -140,12 +148,31 @@ function MuckPile({
       style={styles.muck}
       accessible
       accessibilityRole="text"
-      accessibilityLabel={`Muck pile, ${count} burned cards`}
+      accessibilityLabel={`Muck zone, ${count} burned ${count === 1 ? 'card' : 'cards'}`}
     >
-      <Animated.View style={motionStyle}>
-        <PlayingCard face="down" size="xs" back={back} />
-      </Animated.View>
-      <Text style={styles.muckLabel}>MUCK</Text>
+      <ZoneWell width={72} height={96} radius={radii.md} style={styles.muckWell}>
+        <View style={styles.muckCardStack} pointerEvents="none">
+          {count > 1 && (
+            <PlayingCard
+              face="down"
+              size="sm"
+              back={back}
+              style={styles.muckBackCard}
+            />
+          )}
+          {count > 0 ? (
+            <Animated.View style={motionStyle}>
+              <PlayingCard face="down" size="sm" back={back} />
+            </Animated.View>
+          ) : (
+            <Text style={styles.muckEmpty}>EMPTY</Text>
+          )}
+        </View>
+      </ZoneWell>
+      <View style={styles.muckCaption} pointerEvents="none">
+        <Text style={styles.muckLabel}>MUCK</Text>
+        <Text style={styles.muckCount}>{count}</Text>
+      </View>
     </View>
   );
 }
@@ -192,6 +219,19 @@ function BestHandPill({
   );
 }
 
+/** Keep bet amounts visible without duplicating the rules source of truth. */
+function pokerActionLabel(spec: GameActionSpec, state: GameState, viewerId: PlayerId): string {
+  if (spec.id === 'call') {
+    const verdict = checkPokerBet(state, viewerId, 'call');
+    return verdict.ok ? `${spec.label} ${verdict.amount}` : spec.label;
+  }
+  if (spec.id === 'raise') {
+    const verdict = checkPokerBet(state, viewerId, 'raise');
+    return verdict.ok ? `${spec.label} TO ${verdict.raiseTo ?? verdict.amount}` : spec.label;
+  }
+  return spec.label;
+}
+
 export function PokerTable({ active, topInset, bottomInset }: TableProps) {
   const { haptic, reduceMotion } = useMotion();
   const setViewMode = useUiStore((s) => s.setViewMode);
@@ -218,6 +258,21 @@ export function PokerTable({ active, topInset, bottomInset }: TableProps) {
     () => (viewerId ? state.players.filter((player) => player.id !== viewerId) : []),
     [state.players, viewerId],
   );
+  const isMyTurn = viewerId !== null && state.currentPlayerId === viewerId;
+  const currentPlayerName = useMemo(
+    () => state.players.find((player) => player.id === state.currentPlayerId)?.name ?? '',
+    [state.currentPlayerId, state.players],
+  );
+  const turnStatus = isMyTurn
+    ? 'YOUR TURN'
+    : currentPlayerName
+      ? `${currentPlayerName.toUpperCase()} · TO PLAY`
+      : 'TABLE ACTIVE';
+  const turnHint = isMyTurn
+    ? 'CHOOSE A MOVE'
+    : currentPlayerName
+      ? `WAITING FOR ${currentPlayerName.toUpperCase()}`
+      : 'WAITING FOR THE TABLE';
   const ruleActions = useMemo<GameActionSpec[]>(
     () => (viewerId ? rules.actions(state, viewerId) : []),
     [rules, state, viewerId],
@@ -386,14 +441,16 @@ export function PokerTable({ active, topInset, bottomInset }: TableProps) {
     >
       <TableShell
         title="HOLD'EM"
+        turnLabel=""
         active={active}
         onBackToHub={handleBackToHub}
         topInset={topInset}
         bottomInset={0}
       >
+        <View style={styles.pokerContent}>
 
-      {/* Opponents */}
-      <View style={styles.opponents}>
+        {/* Opponents */}
+        <View style={styles.opponents}>
         {opponents.map((opponent) => {
           const stack = betting?.stacks[opponent.id] ?? 0;
           return (
@@ -442,22 +499,28 @@ export function PokerTable({ active, topInset, bottomInset }: TableProps) {
             reduceMotion={reduceMotion}
             back={equippedBackId}
           />
-          <View style={styles.communityCards}>
-            {communityCards.length === 0 ? (
-              <ZoneWell width={110} height={22} radius={radii.sm} label="COMMUNITY" />
-            ) : (
-              communityCards.map((cid) => {
-                const card = state.cards[cid];
-                if (!card) return null;
-                return (
-                  <PokerCommunityCard
-                    key={cid}
-                    card={card}
-                    delay={cardDelays[cid] ?? 0}
-                    reduceMotion={reduceMotion}
-                  />
-                );
-              })
+          <View style={styles.communityWell}>
+            <ZoneWell
+              fill
+              radius={radii.md}
+              label={communityCards.length === 0 ? 'COMMUNITY' : undefined}
+              hint={communityCards.length === 0 ? 'BOARD EMPTY' : undefined}
+            />
+            {communityCards.length > 0 && (
+              <View style={styles.communityCards}>
+                {communityCards.map((cid) => {
+                  const card = state.cards[cid];
+                  if (!card) return null;
+                  return (
+                    <PokerCommunityCard
+                      key={cid}
+                      card={card}
+                      delay={cardDelays[cid] ?? 0}
+                      reduceMotion={reduceMotion}
+                    />
+                  );
+                })}
+              </View>
             )}
           </View>
           <View style={styles.muckSpacer} />
@@ -472,34 +535,53 @@ export function PokerTable({ active, topInset, bottomInset }: TableProps) {
       </View>
 
       {/* Action rail */}
-      {state.phase !== 'ended' && ruleActions.length > 0 && (
-        <View style={styles.ruleRail}>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.ruleRailContent}
-          >
-            {ruleActions.map((spec) => (
-              <CardButton
-                key={spec.id}
-                variant={spec.kind === 'host' ? 'secondary' : 'primary'}
-                size="sm"
-                haptic="medium"
-                onPress={() => handleGameAction(spec.id)}
-                style={styles.ruleActionBtn}
-                innerStyle={styles.ruleActionInner}
+      {state.phase !== 'ended' && (
+        <View style={styles.actionDock}>
+          <View style={styles.actionHeading}>
+            <View style={styles.turnStatusRow}>
+              <View style={[styles.turnDot, isMyTurn && styles.turnDotActive]} />
+              <Text style={[styles.turnStatus, isMyTurn && styles.turnStatusActive]}>{turnStatus}</Text>
+            </View>
+            <Text style={styles.turnHint}>{turnHint}</Text>
+          </View>
+          {ruleActions.length > 0 ? (
+            <View style={styles.ruleRail}>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.ruleRailContent}
               >
-                <Text style={styles.ruleActionText} numberOfLines={1}>
-                  {spec.label}
-                </Text>
-              </CardButton>
-            ))}
-          </ScrollView>
+                {ruleActions.map((spec) => {
+                  const displayLabel = pokerActionLabel(spec, state, viewerId);
+                  return (
+                    <CardButton
+                      key={spec.id}
+                      variant={spec.kind === 'host' ? 'secondary' : 'primary'}
+                      size="sm"
+                      haptic="medium"
+                      accessibilityLabel={displayLabel}
+                      accessibilityHint={spec.hint}
+                      onPress={() => handleGameAction(spec.id)}
+                      style={styles.ruleActionBtn}
+                      innerStyle={styles.ruleActionInner}
+                    >
+                      <Text
+                        style={[styles.ruleActionText, spec.kind === 'host' && styles.ruleActionTextHost]}
+                        numberOfLines={1}
+                      >
+                        {displayLabel}
+                      </Text>
+                    </CardButton>
+                  );
+                })}
+              </ScrollView>
+            </View>
+          ) : null}
         </View>
       )}
 
       {/* Local hand */}
-      <View style={[styles.hand, { paddingBottom: bottomInset + space.lg }]}>
+      <View style={styles.hand}>
         {state.config.fanStyle === 'stacked' ? (
           <HandStack
             cards={localHand}
@@ -516,11 +598,6 @@ export function PokerTable({ active, topInset, bottomInset }: TableProps) {
             size="md"
             dealTrigger={dealTrigger}
           />
-        )}
-        {rules.readout && localHand.length > 0 && (
-          <View style={styles.valuePill}>
-            <Text style={styles.valuePillText}>{rules.readout(state, viewerId)}</Text>
-          </View>
         )}
       </View>
 
@@ -574,6 +651,7 @@ export function PokerTable({ active, topInset, bottomInset }: TableProps) {
         </Animated.View>
       )}
 
+        </View>
       </TableShell>
     </Animated.View>
   );
@@ -588,6 +666,12 @@ const styles = StyleSheet.create({
     bottom: 0,
     overflow: 'hidden',
     flexDirection: 'column',
+  },
+  pokerContent: {
+    flex: 1,
+    minHeight: 0,
+    justifyContent: 'center',
+    gap: space.md,
   },
   opponents: {
     flexDirection: 'row',
@@ -615,7 +699,8 @@ const styles = StyleSheet.create({
     letterSpacing: letterSpacing.cap,
   },
   table: {
-    flex: 1,
+    flexGrow: 0,
+    flexShrink: 0,
     flexDirection: 'column',
     alignItems: 'center',
     justifyContent: 'center',
@@ -667,29 +752,63 @@ const styles = StyleSheet.create({
   communityRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: space.md,
+    gap: space.sm,
   },
-  communityCards: {
-    flexDirection: 'row',
-    gap: space.xs,
-    minHeight: 22,
-    minWidth: 110,
+  communityWell: {
+    position: 'relative',
+    width: 116,
+    height: 96,
     alignItems: 'center',
     justifyContent: 'center',
   },
+  communityCards: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: space.xs,
+  },
   muck: {
     alignItems: 'center',
-    width: 40,
+    width: 76,
+    gap: space.xs,
   },
-  muckLabel: {
-    marginTop: 2,
-    fontSize: 8,
+  muckWell: {
+    overflow: 'hidden',
+  },
+  muckCardStack: {
+    width: 60,
+    height: 84,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  muckBackCard: {
+    position: 'absolute',
+    transform: [{ translateX: -3 }, { translateY: -2 }, { rotate: '-5deg' }],
+  },
+  muckEmpty: {
+    fontSize: 9,
     fontFamily: fonts.bold,
     color: colors.inkSubtle,
+    letterSpacing: letterSpacing.cap,
+  },
+  muckCaption: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: space.xs,
+  },
+  muckLabel: {
+    fontSize: 9,
+    fontFamily: fonts.bold,
+    color: colors.ink,
     letterSpacing: letterSpacing.caps,
   },
+  muckCount: {
+    fontSize: 9,
+    fontFamily: fonts.semibold,
+    color: colors.inkMuted,
+  },
   muckSpacer: {
-    width: 40,
+    width: 76,
   },
   streetLabel: {
     fontSize: 9,
@@ -709,12 +828,56 @@ const styles = StyleSheet.create({
     letterSpacing: letterSpacing.cap,
     color: colors.surface,
   },
+  actionDock: {
+    alignSelf: 'center',
+    width: '100%',
+    maxWidth: 560,
+    paddingHorizontal: space.lg,
+    gap: space.xs,
+  },
+  actionHeading: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    minHeight: 28,
+    gap: space.sm,
+  },
+  turnStatusRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.xs,
+    flexShrink: 1,
+  },
+  turnDot: {
+    width: 8,
+    height: 8,
+    borderRadius: radii.xs,
+    backgroundColor: colors.inkSubtle,
+  },
+  turnDotActive: {
+    backgroundColor: colors.brand,
+  },
+  turnStatus: {
+    fontSize: fontSizes.caption,
+    fontFamily: fonts.bold,
+    color: colors.inkMuted,
+    letterSpacing: letterSpacing.cap,
+  },
+  turnStatusActive: {
+    color: colors.brand,
+  },
+  turnHint: {
+    flexShrink: 1,
+    fontSize: fontSizes.micro,
+    fontFamily: fonts.bold,
+    color: colors.inkSubtle,
+    letterSpacing: letterSpacing.cap,
+    textAlign: 'right',
+  },
   ruleRail: {
     alignSelf: 'center',
     width: '100%',
-    maxWidth: 460,
-    paddingHorizontal: space.md,
-    paddingTop: space.xs,
+    maxWidth: 560,
   },
   ruleRailContent: {
     flexGrow: 1,
@@ -735,28 +898,17 @@ const styles = StyleSheet.create({
     letterSpacing: letterSpacing.cap,
     color: colors.surface,
   },
+  ruleActionTextHost: {
+    color: colors.ink,
+  },
 
   hand: {
     justifyContent: 'center',
     width: '100%',
     maxWidth: 560,
     alignSelf: 'center',
-    minHeight: 180,
+    minHeight: 164,
     alignItems: 'center',
-  },
-  valuePill: {
-    alignSelf: 'center',
-    marginTop: space.xs,
-    paddingHorizontal: space.md,
-    paddingVertical: space.xs,
-    borderRadius: radii.pill,
-    backgroundColor: colors.brand,
-  },
-  valuePillText: {
-    fontFamily: fonts.bold,
-    fontSize: fontSizes.caption,
-    letterSpacing: letterSpacing.cap,
-    color: colors.surface,
   },
   endedBanner: {
     position: 'absolute',

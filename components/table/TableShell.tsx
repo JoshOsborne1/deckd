@@ -95,7 +95,7 @@ export function TableShell({
           <Text style={styles.headerButtonText}>Hub</Text>
         </Pressable>
         <View style={styles.headerCenter}>
-          <Text style={styles.eyebrow}>{eyebrow}</Text>
+          {eyebrow ? <Text style={styles.eyebrow}>{eyebrow}</Text> : null}
           {title ? <Text style={styles.title}>{title}</Text> : null}
         </View>
         <View style={styles.headerRight}>
