@@ -16,7 +16,7 @@ import { useMotion } from '@hooks/useMotion';
 import { brand } from '@lib/assets';
 import { useGameStore } from '@store/gameStore';
 import { useUiStore } from '@store/uiStore';
-import { colors, fonts, motion, radii, space } from '@theme';
+import { alpha, colors, fonts, motion, radii, space } from '@theme';
 
 type NavIcon = React.ComponentType<{
   size?: number;
@@ -38,8 +38,11 @@ type ImmediateWebPressProps = {
   onTouchStart: () => void;
 };
 
-/** Vertical space reserved by the angled card fan and logo button. */
+/** Vertical space reserved by the standing-card fan and logo button. */
 export const NAV_BAR_RESERVE = 142;
+
+/** Minimum breathing room below the nav on platforms without a safe-area inset. */
+export const NAV_BAR_BOTTOM_GUTTER = 10;
 
 /** Compact reserve for short viewports (<720px tall, SE-class). */
 export const NAV_BAR_RESERVE_COMPACT = 112;
@@ -57,10 +60,15 @@ export function useCompactNav(): boolean {
 /** Backwards-compatible name used by layered surfaces. */
 export const GLOBAL_NAV_HEIGHT = NAV_BAR_RESERVE;
 
-const SIDE_W = 66;
-const SIDE_H = 92;
-const LOGO_W = 70;
-const SELECTED_RAISE = 12;
+const SIDE_W = 64;
+const SIDE_H = 90;
+const SIDE_W_COMPACT = 56;
+const SIDE_H_COMPACT = 78;
+const TABLE_W = 72;
+const TABLE_H = 106;
+const TABLE_W_COMPACT = 62;
+const TABLE_H_COMPACT = 88;
+const LOGO_W = TABLE_W;
 const SIDE_OVERLAP = 0;
 const LOGO_OVERLAP = 0;
 const CARD_STAGGER_MS = 34;
@@ -92,7 +100,7 @@ function isTabActive(id: NavConfig['id'], pathname: string, viewMode: string): b
 }
 
 /**
- * Nav v5: a physical fan of four cards with a separate Deckd deal button.
+ * Nav v5: a physical fan of four cards with a separate Deckd table card.
  * Route taps intentionally do not run a page transition. The cards can move
  * on press, but the destination appears immediately.
  */
@@ -101,7 +109,7 @@ export const GlobalNavBar: React.FC = () => {
   const pathname = usePathname() ?? '/';
   const insets = useSafeAreaInsets();
   const { reduceMotion, haptic } = useMotion();
-  const bottomPad = Math.max(insets.bottom, 10);
+  const bottomPad = Math.max(insets.bottom, NAV_BAR_BOTTOM_GUTTER);
   const viewMode = useUiStore((s) => s.viewMode);
   const jumpToViewMode = useUiStore((s) => s.jumpToViewMode);
   const gamePhase = useGameStore((s) => s.state.phase);
@@ -143,8 +151,8 @@ export const GlobalNavBar: React.FC = () => {
 
   return (
     <View pointerEvents="box-none" style={[styles.wrapper, { bottom: bottomPad }]}>
-      <View style={railStyle}>
-        <View style={[styles.row, compact && styles.rowCompact]}>
+      <View testID="global-nav-rail" style={railStyle}>
+        <View testID="global-nav-row" style={[styles.row, compact && styles.rowCompact]}>
           <NavCard
             item={navItems[0]}
             index={0}
@@ -236,7 +244,6 @@ function NavCard({
   const Icon = item.icon;
   const entry = useSharedValue(reduceMotion ? 1 : 0);
   const press = useSharedValue(0);
-  const raised = useSharedValue(active ? 1 : 0);
 
   useEffect(() => {
     cancelAnimation(entry);
@@ -248,17 +255,22 @@ function NavCard({
     return () => cancelAnimation(entry);
   }, [entry, index, reduceMotion]);
 
-  useEffect(() => {
-    cancelAnimation(raised);
-    if (reduceMotion) {
-      raised.value = withTiming(active ? 1 : 0, { duration: motion.duration.fast });
-      return;
-    }
-    raised.value = withSpring(active ? 1 : 0, motion.spring.nav);
-    return () => cancelAnimation(raised);
-  }, [raised, active, reduceMotion]);
-
-  const fanX = index === 0 ? 7 : index === 1 ? -7 : index === 2 ? -7 : -11;
+  const fanX = compact
+    ? index === 0
+      ? 5
+      : index === 1
+        ? -5
+        : index === 2
+          ? -5
+          : -8
+    : index === 0
+      ? 6
+      : index === 1
+        ? -6
+        : index === 2
+          ? -6
+          : -9;
+  const angle = compact ? item.angle * 0.78 : item.angle;
 
   const cardMotion = useAnimatedStyle(() => ({
     opacity: interpolate(entry.value, [0, 1], [0, 1]),
@@ -267,11 +279,10 @@ function NavCard({
       {
         translateY:
           interpolate(entry.value, [0, 1], [24, 0]) +
-          interpolate(raised.value, [0, 1], [0, -SELECTED_RAISE]) +
           interpolate(press.value, [0, 1], [0, 3]),
       },
       { scale: interpolate(press.value, [0, 1], [1, 0.96]) },
-      { rotate: `${interpolate(raised.value, [0, 1], [item.angle, item.angle * 0.55])}deg` },
+      { rotate: `${angle}deg` },
     ],
   }));
 
@@ -288,12 +299,12 @@ function NavCard({
   const setPressed = (pressed: boolean) => {
     if (reduceMotion) return;
     // Reanimated shared values are mutable by design for press feedback.
-     
     press.value = withSpring(pressed ? 1 : 0, motion.spring.press);
   };
 
+  // The white icon is a contrast adjustment on the filled card. Fill is the
+  // only active-state cue; geometry, shadow, label colour, and icon weight stay stable.
   const iconColor = active ? colors.surface : colors.inkMuted;
-  const labelColor = active ? colors.brand : colors.inkMuted;
 
   const pressedRef = useRef(false);
 
@@ -308,7 +319,16 @@ function NavCard({
     : undefined;
 
   return (
-    <View style={[styles.slot, compact && styles.slotCompact, { marginLeft: overlap }, active && styles.slotActive]}>
+    <View
+      style={[
+        styles.slot,
+        compact && styles.slotCompact,
+        {
+          marginLeft: overlap,
+          zIndex: index === 0 || index === 3 ? 1 : 2,
+        },
+      ]}
+    >
       <Pressable
         {...immediateWebPress}
         accessibilityRole="button"
@@ -330,13 +350,14 @@ function NavCard({
         <Animated.View
           style={[
             styles.card,
+            compact && styles.cardCompact,
             active && styles.cardFilled,
             cardMotion,
           ]}
         >
-          <Icon size={23} color={iconColor} strokeWidth={active ? 2.3 : 1.8} />
+          <Icon size={23} color={iconColor} strokeWidth={1.8} />
         </Animated.View>
-        <Animated.Text style={[styles.label, { color: labelColor }, labelMotion]}>
+        <Animated.Text style={[styles.label, { color: colors.inkMuted }, labelMotion]}>
           {item.label}
         </Animated.Text>
       </Pressable>
@@ -361,7 +382,6 @@ function LogoButton({
 }) {
   const entry = useSharedValue(reduceMotion ? 1 : 0);
   const press = useSharedValue(0);
-  const raised = useSharedValue(active ? 1 : 0);
 
   useEffect(() => {
     cancelAnimation(entry);
@@ -373,26 +393,14 @@ function LogoButton({
     return () => cancelAnimation(entry);
   }, [entry, reduceMotion]);
 
-  useEffect(() => {
-    cancelAnimation(raised);
-    if (reduceMotion) {
-      raised.value = withTiming(active ? 1 : 0, { duration: motion.duration.fast });
-      return;
-    }
-    raised.value = withSpring(active ? 1 : 0, motion.spring.nav);
-    return () => cancelAnimation(raised);
-  }, [raised, active, reduceMotion]);
-
   const logoMotion = useAnimatedStyle(() => ({
     opacity: interpolate(entry.value, [0, 1], [0, 1]),
     transform: [
       {
         translateY:
-          interpolate(entry.value, [0, 1], [30, 0]) +
-          interpolate(raised.value, [0, 1], [0, -8]) +
-          interpolate(press.value, [0, 1], [0, 3]),
+          interpolate(entry.value, [0, 1], [30, 0]) + interpolate(press.value, [0, 1], [0, 3]),
       },
-      { scale: interpolate(raised.value, [0, 1], [0.96, 1.06]) * interpolate(press.value, [0, 1], [1, 0.9]) },
+      { scale: interpolate(press.value, [0, 1], [1, 0.96]) },
     ],
   }));
 
@@ -404,7 +412,6 @@ function LogoButton({
   const setPressed = (pressed: boolean) => {
     if (reduceMotion) return;
     // Reanimated shared values are mutable by design for press feedback.
-     
     press.value = withSpring(pressed ? 1 : 0, motion.spring.press);
   };
 
@@ -438,15 +445,17 @@ function LogoButton({
           pressedRef.current = false;
           setPressed(false);
         }}
-        style={compact ? [styles.logoHit, styles.hitCompact] : styles.logoHit}
+        style={compact ? [styles.logoHit, styles.logoHitCompact] : styles.logoHit}
       >
-        <Animated.Image
-          source={brand.logo}
-          resizeMode="contain"
-          style={[styles.logoMark, logoMotion]}
-          accessibilityIgnoresInvertColors
-        />
-        <Animated.Text style={[styles.logoLabel, { color: active ? colors.brand : colors.inkMuted }, labelMotion]}>
+        <Animated.View style={[styles.tableCard, compact && styles.tableCardCompact, active && styles.cardFilled, logoMotion]}>
+          <Animated.Image
+            source={brand.logo}
+            resizeMode="contain"
+            style={[styles.logoMark, compact && styles.logoMarkCompact, active && styles.logoMarkActive]}
+            accessibilityIgnoresInvertColors
+          />
+        </Animated.View>
+        <Animated.Text style={[styles.logoLabel, { color: colors.inkMuted }, labelMotion]}>
           Table
         </Animated.Text>
       </Pressable>
@@ -470,6 +479,8 @@ const styles = StyleSheet.create({
     position: 'relative',
     justifyContent: 'flex-end',
     paddingTop: space.sm,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: alpha.navLine,
     overflow: 'visible',
     backgroundColor: 'transparent',
   },
@@ -496,38 +507,41 @@ const styles = StyleSheet.create({
     height: 122,
     alignItems: 'center',
     justifyContent: 'flex-end',
-    zIndex: 2,
   },
   slotCompact: {
-    height: 96,
+    width: SIDE_W_COMPACT,
+    height: 106,
   },
   logoSlot: {
     width: LOGO_W,
-    height: 122,
+    height: 132,
     alignItems: 'center',
     justifyContent: 'flex-end',
     zIndex: 10,
   },
   logoSlotCompact: {
-    height: 96,
-  },
-  slotActive: {
-    zIndex: 8,
+    width: TABLE_W_COMPACT,
+    height: 106,
   },
   hit: {
     width: SIDE_W,
-    minHeight: 112,
+    minHeight: 110,
     alignItems: 'center',
     justifyContent: 'flex-end',
   },
   hitCompact: {
-    minHeight: 88,
+    width: SIDE_W_COMPACT,
+    minHeight: 102,
   },
   logoHit: {
     width: LOGO_W,
-    minHeight: 118,
+    minHeight: 126,
     alignItems: 'center',
     justifyContent: 'flex-end',
+  },
+  logoHitCompact: {
+    width: TABLE_W_COMPACT,
+    minHeight: 104,
   },
   card: {
     width: SIDE_W,
@@ -545,13 +559,33 @@ const styles = StyleSheet.create({
     shadowRadius: 5,
     elevation: 3,
   },
+  cardCompact: {
+    width: SIDE_W_COMPACT,
+    height: SIDE_H_COMPACT,
+  },
   cardFilled: {
     backgroundColor: colors.brandHot,
     borderColor: colors.brandHot,
-    shadowColor: colors.brandHot,
-    shadowOpacity: 0.27,
-    shadowRadius: 9,
-    elevation: 6,
+  },
+  tableCard: {
+    width: TABLE_W,
+    height: TABLE_H,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.navCard,
+    borderWidth: 1,
+    borderColor: colors.navCardEdge,
+    borderRadius: radii.card,
+    borderCurve: 'continuous',
+    shadowColor: colors.ink,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 5,
+    elevation: 3,
+  },
+  tableCardCompact: {
+    width: TABLE_W_COMPACT,
+    height: TABLE_H_COMPACT,
   },
   label: {
     marginTop: 4,
@@ -562,11 +596,18 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   logoMark: {
-    width: 60,
-    height: 60,
+    width: 42,
+    height: 42,
+  },
+  logoMarkCompact: {
+    width: 34,
+    height: 34,
+  },
+  logoMarkActive: {
+    tintColor: colors.surface,
   },
   logoLabel: {
-    marginTop: 1,
+    marginTop: 4,
     fontFamily: fonts.semibold,
     fontSize: 11,
     lineHeight: 14,

@@ -14,7 +14,12 @@ import { HubLayer } from '@components/layers/HubLayer';
 import { TableLayer } from '@components/layers/TableLayer';
 import { LobbyLayer } from '@components/layers/LobbyLayer';
 import { PassLayer } from '@components/layers/PassLayer';
-import { NAV_BAR_RESERVE, NAV_BAR_RESERVE_COMPACT, useCompactNav } from '@components/GlobalNavBar';
+import {
+  NAV_BAR_BOTTOM_GUTTER,
+  NAV_BAR_RESERVE,
+  NAV_BAR_RESERVE_COMPACT,
+  useCompactNav,
+} from '@components/GlobalNavBar';
 import {
   SurfaceMorphContext,
   type MorphDirection,
@@ -46,7 +51,8 @@ export default function Surface() {
   const lobbyStatus = useLobbyStore((s) => s.status);
   const lobbySessionActive = lobbyStatus === 'connecting' || lobbyStatus === 'connected';
   const compact = useCompactNav();
-  const navReserve = compact ? NAV_BAR_RESERVE_COMPACT : NAV_BAR_RESERVE;
+  const navReserve = Math.max(insets.bottom, NAV_BAR_BOTTOM_GUTTER) +
+    (compact ? NAV_BAR_RESERVE_COMPACT : NAV_BAR_RESERVE);
   const showHomeSurface = viewMode === 'home' || viewMode === 'hub' || previousMode === 'home' || previousMode === 'hub';
   const showTableSurface = viewMode === 'table' || viewMode === 'pass' || previousMode === 'table' || previousMode === 'pass';
   const showLobbySurface = viewMode === 'lobby' || previousMode === 'lobby' || lobbySessionActive;

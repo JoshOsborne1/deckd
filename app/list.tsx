@@ -10,7 +10,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { FlipHorizontal2, Pencil, Trash2 } from 'lucide-react-native';
 import { PlayingCard } from '@components/PlayingCard';
 import { TableSurface } from '@components/TableSurface';
-import { NAV_BAR_RESERVE } from '@components/GlobalNavBar';
+import { NAV_BAR_BOTTOM_GUTTER, NAV_BAR_RESERVE } from '@components/GlobalNavBar';
 import { builtinPresets } from '@engine/index';
 import { useMotion } from '@hooks/useMotion';
 import { PRESET_BACKS } from '@lib/presetAssets';
@@ -27,6 +27,7 @@ function playerRangeLabel(supportsPlayerCount: (n: number) => boolean): string {
 
 export default function ListScreen() {
   const insets = useSafeAreaInsets();
+  const navBottomReserve = Math.max(insets.bottom, NAV_BAR_BOTTOM_GUTTER) + NAV_BAR_RESERVE;
 
   const defaultPresetId = useUserPresetsStore((s) => s.defaultPresetId);
   const presets = useUserPresetsStore((s) => s.presets);
@@ -59,9 +60,10 @@ export default function ListScreen() {
     <View style={styles.container}>
       <TableSurface mode="setup" />
       <ScrollView
+        style={{ marginBottom: navBottomReserve }}
         contentContainerStyle={[
           styles.scrollContent,
-          { paddingTop: insets.top + space.md, paddingBottom: insets.bottom + NAV_BAR_RESERVE + space.x5l },
+          { paddingTop: insets.top + space.md, paddingBottom: space.x5l },
         ]}
         showsVerticalScrollIndicator={false}
       >

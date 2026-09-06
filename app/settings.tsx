@@ -3,6 +3,7 @@ import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Home, Smartphone, Volume2, Wifi } from 'lucide-react-native';
 import { CardButton } from '@components/CardButton';
+import { NAV_BAR_BOTTOM_GUTTER, NAV_BAR_RESERVE } from '@components/GlobalNavBar';
 import { CardSection } from '@components/CardSection';
 import { FeltDrawer } from '@components/FeltDrawer';
 import { useMotion } from '@hooks/useMotion';
@@ -17,6 +18,7 @@ import { alpha, colors, fonts, letterSpacing, space, textStyles } from '@theme';
 export default function SettingsScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const navBottomReserve = Math.max(insets.bottom, NAV_BAR_BOTTOM_GUTTER) + NAV_BAR_RESERVE;
   const { haptic } = useMotion();
   const networkMultiplayerEnabled = useProfileStore((s) => s.networkMultiplayerEnabled);
   const setNetworkMultiplayerEnabled = useProfileStore((s) => s.setNetworkMultiplayerEnabled);
@@ -32,9 +34,13 @@ export default function SettingsScreen() {
   return (
     <FeltDrawer>
       <ScrollView
+        style={{ marginBottom: navBottomReserve }}
         contentContainerStyle={[
           styles.scroll,
-          { paddingTop: insets.top + space.sm, paddingBottom: insets.bottom + space.x5l * 3 },
+          {
+            paddingTop: insets.top + space.sm,
+            paddingBottom: space.xxl,
+          },
         ]}
         showsVerticalScrollIndicator={false}
       >

@@ -2,6 +2,8 @@
 
 Status: supporting historical log. Canonical current brief: `CURRENT.md`.
 
+- Slice 3 (2026-09-06): standing-card nav now fits 375x812 and 1440x900 with an unconditional taller Table logo card, single active fill, top rule, safe-area-aware scrollports, and button-sized Restore purchases. Live QA is 10/10 route-viewports with zero overlap/clip errors; 324/324 Jest, 18/18 Expo Doctor, and a 5.94 MB export are green and live.
+
 - Slice 2 (2026-09-04): shared `ZoneWell` replaces dashed table placeholders; contrast tokens and compact red labels tightened; radius, shadow, avatar, rules-link, and grain cleanup landed. Card Lab 16/16 at 375x812 and 1440x900, 324/324 Jest, Expo Doctor 18/18, and a 5.94 MB export are green and live.
 
 - Deep audit + cleanup plan 2026-09-03 (`docs/CLEANUP_2026-09-03.md`): gates green (typecheck clean, lint 0e/12w, jest 324/324), live screenshots confirm nav clipping at 375, distorted/off-palette RevK faces, duplicated readouts, store/hub copy defects; slices ordered one-deck-first, no fixes applied.

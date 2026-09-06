@@ -11,7 +11,7 @@ import Animated, {
   withSpring,
 } from 'react-native-reanimated';
 import { FlipCard } from '@components/FlipCard';
-import { NAV_BAR_RESERVE } from '@components/GlobalNavBar';
+import { NAV_BAR_BOTTOM_GUTTER, NAV_BAR_RESERVE } from '@components/GlobalNavBar';
 import { PlayingCard } from '@components/PlayingCard';
 import { useMotion } from '@hooks/useMotion';
 import { brand } from '@lib/assets';
@@ -145,6 +145,7 @@ function PreviewStage({
 export default function StoreScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const navBottomReserve = Math.max(insets.bottom, NAV_BAR_BOTTOM_GUTTER) + NAV_BAR_RESERVE;
   const { reduceMotion, haptic } = useMotion();
   const hapticsEnabled = useProfileStore((s) => s.hapticsEnabled);
   const setViewMode = useUiStore((s) => s.setViewMode);
@@ -210,11 +211,12 @@ export default function StoreScreen() {
   return (
     <View style={styles.root}>
       <ScrollView
+        style={{ marginBottom: navBottomReserve }}
         contentContainerStyle={[
           styles.scrollContent,
           {
             paddingTop: insets.top + space.md,
-            paddingBottom: insets.bottom + NAV_BAR_RESERVE + space.xxl,
+            paddingBottom: space.xxl,
           },
         ]}
         showsVerticalScrollIndicator={false}
@@ -380,6 +382,7 @@ export default function StoreScreen() {
         </DealIn>
 
         <Pressable
+          testID="restore-purchases"
           accessibilityRole="button"
           accessibilityLabel="Restore purchases"
           onPress={() => {
@@ -677,7 +680,7 @@ const styles = StyleSheet.create({
   recipeRow: {
     gap: space.sm,
     paddingRight: space.lg,
-    paddingBottom: space.md,
+    paddingBottom: space.xs,
   },
   recipeCard: {
     padding: 2,
@@ -687,6 +690,12 @@ const styles = StyleSheet.create({
     paddingVertical: space.md,
     minHeight: 44,
     justifyContent: 'center',
+    paddingHorizontal: space.lg,
+    borderRadius: radii.pill,
+    borderWidth: 1,
+    borderColor: colors.navCardEdge,
+    backgroundColor: colors.surface,
+    ...shadow.card,
   },
   restoreLabel: {
     fontFamily: fonts.bold,

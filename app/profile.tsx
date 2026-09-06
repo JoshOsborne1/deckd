@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AvatarPlaceholder } from '@components/AvatarPlaceholder';
 import { CardButton } from '@components/CardButton';
 import { CardSection } from '@components/CardSection';
+import { NAV_BAR_BOTTOM_GUTTER, NAV_BAR_RESERVE } from '@components/GlobalNavBar';
 import { FeltDrawer } from '@components/FeltDrawer';
 import { useMotion } from '@hooks/useMotion';
 import { useProfileStore } from '@store/profileStore';
@@ -16,6 +17,7 @@ const AVATAR_SEEDS = ['deckd-ace', 'deckd-king', 'deckd-queen', 'deckd-joker', '
 export default function ProfileScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const navBottomReserve = Math.max(insets.bottom, NAV_BAR_BOTTOM_GUTTER) + NAV_BAR_RESERVE;
   const { reduceMotion, haptic } = useMotion();
   const nickname = useProfileStore((s) => s.nickname);
   const avatarSeed = useProfileStore((s) => s.avatarSeed);
@@ -72,9 +74,13 @@ export default function ProfileScreen() {
   return (
     <FeltDrawer>
       <ScrollView
+        style={{ marginBottom: navBottomReserve }}
         contentContainerStyle={[
           styles.scrollContent,
-          { paddingTop: insets.top + space.sm, paddingBottom: insets.bottom + space.x5l * 3 },
+          {
+            paddingTop: insets.top + space.sm,
+            paddingBottom: space.xxl,
+          },
         ]}
         showsVerticalScrollIndicator={false}
       >
@@ -106,7 +112,7 @@ export default function ProfileScreen() {
           tab
           eyebrow="YOUR DECK"
           title="Player identity"
-          style={styles.section}
+          style={styles.identitySection}
         >
           <View style={styles.identityHeader}>
             <AvatarPlaceholder seed={avatarSeed} label={nickname} size={space.x5l * 2} ring="brand" />
@@ -162,6 +168,7 @@ export default function ProfileScreen() {
           variant="surface"
           eyebrow="PREFERENCES"
           title="Touch and motion"
+          headerStyle={styles.preferenceHeader}
           style={styles.section}
         >
           <View style={styles.preferenceRow}>
@@ -187,9 +194,7 @@ export default function ProfileScreen() {
             <View style={styles.preferenceText}>
               <Text style={styles.preferenceTitle}>Reduce motion override</Text>
               <Text style={styles.preferenceMeta}>
-                {reduceMotion
-                  ? 'System says reduce motion is enabled'
-                  : 'System says reduce motion is disabled'}
+                {reduceMotion ? 'System reduce motion: on' : 'System reduce motion: off'}
               </Text>
             </View>
             <CardButton
@@ -287,6 +292,7 @@ const styles = StyleSheet.create({
   settingsChip: { alignSelf: 'flex-start' },
   settingsChipLabel: { ...textStyles.label, color: colors.brand },
   section: { marginBottom: space.lg },
+  identitySection: { marginBottom: space.sm },
   identityHeader: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -337,6 +343,7 @@ const styles = StyleSheet.create({
     borderWidth: 0,
     backgroundColor: 'transparent',
   },
+  preferenceHeader: { marginBottom: space.sm },
   preferenceRow: { flexDirection: 'row', alignItems: 'center', gap: space.md },
   preferenceText: { flex: 1 },
   preferenceTitle: {
@@ -348,11 +355,12 @@ const styles = StyleSheet.create({
     ...textStyles.bodyMuted,
     fontSize: fontSizes.small,
     marginTop: space.xxs,
+    lineHeight: 16,
   },
   preferenceDivider: {
     height: 1,
     backgroundColor: colors.border,
-    marginVertical: space.md,
+    marginVertical: 0,
   },
   toggleOnText: {
     fontFamily: fonts.bold,
