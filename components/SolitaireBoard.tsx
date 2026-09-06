@@ -1,6 +1,6 @@
 import React, { useCallback, useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { PlayingCard } from '@components/PlayingCard';
+import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { PlayingCard, SIZE_MAP, type PlayingCardSize } from '@components/PlayingCard';
 import { CardButton } from '@components/CardButton';
 import { ZoneWell } from '@components/ZoneWell';
 import { useMotion } from '@hooks/useMotion';
@@ -28,6 +28,7 @@ import {
   tableauRun,
   GOLF_STOCK,
   GOLF_WASTE,
+  GOLF_TABLEAU_COUNT,
   golfTableauZoneId,
   golfPlaysOnWaste,
   isGolfWon,
@@ -74,13 +75,15 @@ function MiniCard({
   highlight,
   onPress,
   size = 'sm',
+  testID,
 }: {
   cardId: string;
   face: 'up' | 'down';
   selected?: boolean;
   highlight?: boolean;
   onPress?: () => void;
-  size?: 'sm' | 'xs';
+  size?: PlayingCardSize;
+  testID?: string;
 }) {
   const parsed = parseCardId(cardId);
   const inner = parsed ? (
@@ -91,9 +94,10 @@ function MiniCard({
       size={size}
       style={selected ? styles.cardSelected : undefined}
       elevated={highlight || selected}
+      testID={testID}
     />
   ) : (
-    <PlayingCard face={face} size={size} />
+    <PlayingCard face={face} size={size} testID={testID} />
   );
   if (!onPress) return inner;
   return (
@@ -237,13 +241,14 @@ export function SolitaireBoard({ state, viewerId }: SolitaireBoardProps) {
           <GolfBoard
             state={state}
             onPlayColumn={(index) => handleAction(`play:${index}` as GameAction)}
+            onDraw={() => handleAction('draw')}
           />
         )}
       </ScrollView>
 
-      {/* Action bar (stock draw / finish) */}
+      {/* The Golf stock is its own draw control; only terminal actions stay in the rail. */}
       {state.phase !== 'ended' && (
-        <SolitaireActionBar state={state} onAction={handleAction} />
+        <SolitaireActionBar state={state} onAction={handleAction} hideDraw={game === 'golf'} />
       )}
 
       {/* Win banner */}
@@ -617,69 +622,115 @@ function PyramidBoard({
 function GolfBoard({
   state,
   onPlayColumn,
+  onDraw,
 }: {
   state: GameState;
   onPlayColumn: (index: number) => void;
+  onDraw: () => void;
 }) {
+  const { width: viewportWidth } = useWindowDimensions();
+  const cardSize: PlayingCardSize = viewportWidth >= 720 ? 'md' : 'sm';
+  const cardSpec = SIZE_MAP[cardSize];
+  const availableTableauWidth = Math.max(cardSpec.width, viewportWidth - space.md * 2);
+  // Fit the full visible card span inside the padded board: seven slots plus
+  // one card width minus one slot. The cards may overlap, never distort.
+  const maxColumnSlotWidth = Math.floor(
+    (availableTableauWidth - cardSpec.width) / (GOLF_TABLEAU_COUNT - 1),
+  );
+  const columnSlotWidth = Math.max(
+    1,
+    Math.min(viewportWidth >= 720 ? 78 : 50, maxColumnSlotWidth),
+  );
+  const stackOverlap = viewportWidth >= 720 ? 34 : 24;
   const stockZone = state.zones[GOLF_STOCK];
   const wasteZone = state.zones[GOLF_WASTE];
   const stockCount = stockZone?.cardIds.length ?? 0;
   const wasteTop = wasteZone?.cardIds[wasteZone.cardIds.length - 1] ?? null;
   const wasteCard = wasteTop ? state.cards[wasteTop] : null;
+  const wasteParsed = wasteTop ? parseCardId(wasteTop) : null;
 
   return (
     <View style={styles.golfBoard}>
-      {/* Stock + waste */}
+      {/* The stock is the draw control: the card, count, and DRAW label travel together. */}
       <View style={styles.golfTopRow}>
-        <View style={styles.pileSlot}>
+        <Pressable
+          onPress={onDraw}
+          disabled={stockCount === 0}
+          accessibilityRole="button"
+          accessibilityLabel="DRAW"
+          accessibilityHint={stockCount > 0
+            ? `Draw the next card from the stock. ${stockCount} cards left.`
+            : 'The draw stock is empty.'}
+          style={({ pressed }) => [
+            styles.golfPile,
+            { width: cardSpec.width },
+            pressed && styles.golfPilePressed,
+            stockCount === 0 && styles.golfPileDisabled,
+          ]}
+        >
           {stockCount > 0 ? (
-            <View>
-              <PlayingCard face="down" size="sm" />
-              <Text style={styles.pileCount}>{stockCount}</Text>
-            </View>
+            <PlayingCard face="down" size={cardSize} testID="golf-stock-card" />
           ) : (
-            <EmptySlot label="STOCK" />
+            <ZoneWell width={cardSpec.width} height={cardSpec.height} label="EMPTY" />
           )}
-        </View>
-        <View style={styles.pileSlot}>
-          {wasteCard ? (
-            <MiniCard cardId={wasteTop!} face={wasteCard.face} size="sm" />
+          <Text style={styles.golfPileCount}>{stockCount > 0 ? `${stockCount} LEFT` : 'EMPTY'}</Text>
+          <Text style={styles.golfPileLabel}>DRAW</Text>
+        </Pressable>
+        <View style={[styles.golfPile, { width: cardSpec.width }]}>
+          {wasteCard && wasteParsed ? (
+            <MiniCard cardId={wasteTop!} face={wasteCard.face} size={cardSize} testID="golf-waste-card" />
           ) : (
-            <EmptySlot label="WASTE" />
+            <ZoneWell width={cardSpec.width} height={cardSpec.height} label="WASTE" />
           )}
+          <Text style={styles.golfPileLabel}>WASTE</Text>
         </View>
       </View>
 
-      {/* Tableau: 7 columns of 5, only the top card plays */}
-      <View style={styles.golfTableau}>
-        {Array.from({ length: 7 }, (_, col) => {
+      {/* Tableau: seven overlapping columns, with every card kept at deck ratio. */}
+      <View style={[styles.golfTableau, { width: columnSlotWidth * GOLF_TABLEAU_COUNT }]}>
+        {Array.from({ length: GOLF_TABLEAU_COUNT }, (_, col) => {
           const zone = state.zones[golfTableauZoneId(col)];
           const cards = zone?.cardIds ?? [];
           const topCardId = cards[cards.length - 1] ?? null;
           const legal = topCardId ? golfPlaysOnWaste(topCardId, wasteTop ?? undefined) : false;
+          const columnHeight = cards.length > 0
+            ? cardSpec.height + (cards.length - 1) * stackOverlap
+            : cardSpec.height;
           return (
             <Pressable
               key={col}
               onPress={() => topCardId && onPlayColumn(col)}
-              disabled={!topCardId}
+              disabled={!topCardId || !legal}
               accessibilityRole="button"
               accessibilityLabel={`Play column ${col + 1}`}
-              style={styles.golfColumn}
+              accessibilityHint={legal ? 'Tap the top card to play it.' : 'No adjacent card is available.'}
+              style={[styles.golfColumn, { width: columnSlotWidth, height: columnHeight }]}
             >
               {cards.length === 0 ? (
-                <ZoneWell width={36} height={50} />
+                <ZoneWell width={cardSpec.width} height={cardSpec.height} />
               ) : (
                 cards.map((cardId, idx) => {
                   const card = state.cards[cardId];
                   if (!card) return null;
                   const isTop = idx === cards.length - 1;
                   return (
-                    <View key={cardId} style={[styles.golfCardPos, { top: idx * 12 }]}>
+                    <View
+                      key={cardId}
+                      style={[
+                        styles.golfCardPos,
+                        {
+                          top: idx * stackOverlap,
+                          left: (columnSlotWidth - cardSpec.width) / 2,
+                          zIndex: idx + 1,
+                        },
+                      ]}
+                    >
                       <MiniCard
                         cardId={cardId}
                         face={card.face}
-                        size="xs"
+                        size={cardSize}
                         highlight={isTop && legal}
+                        testID={`golf-card-${col}-${idx}`}
                       />
                     </View>
                   );
@@ -700,14 +751,18 @@ function GolfBoard({
 function SolitaireActionBar({
   state,
   onAction,
+  hideDraw = false,
 }: {
   state: GameState;
   onAction: (action: GameAction) => void;
+  hideDraw?: boolean;
 }) {
   const rules = getGameRules(state.config.presetId);
   const actions = rules.actions(state, state.meta.hostId);
+  const visibleActions = hideDraw ? actions.filter((spec) => spec.id !== 'draw') : actions;
 
-  if (actions.length === 0) {
+  if (visibleActions.length === 0) {
+    if (hideDraw) return null;
     return (
       <View style={styles.solActionBar}>
         <Text style={styles.solHintText}>Tap a card, then tap a destination</Text>
@@ -718,7 +773,7 @@ function SolitaireActionBar({
   return (
     <View style={styles.solActionBar}>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.solActions}>
-        {actions.map((spec) => (
+        {visibleActions.map((spec) => (
           <CardButton
             key={spec.id}
             variant="primary"
@@ -759,6 +814,7 @@ const styles = StyleSheet.create({
   },
   boardContent: {
     paddingBottom: space.xl,
+    flexGrow: 1,
   },
   cardPressable: {
     borderRadius: radii.card,
@@ -888,29 +944,55 @@ const styles = StyleSheet.create({
 
   // Golf
   golfBoard: {
+    flexGrow: 1,
+    width: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
     gap: space.xl,
+    paddingVertical: space.lg,
   },
   golfTopRow: {
     flexDirection: 'row',
     gap: space.xl,
-    alignItems: 'center',
+    alignItems: 'flex-start',
     justifyContent: 'center',
+  },
+  golfPile: {
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+    gap: space.xs,
+  },
+  golfPilePressed: {
+    opacity: 0.84,
+    transform: [{ scale: 0.97 }],
+  },
+  golfPileDisabled: {
+    opacity: 0.62,
+  },
+  golfPileCount: {
+    fontSize: fontSizes.caption,
+    fontFamily: fonts.bold,
+    color: colors.inkMuted,
+    letterSpacing: letterSpacing.cap,
+  },
+  golfPileLabel: {
+    fontSize: fontSizes.caption,
+    fontFamily: fonts.bold,
+    color: colors.brand,
+    letterSpacing: letterSpacing.caps,
   },
   golfTableau: {
     flexDirection: 'row',
-    gap: space.xs,
     justifyContent: 'center',
     alignItems: 'flex-start',
   },
   golfColumn: {
-    width: 36,
-    minHeight: 140,
     position: 'relative',
     borderRadius: radii.card,
+    overflow: 'visible',
   },
   golfCardPos: {
     position: 'absolute',
-    left: 0,
   },
 
   // Action bar

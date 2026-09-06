@@ -2,7 +2,7 @@
 
 Status: supporting historical log. Canonical current brief: `CURRENT.md`.
 
-- Slice 3 (2026-09-06): standing-card nav now fits 375x812 and 1440x900 with an unconditional taller Table logo card, single active fill, top rule, safe-area-aware scrollports, and button-sized Restore purchases. Live QA is 10/10 route-viewports with zero overlap/clip errors; 324/324 Jest, 18/18 Expo Doctor, and a 5.94 MB export are green and live.
+- Slice 4a (2026-09-06): Golf now uses aspect-preserving physical-card sizing at 375x812 and 1440x900, seven measured overlapping tableau columns, and a stock-integrated DRAW control that reveals the waste card without changing the tableau. Fresh local and deployed QA prove 35 cards, zero viewport overflow, draw/replay/stuck completion, rules access, and zero browser errors; 324/324 Jest, lint, typecheck, Expo Doctor 18/18, and the 5.95 MB export are green and live.
 
 - Slice 2 (2026-09-04): shared `ZoneWell` replaces dashed table placeholders; contrast tokens and compact red labels tightened; radius, shadow, avatar, rules-link, and grain cleanup landed. Card Lab 16/16 at 375x812 and 1440x900, 324/324 Jest, Expo Doctor 18/18, and a 5.94 MB export are green and live.
 
