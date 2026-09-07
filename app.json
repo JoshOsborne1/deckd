@@ -7,7 +7,6 @@
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "backgroundColor": "#F8F6F1",
-
     "ios": {
       "bundleIdentifier": "com.deckd.app",
       "buildNumber": "1",
@@ -15,7 +14,9 @@
       "infoPlist": {
         "CFBundleURLTypes": [
           {
-            "CFBundleURLSchemes": ["deckd"]
+            "CFBundleURLSchemes": [
+              "deckd"
+            ]
           }
         ]
       }
@@ -51,6 +52,9 @@
         }
       ]
     ],
-    "scheme": "deckd"
+    "scheme": "deckd",
+    "experiments": {
+      "asyncRoutes": true
+    }
   }
 }

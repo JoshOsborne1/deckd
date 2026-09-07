@@ -131,6 +131,7 @@ export default function Surface() {
             <>
               <View
                 style={styles.layerSlot}
+                pointerEvents="none"
                 accessibilityElementsHidden={viewMode !== 'home' && viewMode !== 'hub'}
                 importantForAccessibility={viewMode === 'home' || viewMode === 'hub' ? 'auto' : 'no-hide-descendants'}
               >
@@ -143,6 +144,7 @@ export default function Surface() {
               </View>
               <View
                 style={styles.layerSlot}
+                pointerEvents="none"
                 accessibilityElementsHidden={viewMode !== 'hub'}
                 importantForAccessibility={viewMode === 'hub' ? 'auto' : 'no-hide-descendants'}
               >
@@ -158,6 +160,7 @@ export default function Surface() {
           {showTableSurface ? (
             <View
               style={styles.layerSlot}
+              pointerEvents="none"
               accessibilityElementsHidden={viewMode !== 'table' && viewMode !== 'pass'}
               importantForAccessibility={viewMode === 'table' || viewMode === 'pass' ? 'auto' : 'no-hide-descendants'}
             >
@@ -171,6 +174,7 @@ export default function Surface() {
           {showLobbySurface ? (
             <View
               style={styles.layerSlot}
+              pointerEvents="none"
               accessibilityElementsHidden={viewMode !== 'lobby'}
               importantForAccessibility={viewMode === 'lobby' ? 'auto' : 'no-hide-descendants'}
             >
@@ -238,7 +242,12 @@ function FeltBackground() {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.bg, overflow: 'hidden' },
   layers: { flex: 1, minHeight: 0 },
-  layerSlot: { flex: 1, minHeight: 0 },
+  // Every layer is a full-surface panel: the layer roots inside are
+  // absolutely positioned with their own bottom inset (nav reserve), so the
+  // slots must overlay-fill the layers container instead of flex-dividing
+  // it. Flex-sized slots shrank HomeLayer to a clipped band while HubLayer
+  // painted over the rest and intercepted taps (Slice 5 regression, 2026-09-07).
+  layerSlot: { ...StyleSheet.absoluteFillObject },
   felt: { ...StyleSheet.absoluteFillObject, overflow: 'hidden' },
   feltGlow: { position: 'absolute', left: '12%', right: '12%', top: '18%', height: '64%', borderRadius: radii.pill, opacity: 0.5 },
   tableRail: { position: 'absolute', left: 0, right: 0, top: '23%', height: '62%', borderRadius: 260, borderWidth: 18, opacity: 0.28 },

@@ -175,6 +175,7 @@ export function LobbyLayer({ active, topInset, bottomInset }: LobbyLayerProps) {
       </View>
 
       <ScrollView
+        pointerEvents={active ? 'auto' : 'none'}
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}

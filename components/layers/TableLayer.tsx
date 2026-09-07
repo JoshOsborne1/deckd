@@ -765,6 +765,7 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
                 <ScrollView
                   horizontal
                   showsHorizontalScrollIndicator={false}
+                  pointerEvents={active ? 'auto' : 'none'}
                   style={styles.ruleActionsScroll}
                   contentContainerStyle={styles.ruleActions}
                 >
@@ -915,7 +916,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: space.xl,
     gap: space.md,
-    minHeight: 0,
+    // Floor the play area at the piles' own height (154 + gap). Without it
+    // the flex:1 area collapses to a sliver on short viewports, and the
+    // centered piles row overflows into the action bar below — the deck's
+    // center lands under PASS TURN and the count badge gets clipped
+    // (probe-verified at 375x812: table area 14px, deck y124-248 vs
+    // actionBar y186-242).
+    minHeight: 178,
   },
   tablePiles: {
     flexDirection: 'row',
@@ -1112,6 +1119,17 @@ const styles = StyleSheet.create({
   hand: {
     justifyContent: 'center',
     minHeight: 180,
+    // Yield to the play area on short viewports: with the table floored at
+    // 178 the hand must be the component that compresses, not the deck row
+    // (which would overflow under the action bar and eat its own taps).
+    flexShrink: 1,
+    // The fan root is a fixed 180px box; when the hand container compresses
+    // (play area floored at 178, 168px paddingBottom eats the content box)
+    // the empty fan overflowed UP over the action bar and swallowed PASS
+    // TURN taps (probe-verified: strip y366-546 vs actionBar y364-420, hit
+    // test resolved to the fan root). Clip the hand so nothing it contains
+    // can ever cover the bar.
+    overflow: 'hidden',
   },
   handHint: {
     marginTop: space.sm,

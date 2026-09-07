@@ -522,6 +522,7 @@ export function HubLayer({
 
       <ScrollView
         scrollEnabled={interactive}
+        pointerEvents={interactive ? 'auto' : 'none'}
         style={styles.scrollView}
         contentContainerStyle={[
           styles.scroll,
