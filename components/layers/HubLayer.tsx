@@ -383,6 +383,19 @@ export function HubLayer({
     };
   });
 
+  // The rules link shares the recipe-info row with the preset note. Without its
+  // own gate it paints at full opacity while Home is the visible surface
+  // (morph progress 0), bleeding hub chrome onto the home screenshot.
+  const rulesLinkStyle = useAnimatedStyle(() => {
+    const p = progress.value;
+    if (reduceMotion.value === 1) {
+      return { opacity: interpolate(p, [0, 1], [0, 1], Extrapolation.CLAMP) };
+    }
+    return {
+      opacity: interpolate(p, [0.55, 0.82], [0, 1], Extrapolation.CLAMP),
+    };
+  });
+
   const playerTitleStyle = useAnimatedStyle(() => {
     const p = progress.value;
     if (reduceMotion.value === 1) {
@@ -594,15 +607,17 @@ export function HubLayer({
             <View style={styles.selectedRecipeMark} />
             <Text style={styles.presetDesc}>{activePreset.summary}</Text>
           </Animated.View>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={`Read ${activePreset.name} rules`}
-            onPress={() => setRulesOpen(true)}
-            style={({ pressed }) => [styles.rulesLink, pressed && styles.rulesLinkPressed]}
-          >
-            <BookOpen size={15} color={colors.brand} />
-            <Text style={styles.rulesLinkText}>VIEW RULES</Text>
-          </Pressable>
+          <Animated.View style={rulesLinkStyle}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`Read ${activePreset.name} rules`}
+              onPress={() => setRulesOpen(true)}
+              style={({ pressed }) => [styles.rulesLink, pressed && styles.rulesLinkPressed]}
+            >
+              <BookOpen size={15} color={colors.brand} />
+              <Text style={styles.rulesLinkText}>VIEW RULES</Text>
+            </Pressable>
+          </Animated.View>
         </View>
 
         <Animated.View style={[styles.playerHeading, playerTitleStyle]}>

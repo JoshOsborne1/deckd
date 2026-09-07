@@ -1,5 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import {
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+  useWindowDimensions,
+} from 'react-native';
 import Animated, {
   Extrapolation,
   interpolate,
@@ -18,6 +25,7 @@ import { useUiStore } from '@store/uiStore';
 import { useProfileStore } from '@store/profileStore';
 import { EASING_EMPHASIZED } from '@lib/motion';
 import { useGameStore } from '@store/gameStore';
+import { findPreset } from '@engine/presets';
 import { alpha, colors, fonts, motion, radii, space } from '@theme';
 
 interface HomeLayerProps {
@@ -30,25 +38,16 @@ interface HomeLayerProps {
   bottomInset: number;
 }
 
-/** Progress threshold below which Home accepts taps/scroll. */
 const HOME_INTERACTIVE_THRESHOLD = 0.15;
 
-const RECIPE_LABELS: Record<string, string> = {
-  'deal-two-each': 'Deal 2 each',
-  'crazy-eights': 'Crazy Eights',
-  'go-fish': 'Go Fish',
-  'old-maid': 'Old Maid',
-  klondike: 'Klondike',
-};
-
 function formatRecipeName(recipeId: string): string {
-  return (
-    RECIPE_LABELS[recipeId] ??
-    recipeId
-      .split('-')
-      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-      .join(' ')
-  );
+  const preset = findPreset(recipeId);
+  if (preset) return preset.name;
+
+  return recipeId
+    .split('-')
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
 }
 
 /**
@@ -64,6 +63,8 @@ export function HomeLayer({
   topInset,
   bottomInset,
 }: HomeLayerProps) {
+  const { width: viewportWidth } = useWindowDimensions();
+  const desktop = viewportWidth >= 900;
   const setViewMode = useUiStore((s) => s.setViewMode);
   const firstRunHintDismissed = useUiStore((s) => s.firstRunHintDismissed);
   const dismissFirstRunHint = useUiStore((s) => s.dismissFirstRunHint);
@@ -172,117 +173,118 @@ export function HomeLayer({
         ]}
         showsVerticalScrollIndicator={false}
       >
-        <Animated.View style={tableMarkerStyle}>
-          <View style={styles.tableHeader}>
-            <AvatarPlaceholder
-              seed={avatarSeed}
-              label={nickname}
-              size={38}
-              ring="soft"
-            />
-            <View style={styles.tableHeaderCopy}>
-              <Text style={styles.tableEyebrow}>DECKD TABLE</Text>
-              <Text style={styles.tableHeaderTitle}>Your table, ready when you are</Text>
-            </View>
-            <View style={styles.tableStats}>
-              <Text style={styles.tableStat}>{`LV. ${level}`}</Text>
-              <Text style={styles.tableStat}>{`STREAK ${streak}`}</Text>
-            </View>
-          </View>
-        </Animated.View>
-
-        <Animated.View style={[styles.tableEntry, deckStyle]}>
-          <View style={styles.entryCopy} pointerEvents="none">
-            <Text style={styles.entryEyebrow}>THE DECK IS THE DOOR</Text>
-            <Text style={styles.entryTitle}>One deck. Your table.</Text>
-            <Text style={styles.entryDetail}>
-              Deal into setup, choose a recipe, and keep the same table beneath you.
-            </Text>
-          </View>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Deal the deck"
-            onPress={() => {
-              dismissFirstRunHint();
-              setViewMode('hub');
-            }}
-            style={({ pressed }) => [
-              styles.deckObjectButton,
-              pressed && styles.deckObjectPressed,
-            ]}
-          >
-            <View style={styles.deckObject} pointerEvents="none">
-              <PlayingCard
-                face="down"
-                back="back-crimson"
-                size="md"
-                overlapped
-                style={styles.deckBackCard}
+        <View testID="home-content-column" style={styles.contentColumn}>
+          <Animated.View style={tableMarkerStyle}>
+            <View style={styles.tableHeader}>
+              <AvatarPlaceholder
+                seed={avatarSeed}
+                label={nickname}
+                size={38}
+                ring="soft"
               />
-              <PlayingCard
-                face="down"
-                back="back-brand"
-                size="md"
-                overlapped
-                style={styles.deckFrontCard}
-              />
+              <View style={styles.tableHeaderCopy}>
+                <Text style={styles.tableEyebrow}>DECKD TABLE</Text>
+                <Text style={styles.tableHeaderTitle}>Your table, ready when you are</Text>
+              </View>
+              <View style={styles.tableStats}>
+                <Text style={styles.tableStat}>{`LEVEL ${level}`}</Text>
+                {streak > 0 ? <Text style={styles.tableStat}>{`STREAK ${streak}`}</Text> : null}
+              </View>
             </View>
-            <Text style={styles.deckObjectLabel}>DEAL</Text>
-          </Pressable>
-        </Animated.View>
-
-        <Animated.View style={[styles.supportLine, supportStyle]}>
-          <View style={styles.supportRule} />
-          <Text style={styles.supportText}>PICK A RECIPE AFTER THE DEAL</Text>
-          <View style={styles.supportRule} />
-        </Animated.View>
-
-        {interactive && !firstRunHintDismissed && (
-          <Pressable
-            onPress={() => {
-              dismissFirstRunHint();
-              setViewMode('hub');
-            }}
-            accessibilityRole="button"
-            accessibilityLabel="Tap the deck to deal. Dismiss hint."
-            style={styles.firstRunHint}
-          >
-            <Text style={styles.firstRunHintText}>Tap the deck to deal</Text>
-            <Text style={styles.firstRunHintDetail}>Setup stays on this table</Text>
-          </Pressable>
-        )}
-
-        {hasResumableTable && (
-          <Animated.View style={[styles.resumeSlip, resumeStyle]}>
-            <View style={styles.resumeCopy}>
-              <Text style={styles.resumeEyebrow}>TABLE IN PROGRESS</Text>
-              <Text style={styles.resumeTitle}>{currentRecipeName}</Text>
-              <Text style={styles.resumeDetail}>
-                {gameState.players.length} {gameState.players.length === 1 ? 'seat' : 'seats'} · {gameState.turn} turns played
-              </Text>
-            </View>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Resume table"
-              onPress={() => setViewMode('table')}
-              style={({ pressed }) => [styles.resumeButton, pressed && styles.resumeButtonPressed]}
-            >
-              <Text style={styles.resumeButtonText}>RESUME</Text>
-            </Pressable>
           </Animated.View>
-        )}
 
-        <Animated.View style={[styles.supportAction, supportStyle]}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Host a lobby"
-            onPress={() => setViewMode('lobby')}
-            style={({ pressed }) => [styles.friendAction, pressed && styles.friendActionPressed]}
+          <View
+            testID="home-main-stage"
+            style={[styles.homeMainStage, desktop && styles.homeMainStageDesktop]}
           >
-            <Text style={styles.friendActionEyebrow}>WITH FRIENDS</Text>
-            <Text style={styles.friendActionText}>Host a shared table</Text>
-          </Pressable>
-        </Animated.View>
+            <Animated.View
+              testID="home-primary"
+              style={[styles.tableEntry, desktop && styles.tableEntryDesktop, deckStyle]}
+            >
+              <View style={styles.entryCopy} pointerEvents="none">
+                <Text style={styles.entryTitle}>One deck. Your table.</Text>
+              </View>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Deal the deck"
+                onPress={() => {
+                  dismissFirstRunHint();
+                  setViewMode('hub');
+                }}
+                style={({ pressed }) => [
+                  styles.deckObjectButton,
+                  pressed && styles.deckObjectPressed,
+                ]}
+              >
+                <View style={styles.deckObject} pointerEvents="none">
+                  <PlayingCard
+                    face="down"
+                    back="back-crimson"
+                    size="md"
+                    overlapped
+                    style={styles.deckBackCard}
+                  />
+                  <PlayingCard
+                    face="down"
+                    back="back-brand"
+                    size="md"
+                    overlapped
+                    style={styles.deckFrontCard}
+                  />
+                </View>
+                <Text style={styles.deckObjectLabel}>DEAL</Text>
+              </Pressable>
+              {interactive && !firstRunHintDismissed && (
+                <Pressable
+                  onPress={() => {
+                    dismissFirstRunHint();
+                    setViewMode('hub');
+                  }}
+                  accessibilityRole="button"
+                  accessibilityLabel="Tap the deck to deal. Dismiss hint."
+                  style={styles.firstRunHint}
+                >
+                  <Text style={styles.firstRunHintText}>Tap the deck to deal</Text>
+                  <Text style={styles.firstRunHintDetail}>Setup stays on this table</Text>
+                </Pressable>
+              )}
+            </Animated.View>
+
+            <View style={[styles.sideActions, desktop && styles.sideActionsDesktop]}>
+              {hasResumableTable && (
+                <Animated.View style={[styles.resumeSlip, desktop && styles.resumeSlipDesktop, resumeStyle]}>
+                  <View style={styles.resumeCopy}>
+                    <Text style={styles.resumeEyebrow}>TABLE IN PROGRESS</Text>
+                    <Text style={styles.resumeTitle}>{currentRecipeName}</Text>
+                    <Text style={styles.resumeDetail}>
+                      {gameState.players.length} {gameState.players.length === 1 ? 'seat' : 'seats'} · {gameState.turn} turns played
+                    </Text>
+                  </View>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Resume table"
+                    onPress={() => setViewMode('table')}
+                    style={({ pressed }) => [styles.resumeButton, pressed && styles.resumeButtonPressed]}
+                  >
+                    <Text style={styles.resumeButtonText}>RESUME</Text>
+                  </Pressable>
+                </Animated.View>
+              )}
+
+              <Animated.View style={[styles.supportAction, desktop && styles.supportActionDesktop, supportStyle]}>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Host a lobby"
+                  onPress={() => setViewMode('lobby')}
+                  style={({ pressed }) => [styles.friendAction, desktop && styles.friendActionDesktop, pressed && styles.friendActionPressed]}
+                >
+                  <Text style={styles.friendActionEyebrow}>WITH FRIENDS</Text>
+                  <Text style={styles.friendActionText}>Host a shared table</Text>
+                </Pressable>
+              </Animated.View>
+            </View>
+          </View>
+        </View>
       </ScrollView>
     </Animated.View>
   );
@@ -298,10 +300,19 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   scrollContent: {
+    width: '100%',
     paddingHorizontal: space.xl,
-    alignItems: 'stretch',
+    alignItems: 'center',
+    flexGrow: 1,
+  },
+  contentColumn: {
+    width: '100%',
+    maxWidth: 840,
+    alignSelf: 'center',
+    flex: 1,
   },
   tableHeader: {
+    width: '100%',
     flexDirection: 'row',
     alignItems: 'center',
     gap: space.sm,
@@ -336,38 +347,42 @@ const styles = StyleSheet.create({
     color: colors.inkSubtle,
     letterSpacing: 1.1,
   },
+  homeMainStage: {
+    width: '100%',
+    flexGrow: 1,
+    // Mobile: anchor the action group just above the nav reserve so the
+    // leftover felt distributes above the hero instead of pooling as a
+    // dead band under the last control.
+    justifyContent: 'flex-end',
+  },
+  homeMainStageDesktop: {
+    flexDirection: 'row',
+    alignItems: 'stretch',
+    justifyContent: 'center',
+    gap: space.xxl,
+    paddingTop: space.lg,
+  },
   tableEntry: {
     minHeight: 360,
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: space.x4l,
   },
+  tableEntryDesktop: {
+    flex: 1,
+    minWidth: 0,
+  },
   entryCopy: {
     alignItems: 'center',
-    maxWidth: 292,
+    maxWidth: 340,
     marginBottom: space.xxl,
   },
-  entryEyebrow: {
-    fontSize: 10,
-    fontFamily: fonts.bold,
-    color: colors.brand,
-    letterSpacing: 1.8,
-  },
   entryTitle: {
-    marginTop: space.sm,
     fontSize: 29,
     lineHeight: 34,
     fontFamily: fonts.extra,
     color: colors.ink,
     letterSpacing: -0.8,
-    textAlign: 'center',
-  },
-  entryDetail: {
-    marginTop: space.sm,
-    fontSize: 13,
-    lineHeight: 19,
-    fontFamily: fonts.regular,
-    color: colors.inkMuted,
     textAlign: 'center',
   },
   deckObjectButton: {
@@ -407,28 +422,12 @@ const styles = StyleSheet.create({
     color: colors.brand,
     letterSpacing: 1.8,
   },
-  supportLine: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: space.md,
-    marginBottom: space.lg,
-  },
-  supportRule: {
-    flex: 1,
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: alpha.inkOverlay12,
-  },
-  supportText: {
-    fontSize: 9,
-    fontFamily: fonts.bold,
-    color: colors.inkSubtle,
-    letterSpacing: 1.4,
-  },
   firstRunHint: {
     alignItems: 'center',
     alignSelf: 'center',
     minHeight: 58,
-    marginBottom: space.lg,
+    marginTop: space.lg,
+    marginBottom: 0,
     paddingHorizontal: space.xl,
     paddingVertical: space.sm,
     borderTopWidth: StyleSheet.hairlineWidth,
@@ -447,6 +446,17 @@ const styles = StyleSheet.create({
     fontFamily: fonts.regular,
     color: colors.inkMuted,
   },
+  sideActions: {
+    width: '100%',
+    alignItems: 'stretch',
+  },
+  sideActionsDesktop: {
+    width: 280,
+    flexGrow: 0,
+    flexShrink: 0,
+    justifyContent: 'center',
+    gap: space.lg,
+  },
   resumeSlip: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -458,6 +468,9 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderColor: alpha.inkOverlay12,
     backgroundColor: alpha.whiteOverlay45,
+  },
+  resumeSlipDesktop: {
+    marginBottom: 0,
   },
   resumeCopy: {
     flex: 1,
@@ -505,6 +518,10 @@ const styles = StyleSheet.create({
     marginTop: space.xs,
     paddingBottom: space.md,
   },
+  supportActionDesktop: {
+    marginTop: 0,
+    paddingBottom: 0,
+  },
   friendAction: {
     minHeight: 52,
     alignItems: 'center',
@@ -515,6 +532,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: alpha.inkOverlay12,
     backgroundColor: alpha.whiteOverlay45,
+  },
+  friendActionDesktop: {
+    width: '100%',
   },
   friendActionPressed: {
     backgroundColor: alpha.inkOverlay06,
