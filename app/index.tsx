@@ -129,33 +129,57 @@ export default function Surface() {
         <View style={styles.layers}>
           {showHomeSurface ? (
             <>
-              <HomeLayer
-                active={viewMode === 'home'}
-                layerVisible={viewMode === 'home' || viewMode === 'hub'}
-                topInset={insets.top}
-                bottomInset={insets.bottom + navReserve}
-              />
-              <HubLayer
-                active={viewMode === 'hub'}
-                layerVisible={viewMode === 'home' || viewMode === 'hub'}
-                topInset={insets.top}
-                bottomInset={insets.bottom + navReserve}
-              />
+              <View
+                style={styles.layerSlot}
+                accessibilityElementsHidden={viewMode !== 'home' && viewMode !== 'hub'}
+                importantForAccessibility={viewMode === 'home' || viewMode === 'hub' ? 'auto' : 'no-hide-descendants'}
+              >
+                <HomeLayer
+                  active={viewMode === 'home'}
+                  layerVisible={viewMode === 'home' || viewMode === 'hub'}
+                  topInset={insets.top}
+                  bottomInset={insets.bottom + navReserve}
+                />
+              </View>
+              <View
+                style={styles.layerSlot}
+                accessibilityElementsHidden={viewMode !== 'hub'}
+                importantForAccessibility={viewMode === 'hub' ? 'auto' : 'no-hide-descendants'}
+              >
+                <HubLayer
+                  active={viewMode === 'hub'}
+                  layerVisible={viewMode === 'home' || viewMode === 'hub'}
+                  topInset={insets.top}
+                  bottomInset={insets.bottom + navReserve}
+                />
+              </View>
             </>
           ) : null}
           {showTableSurface ? (
-            <TableLayer
-              active={viewMode === 'table' || viewMode === 'pass'}
-              topInset={insets.top}
-              bottomInset={insets.bottom + navReserve}
-            />
+            <View
+              style={styles.layerSlot}
+              accessibilityElementsHidden={viewMode !== 'table' && viewMode !== 'pass'}
+              importantForAccessibility={viewMode === 'table' || viewMode === 'pass' ? 'auto' : 'no-hide-descendants'}
+            >
+              <TableLayer
+                active={viewMode === 'table' || viewMode === 'pass'}
+                topInset={insets.top}
+                bottomInset={insets.bottom + navReserve}
+              />
+            </View>
           ) : null}
           {showLobbySurface ? (
-            <LobbyLayer
-              active={viewMode === 'lobby'}
-              topInset={insets.top}
-              bottomInset={insets.bottom + navReserve}
-            />
+            <View
+              style={styles.layerSlot}
+              accessibilityElementsHidden={viewMode !== 'lobby'}
+              importantForAccessibility={viewMode === 'lobby' ? 'auto' : 'no-hide-descendants'}
+            >
+              <LobbyLayer
+                active={viewMode === 'lobby'}
+                topInset={insets.top}
+                bottomInset={insets.bottom + navReserve}
+              />
+            </View>
           ) : null}
           <TableMorphSweep />
           {viewMode === 'pass' ? <PassLayer /> : null}
@@ -214,6 +238,7 @@ function FeltBackground() {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.bg, overflow: 'hidden' },
   layers: { flex: 1, minHeight: 0 },
+  layerSlot: { flex: 1, minHeight: 0 },
   felt: { ...StyleSheet.absoluteFillObject, overflow: 'hidden' },
   feltGlow: { position: 'absolute', left: '12%', right: '12%', top: '18%', height: '64%', borderRadius: radii.pill, opacity: 0.5 },
   tableRail: { position: 'absolute', left: 0, right: 0, top: '23%', height: '62%', borderRadius: 260, borderWidth: 18, opacity: 0.28 },

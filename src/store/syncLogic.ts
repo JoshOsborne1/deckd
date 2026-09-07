@@ -122,6 +122,44 @@ export function selectBroadcastDelta(
 }
 
 /**
+ * Compact an event log by folding the oldest events into a state baseline
+ * (snapshot + tail, the same model the relay reconnect path uses), keeping
+ * the newest `keepNewest` events in the log. Compaction is O(dropped):
+ * once over budget the store drops one event per dispatch, so the fold is
+ * incremental. Online (host/guest) logs are never compacted — the relay
+ * may still address old event ids and guests rebase from eventBaseState +
+ * seq deltas on rejoin.
+ *
+ * Returns the new log plus the baseline it folds from. The baseline is
+ * `null` for an uncompacted log (rehydrate/undo then fold from
+ * emptyState()); once compacted, every fold path (rehydrate, undo,
+ * ingestRemoteEvents) already uses eventBaseState + eventBaseSeq.
+ */
+export function compactEventLog(
+  events: GameEvent[],
+  state: GameState,
+  eventBaseState: GameState | null,
+  eventBaseSeq: number,
+  keepNewest = 500,
+): { events: GameEvent[]; eventBaseState: GameState | null; eventBaseSeq: number } {
+  const overflow = events.length - keepNewest;
+  if (overflow <= 0) {
+    return { events, eventBaseState, eventBaseSeq };
+  }
+  // Never compact a live online session: guests rebase from
+  // eventBaseState + tail, and the relay may still ask for old ids.
+  if (state.meta.mode === 'online-host' || state.meta.mode === 'online-guest') {
+    return { events, eventBaseState, eventBaseSeq };
+  }
+
+  const dropped = events.slice(0, overflow);
+  const tail = events.slice(overflow);
+  const baseState = dropped.reduce(applyEvent, eventBaseState ?? emptyState());
+  const baseSeq = dropped.length > 0 ? dropped[dropped.length - 1]!.seq : eventBaseSeq;
+  return { events: tail, eventBaseState: baseState, eventBaseSeq: baseSeq };
+}
+
+/**
  * Apply a snapshot (a folded GameState) plus an optional tail of events
  * with seq >= nextSeq, producing the resulting state. This is the rejoin
  * path: the host sends a folded snapshot and any events that landed after.

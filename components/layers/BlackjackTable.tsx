@@ -8,7 +8,8 @@ import Animated, {
   withSpring,
   withTiming,
 } from 'react-native-reanimated';
-import { Shuffle, ArrowDownAZ } from 'lucide-react-native';
+import Shuffle from 'lucide-react-native/icons/shuffle';
+import ArrowDownAZ from 'lucide-react-native/icons/arrow-down-a-z';
 import { AvatarPlaceholder } from '@components/AvatarPlaceholder';
 import { CardButton } from '@components/CardButton';
 import { FlipCard } from '@components/FlipCard';
@@ -130,7 +131,6 @@ export function BlackjackTable({ active, topInset, bottomInset }: TableProps) {
   const equippedBackId = useCosmeticsStore((s) => s.equippedBackId);
 
   const state = useGameStore((s) => s.state);
-  const events = useGameStore((s) => s.events);
   const startNextHand = useGameStore((s) => s.startNextHand);
   const replaySession = useGameStore((s) => s.replaySession);
   const gameAction = useGameStore((s) => s.gameAction);
@@ -142,7 +142,7 @@ export function BlackjackTable({ active, topInset, bottomInset }: TableProps) {
     hostPlayerId,
     isRemoteGuest: isGuest,
     lobbySession,
-  } = useTableSession(state);
+  } = useTableSession();
 
   const rules = getGameRules(state.config.presetId);
   const dealer = state.players[state.players.length - 1] ?? null;
@@ -172,10 +172,7 @@ export function BlackjackTable({ active, topInset, bottomInset }: TableProps) {
   const dealerBust = dealerValue !== null && isBust(dealerValue);
   const drawCount = state.zones.draw?.cardIds.length ?? 0;
 
-  const dealTrigger = useMemo(() => {
-    const sessionStart = events.find((event) => event.type === 'session/start');
-    return sessionStart?.meta.id ?? sessionStart?.id ?? state.meta.id ?? null;
-  }, [events, state.meta.id]);
+  const dealTrigger = state.meta.id || null;
 
   const { batch } = useGameAnimations(viewerId);
 

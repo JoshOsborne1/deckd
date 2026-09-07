@@ -2,6 +2,13 @@ import { emptyState } from '@engine/state';
 import type { GameState } from '@engine/types';
 import { resolveTableSession } from '../../components/table/useTableSession';
 
+jest.mock('@lib/storage', () => ({
+  createPlatformStorage: jest.fn(() => ({
+    getItem: () => null,
+    setItem: () => undefined,
+    removeItem: () => undefined,
+  })),
+}));
 jest.mock('@store/lobbyStore', () => ({ useLobbyStore: jest.fn() }));
 
 function publicTableState(): GameState {

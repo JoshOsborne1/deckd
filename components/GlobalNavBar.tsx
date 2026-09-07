@@ -2,7 +2,10 @@ import React, { useEffect, useRef } from 'react';
 import { Platform, Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { usePathname, useRouter, type Href } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Home, Layers, ShoppingBag, User } from 'lucide-react-native';
+import House from 'lucide-react-native/icons/house';
+import Layers from 'lucide-react-native/icons/layers';
+import ShoppingBag from 'lucide-react-native/icons/shopping-bag';
+import User from 'lucide-react-native/icons/user';
 import Animated, {
   cancelAnimation,
   interpolate,
@@ -74,7 +77,7 @@ const LOGO_OVERLAP = 0;
 const CARD_STAGGER_MS = 34;
 
 const navItems: NavConfig[] = [
-  { id: 'home', href: '/', label: 'Home', icon: Home, angle: -9 },
+  { id: 'home', href: '/', label: 'Home', icon: House, angle: -9 },
   { id: 'store', href: '/store', label: 'Store', icon: ShoppingBag, angle: -4 },
   { id: 'games', href: '/list', label: 'Presets', icon: Layers, angle: 4 },
   { id: 'profile', href: '/profile', label: 'Profile', icon: User, angle: 9 },

@@ -63,14 +63,13 @@ export function GoFishTable({ active, topInset, bottomInset }: GoFishTableProps)
   const equippedBackId = useCosmeticsStore((s) => s.equippedBackId);
 
   const state = useGameStore((s) => s.state);
-  const events = useGameStore((s) => s.events);
   const gameAction = useGameStore((s) => s.gameAction);
   const replaySession = useGameStore((s) => s.replaySession);
   const {
     viewerId,
     isRemoteGuest: isGuest,
     lobbySession,
-  } = useTableSession(state);
+  } = useTableSession();
 
   const rules = useMemo(() => getGameRules(state.config.presetId), [state.config.presetId]);
   const ruleActions = useMemo<GameActionSpec[]>(
@@ -100,12 +99,9 @@ export function GoFishTable({ active, topInset, bottomInset }: GoFishTableProps)
     ? state.players.find((player) => player.id === askTargetId)
     : null;
   const targetOpponent = askTarget ?? opponents[0] ?? null;
-  const hasSession = events.length > 0 && state.phase !== 'idle';
+  const hasSession = state.phase !== 'idle';
   const handLocked = state.privacySeat !== null;
-  const dealTrigger = useMemo(() => {
-    const sessionStart = events.find((event) => event.type === 'session/start');
-    return sessionStart?.meta.id ?? sessionStart?.id ?? state.meta.id ?? null;
-  }, [events, state.meta.id]);
+  const dealTrigger = state.meta.id || null;
 
   const faceFor = useCallback(
     (card: CardInstance): CardFace => selectCardFace(state, card.id, viewerId),

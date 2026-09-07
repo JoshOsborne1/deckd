@@ -1,6 +1,7 @@
 import React from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { BookOpen, X } from 'lucide-react-native';
+import BookOpen from 'lucide-react-native/icons/book-open';
+import X from 'lucide-react-native/icons/x';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CardButton } from '@components/CardButton';
 import { getRulesGuide } from '@engine/rulesGuide';

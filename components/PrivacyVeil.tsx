@@ -11,7 +11,7 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
-import { Eye } from 'lucide-react-native';
+import Eye from 'lucide-react-native/icons/eye';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useMotion } from '@hooks/useMotion';
 import { EASING_EMPHASIZED, PASS_VEIL_OFFSET_Y } from '@lib/motion';

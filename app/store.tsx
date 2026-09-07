@@ -174,9 +174,9 @@ export default function StoreScreen() {
   const { reduceMotion, haptic } = useMotion();
   const hapticsEnabled = useProfileStore((s) => s.hapticsEnabled);
   const setViewMode = useUiStore((s) => s.setViewMode);
-  const events = useGameStore((s) => s.events);
+  const eventCount = useGameStore((s) => s.events.length);
   const gamePhase = useGameStore((s) => s.state.phase);
-  const sessionActive = events.length > 0 && gamePhase !== 'idle';
+  const sessionActive = eventCount > 0 && gamePhase !== 'idle';
 
   const ownedBacks = useCosmeticsStore((s) => s.ownedBackIds);
   const selectedBackId = useCosmeticsStore((s) => s.equippedBackId);
@@ -416,7 +416,7 @@ export default function StoreScreen() {
                     <Text style={styles.resumeEyebrow}>GAME IN PROGRESS</Text>
                     <Text style={styles.resumeTitle}>Pick up where you stopped</Text>
                     <Text style={styles.resumeMeta}>
-                      {events.length} {events.length === 1 ? 'event' : 'events'} in the log
+                      {eventCount} {eventCount === 1 ? 'event' : 'events'} in the log
                     </Text>
                   </View>
                   <View style={styles.resumeMark}>

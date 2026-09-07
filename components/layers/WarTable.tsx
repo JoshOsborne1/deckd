@@ -57,14 +57,13 @@ export function WarTable({ active, topInset, bottomInset }: WarTableProps) {
   const equippedBackId = useCosmeticsStore((s) => s.equippedBackId);
 
   const state = useGameStore((s) => s.state);
-  const events = useGameStore((s) => s.events);
   const gameAction = useGameStore((s) => s.gameAction);
   const replaySession = useGameStore((s) => s.replaySession);
   const {
     viewerId,
     isRemoteGuest: isGuest,
     lobbySession,
-  } = useTableSession(state);
+  } = useTableSession();
 
   const rules = useMemo(() => getGameRules(state.config.presetId), [state.config.presetId]);
   const ruleActions = useMemo<GameActionSpec[]>(
@@ -76,7 +75,7 @@ export function WarTable({ active, topInset, bottomInset }: WarTableProps) {
     [state, viewerId],
   );
   const flipSpec = ruleActions.find((spec) => spec.id === 'flip') ?? null;
-  const hasSession = events.length > 0 && state.phase !== 'idle';
+  const hasSession = state.phase !== 'idle';
 
   const myPile = useMemo(
     () => (viewerId ? state.zones[tableZoneId(viewerId)]?.cardIds ?? [] : []),

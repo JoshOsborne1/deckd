@@ -238,10 +238,9 @@ export function PokerTable({ active, topInset, bottomInset }: TableProps) {
   const equippedBackId = useCosmeticsStore((s) => s.equippedBackId);
 
   const state = useGameStore((s) => s.state);
-  const events = useGameStore((s) => s.events);
   const replaySession = useGameStore((s) => s.replaySession);
   const gameAction = useGameStore((s) => s.gameAction);
-  const { viewerId, isRemoteGuest: isGuest, lobbySession } = useTableSession(state);
+  const { viewerId, isRemoteGuest: isGuest, lobbySession } = useTableSession();
 
   const rules = getGameRules(state.config.presetId);
   const betting = state.game?.betting ?? null;
@@ -369,10 +368,7 @@ export function PokerTable({ active, topInset, bottomInset }: TableProps) {
   }, [communityCards, state, viewerId]);
   const bestHandTrigger = batch?.kind === 'session-end' ? batch.key : null;
 
-  const dealTrigger = useMemo(() => {
-    const sessionStart = events.find((event) => event.type === 'session/start');
-    return sessionStart?.meta.id ?? sessionStart?.id ?? state.meta.id ?? null;
-  }, [events, state.meta.id]);
+  const dealTrigger = state.meta.id || null;
 
   const handleGameAction = useCallback(
     (action: GameAction) => {

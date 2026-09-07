@@ -8,7 +8,7 @@ import Animated, {
   withSequence,
   withTiming,
 } from 'react-native-reanimated';
-import { ArrowDownAZ } from 'lucide-react-native';
+import ArrowDownAZ from 'lucide-react-native/icons/arrow-down-a-z';
 import { AvatarPlaceholder } from '@components/AvatarPlaceholder';
 import { CardButton } from '@components/CardButton';
 import { CardSection } from '@components/CardSection';
@@ -93,7 +93,6 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
   const openPass = useUiStore((s) => s.openPass);
 
   const state = useGameStore((s) => s.state);
-  const events = useGameStore((s) => s.events);
   const dealCard = useGameStore((s) => s.dealCard);
   const flipCard = useGameStore((s) => s.flipCard);
   const moveCard = useGameStore((s) => s.moveCard);
@@ -112,7 +111,7 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
     isSolo,
     isNetworked: isOnline,
     lobbySession,
-  } = useTableSession(state);
+  } = useTableSession();
 
   const handSortMode = useUiStore((s) => s.handSortMode);
   const toggleHandSortMode = useUiStore((s) => s.toggleHandSortMode);
@@ -124,7 +123,7 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
     }
   }, [isOnline, lobbyStatus, setViewMode]);
 
-  const hasSession = events.length > 0 && state.phase !== 'idle';
+  const hasSession = state.phase !== 'idle';
 
   // --- Solitaire games render their own dedicated board (FreeCell/Pyramid/Golf).
   // Klondike renders through KlondikeLayout (main's suit-based implementation). ---
@@ -207,12 +206,7 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
   const myBust = myHandValue !== null && myHandValue.includes('BUST');
   const nextPlayerId = useMemo(() => selectNextPlayerId(state), [state]);
   const isHost = Boolean(hostPlayerId && viewerId === hostPlayerId);
-  const dealTrigger = useMemo(() => {
-    const sessionStart = events.find((event) => event.type === 'session/start');
-    // Event sequence numbers restart for each session, so use the unique
-    // session id rather than `event-1` as the replay key.
-    return sessionStart?.meta.id ?? sessionStart?.id ?? state.meta.id ?? null;
-  }, [events, state.meta.id]);
+  const dealTrigger = state.meta.id || null;
 
   const drawScale = useSharedValue(1);
   const drawOpacity = useSharedValue(1);

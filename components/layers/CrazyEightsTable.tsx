@@ -67,7 +67,6 @@ export function CrazyEightsTable({ active, topInset, bottomInset }: CrazyEightsT
   const equippedBackId = useCosmeticsStore((s) => s.equippedBackId);
 
   const state = useGameStore((s) => s.state);
-  const events = useGameStore((s) => s.events);
   const gameAction = useGameStore((s) => s.gameAction);
   const replaySession = useGameStore((s) => s.replaySession);
 
@@ -75,7 +74,7 @@ export function CrazyEightsTable({ active, topInset, bottomInset }: CrazyEightsT
     viewerId,
     isRemoteGuest: isGuest,
     lobbySession,
-  } = useTableSession(state);
+  } = useTableSession();
 
   const rules = useMemo(() => getGameRules(state.config.presetId), [state.config.presetId]);
   const ruleActions = useMemo<GameActionSpec[]>(
@@ -98,7 +97,7 @@ export function CrazyEightsTable({ active, topInset, bottomInset }: CrazyEightsT
   const drawCount = state.zones[ZONE_DRAW]?.cardIds.length ?? 0;
   const discardCardId = state.zones[ZONE_DISCARD]?.cardIds.at(-1) ?? null;
   const discardCard = discardCardId ? state.cards[discardCardId] : null;
-  const hasSession = events.length > 0 && state.phase !== 'idle';
+  const hasSession = state.phase !== 'idle';
   const handLocked = state.privacySeat !== null;
 
   const faceFor = useCallback(

@@ -10,7 +10,9 @@ import Animated, {
   type SharedValue,
 } from 'react-native-reanimated';
 import { runOnJS } from 'react-native-worklets';
-import { BookOpen, ChevronLeft, Users } from 'lucide-react-native';
+import BookOpen from 'lucide-react-native/icons/book-open';
+import ChevronLeft from 'lucide-react-native/icons/chevron-left';
+import Users from 'lucide-react-native/icons/users';
 import { useRouter } from 'expo-router';
 import { CardButton } from '@components/CardButton';
 import { CardSection } from '@components/CardSection';
@@ -105,9 +107,10 @@ export function HubLayer({
   const nickname = useProfileStore((s) => s.nickname);
   const avatarSeed = useProfileStore((s) => s.avatarSeed);
   const createSession = useGameStore((s) => s.createSession);
-  const gameState = useGameStore((s) => s.state);
-  const events = useGameStore((s) => s.events);
-  const sessionActive = events.length > 0;
+  const gameMode = useGameStore((s) => s.state.meta.mode);
+  const gamePhase = useGameStore((s) => s.state.phase);
+  const eventCount = useGameStore((s) => s.events.length);
+  const sessionActive = eventCount > 0;
 
   const lobbyStatus = useLobbyStore((s) => s.status);
   const lobbyPlayers = useLobbyStore((s) => s.players);
@@ -119,9 +122,9 @@ export function HubLayer({
   /** Online guest: the local relay role or the persisted game mode protects
    * the guest from accidentally starting a private pass-and-play table. */
   const isOnlineGuest =
-    lobbySession?.role === 'guest' || gameState.meta.mode === 'online-guest';
+    lobbySession?.role === 'guest' || gameMode === 'online-guest';
   const guestTableReady =
-    isOnlineGuest && sessionActive && gameState.meta.mode === 'online-guest' && gameState.phase !== 'idle';
+    isOnlineGuest && sessionActive && gameMode === 'online-guest' && gamePhase !== 'idle';
 
   const libraryDefaultId = useUserPresetsStore((s) => s.defaultPresetId);
   const userPresets = useUserPresetsStore((s) => s.presets);
@@ -536,7 +539,7 @@ export function HubLayer({
                     Pick up where you stopped
                   </Text>
                   <Text style={styles.resumeCopy}>
-                    {events.length} events in the log
+                    {eventCount} events in the log
                   </Text>
                 </View>
                 <PlayingCard

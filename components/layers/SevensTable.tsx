@@ -78,10 +78,9 @@ export function SevensTable({ active, topInset, bottomInset }: SevensTableProps)
   const setViewMode = useUiStore((s) => s.setViewMode);
 
   const state = useGameStore((s) => s.state);
-  const events = useGameStore((s) => s.events);
   const replaySession = useGameStore((s) => s.replaySession);
   const gameAction = useGameStore((s) => s.gameAction);
-  const { viewerId, isRemoteGuest: isGuest, lobbySession } = useTableSession(state);
+  const { viewerId, isRemoteGuest: isGuest, lobbySession } = useTableSession();
 
   const { batch } = useGameFxB(viewerId);
   const surfaceStyle = useLayerSurfaceEntrance(active);
@@ -232,7 +231,7 @@ export function SevensTable({ active, topInset, bottomInset }: SevensTableProps)
     [dragSpecs, handleGameAction],
   );
 
-  const hasSession = events.length > 0 && state.phase !== 'idle';
+  const hasSession = state.phase !== 'idle';
   if (!hasSession) return null;
 
   const readout = rules.readout?.(state, viewerId ?? '') ?? null;

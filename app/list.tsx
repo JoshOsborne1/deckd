@@ -7,7 +7,9 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { FlipHorizontal2, Pencil, Trash2 } from 'lucide-react-native';
+import FlipHorizontal2 from 'lucide-react-native/icons/flip-horizontal-2';
+import Pencil from 'lucide-react-native/icons/pencil';
+import Trash2 from 'lucide-react-native/icons/trash-2';
 import { PlayingCard } from '@components/PlayingCard';
 import { TableSurface } from '@components/TableSurface';
 import { NAV_BAR_BOTTOM_GUTTER, NAV_BAR_RESERVE } from '@components/GlobalNavBar';

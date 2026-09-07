@@ -20,9 +20,9 @@ Phone Deck surface modes. BLE and Multipeer Connectivity are out of scope.
 - Active branch: `rebuild/physical-cards`
 - Public preview: `https://deckd-app.roxai.click`
 - Preview origin: PM2 `deckd-app`, main checkout `app-serve/`, port 8085
-- Landed cleanup slice: Slice 4e, pass veil rewrite
-- Evidence: pass-veil local and public QA 40 checks across 375x812 and 1440x900, zero viewport overflow/browser errors, 324/324 Jest, Expo Doctor 18/18, 5.97 MB export, public HTTP 200
-- Next queued slice: Slice 4f, home de-tutorial + desktop centering
+- Landed cleanup slice: Slice 5, architecture background (2026-09-07)
+- Evidence: event-log compaction caps at 500 events with baseline folding, zustand narrow selectors on chrome (HomeLayer/HubLayer/TableShell/UtilityDrawer/useTableSession), per-icon lucide imports, QA consolidated 39 scripts to 6, 132/132 invariants at 375x812 + 1440x900 with zero overflow/browser errors, 329/329 Jest, lint and typecheck clean, 4.0 MB export live
+- Next queued: owed P0 hold-to-peek dual-end mode, then the live 2-device lobby proof (needs Josh's hands)
 
 ## Quality bar
 

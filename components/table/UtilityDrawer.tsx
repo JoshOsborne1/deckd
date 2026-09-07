@@ -5,12 +5,14 @@
 
 import React, { useCallback } from 'react';
 import { Alert, Modal, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
-import { BookOpen, Clock, Flag, Undo2 } from 'lucide-react-native';
+import BookOpen from 'lucide-react-native/icons/book-open';
+import Clock from 'lucide-react-native/icons/clock';
+import Flag from 'lucide-react-native/icons/flag';
+import Undo2 from 'lucide-react-native/icons/undo-2';
 import { EventHistoryModal } from '@components/EventHistoryModal';
 import { RulesSheet } from '@components/RulesSheet';
 import { useGameStore } from '@store/gameStore';
 import { useMotion } from '@hooks/useMotion';
-import { selectCanUndo } from '@engine/selectors';
 import { alpha, colors, fonts, fontSizes, letterSpacing, radii, shadow, space } from '@theme';
 import { useTableSession } from './useTableSession';
 
@@ -23,17 +25,22 @@ interface UtilityDrawerProps {
 
 export function UtilityDrawer({ visible, onClose, viewerId: viewerIdProp }: UtilityDrawerProps) {
   const { haptic } = useMotion();
-  const state = useGameStore((s) => s.state);
-  const events = useGameStore((s) => s.events);
   const undoLastAction = useGameStore((s) => s.undoLastAction);
   const endSession = useGameStore((s) => s.endSession);
+  const mode = useGameStore((s) => s.state.meta.mode);
+  const presetId = useGameStore((s) => s.state.config.presetId);
+  const phase = useGameStore((s) => s.state.phase);
+  const currentPlayerId = useGameStore((s) => s.state.currentPlayerId);
   const [rulesOpen, setRulesOpen] = React.useState(false);
   const [historyOpen, setHistoryOpen] = React.useState(false);
   const [endConfirmOpen, setEndConfirmOpen] = React.useState(false);
 
-  const tableSession = useTableSession(state);
+  const tableSession = useTableSession();
   const viewerId = viewerIdProp ?? tableSession.viewerId ?? '';
-  const canUndo = selectCanUndo(state, viewerId);
+  const canUndo = mode === 'pass'
+    && ['freeplay', 'deal-two-each'].includes(presetId ?? '')
+    && phase === 'playing'
+    && currentPlayerId === viewerId;
   const undoEnabled = canUndo && !tableSession.isRemoteGuest;
 
   const handleUndo = useCallback(() => {
@@ -165,8 +172,8 @@ export function UtilityDrawer({ visible, onClose, viewerId: viewerIdProp }: Util
         </View>
       </Modal>
 
-      <RulesSheet visible={rulesOpen} presetId={state.config.presetId} onClose={() => setRulesOpen(false)} />
-      <EventHistoryModal visible={historyOpen} events={events} onClose={() => setHistoryOpen(false)} />
+      <RulesSheet visible={rulesOpen} presetId={presetId} onClose={() => setRulesOpen(false)} />
+      <EventHistoryModal visible={historyOpen} onClose={() => setHistoryOpen(false)} />
     </>
   );
 }

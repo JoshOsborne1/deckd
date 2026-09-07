@@ -6,28 +6,30 @@ import Animated, {
   withSpring,
   withTiming,
 } from 'react-native-reanimated';
-import { X } from 'lucide-react-native';
+import X from 'lucide-react-native/icons/x';
 import { CardButton } from '@components/CardButton';
 import { useMotion } from '@hooks/useMotion';
 import { formatGameEventLine } from '@lib/eventLogFormat';
 import { EASING_ACCELERATE, EASING_EMPHASIZED } from '@lib/motion';
-import type { GameEvent } from '@engine/events';
+import { useGameStore } from '@store/gameStore';
 import { alpha, colors, fonts, letterSpacing, motion, space } from '@theme';
 
 const MAX_LINES = 120;
 
 export interface EventHistoryModalProps {
   visible: boolean;
-  events: GameEvent[];
   onClose: () => void;
 }
 
 /**
  * Read-only scroll of the persisted event log (newest first for scanning).
  * Custom motion: scrim + sheet (spring) instead of the stock Modal slide.
+ * Subscribes to the event log itself so the parent drawer never holds the
+ * full array; the modal only mounts while open.
  */
-export function EventHistoryModal({ visible, events, onClose }: EventHistoryModalProps) {
+export function EventHistoryModal({ visible, onClose }: EventHistoryModalProps) {
   const { reduceMotion } = useMotion();
+  const events = useGameStore((s) => s.events);
   const [renderModal, setRenderModal] = useState(false);
   const exitUnmountTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const rafRef = useRef<number | null>(null);

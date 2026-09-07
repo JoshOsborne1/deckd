@@ -132,4 +132,31 @@ describe('gameStore undoLastAction', () => {
     const result = useGameStore.getState().undoLastAction();
     expect(result).toBe(false);
   });
+
+  it('caps the event log and stays fold-correct through the store', () => {
+    useGameStore.getState().createSession({
+      mode: 'pass',
+      presetId: 'freeplay',
+      players: [
+        { id: 'p1', name: 'One', avatarSeed: 's1' },
+        { id: 'p2', name: 'Two', avatarSeed: 's2' },
+      ],
+      config: { includeJokers: false, fanStyle: 'wide', autoReshuffleDiscard: true },
+    });
+    const setupCount = useGameStore.getState().events.length;
+
+    // Pump enough valid dispatches to force compaction (default keep = 500).
+    for (let i = 0; i < 505; i += 1) {
+      useGameStore.getState().endTurn(useGameStore.getState().state.currentPlayerId!);
+    }
+    const after = useGameStore.getState();
+    // Log is capped exactly at the keep budget.
+    expect(after.events.length).toBe(500);
+    // The tail still folds into the same playing state (baseline + events).
+    expect(after.state.phase).toBe('playing');
+    expect(after.eventBaseState).not.toBeNull();
+    expect(after.seq).toBe(setupCount + 505);
+    // currentPlayerId reflects all 505 applied turn/ends, not a truncated fold.
+    expect(after.state.turn).toBe(505);
+  });
 });

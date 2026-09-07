@@ -7,7 +7,7 @@
  */
 
 import { buildDeck, makeSeed, mulberry32, shuffleInPlace } from '@engine/deck';
-import { foldEvents } from '@engine/state';
+import { applyEvent, emptyState, foldEvents } from '@engine/state';
 import { eventId } from '@engine/events';
 import type { GameEvent } from '@engine/events';
 import { ZONE_DISCARD, ZONE_DRAW, ZONE_MUCK, handZoneId } from '@engine/types';
@@ -28,6 +28,7 @@ import {
   filterEventsForViewer,
   filterReconnectPayloadForViewer,
   filterSnapshotForViewer,
+  compactEventLog,
 } from '@store/syncLogic';
 
 function makeSessionEvents(
@@ -147,6 +148,92 @@ describe('selectBroadcastDelta', () => {
   it('returns empty when no events are after the cursor', () => {
     const e1: GameEvent = { type: 'session/pause', id: 'a', ts: 1, actorId: 'system', seq: 1 };
     expect(selectBroadcastDelta([e1], 1)).toEqual([]);
+  });
+});
+
+describe('compactEventLog', () => {
+  const baseIdle = { meta: { mode: 'pass' as const }, phase: 'playing' } as never;
+
+  // Renumber events to continue from a start seq (test events restart at 1).
+  function renumber(events: GameEvent[], startSeq: number): GameEvent[] {
+    return events.map((e, i) => ({ ...e, seq: startSeq + i }));
+  }
+
+  it('returns the log unchanged when under budget', () => {
+    const events = makeSessionEvents(
+      [{ id: 'p1', name: 'One' }, { id: 'p2', name: 'Two' }],
+      'freeplay',
+    );
+    const result = compactEventLog(events, baseIdle, null, 0, 500);
+    expect(result.events).toHaveLength(events.length);
+    expect(result.eventBaseState).toBeNull();
+    expect(result.eventBaseSeq).toBe(0);
+  });
+
+  it('folds the overflow into a baseline and keeps exactly keepNewest events', () => {
+    const events = renumber(
+      makeSessionEvents([{ id: 'p1', name: 'One' }, { id: 'p2', name: 'Two' }], 'freeplay'),
+      11,
+    );
+    const padded: GameEvent[] = [
+      ...Array.from({ length: 10 }, (_, i) => ({
+        type: 'session/pause' as const,
+        id: `old-${i}`,
+        ts: i,
+        actorId: 'system' as const,
+        seq: i + 1,
+      })),
+      ...events,
+    ];
+    const result = compactEventLog(padded, baseIdle, null, 0, 5);
+    expect(result.events).toHaveLength(5);
+    // Baseline folds the dropped events so the tail still reconstructs.
+    const folded = result.eventBaseState
+      ? result.events.reduce(applyEvent, result.eventBaseState)
+      : applyEvent(emptyState(), padded[0]!);
+    expect(folded).toBeDefined();
+    expect(result.eventBaseSeq).toBe(result.events[0]!.seq - 1);
+  });
+
+  it('folds on top of an existing baseline (incremental compaction)', () => {
+    const events = makeSessionEvents(
+      [{ id: 'p1', name: 'One' }, { id: 'p2', name: 'Two' }],
+      'freeplay',
+    );
+    const baselineState = applyEvent(emptyState(), events[0]!);
+    const log = events.slice(1);
+    const padded: GameEvent[] = [...log, {
+      type: 'session/pause' as const,
+      id: 'pause-1',
+      ts: Date.now(),
+      actorId: 'system' as const,
+      seq: 999,
+    }];
+    const result = compactEventLog(padded, baseIdle, baselineState, events[0]!.seq, 1);
+    expect(result.events).toHaveLength(1);
+    const folded = result.events.reduce(applyEvent, result.eventBaseState!);
+    expect(folded).toBeDefined();
+  });
+
+  it('never compacts an online session log', () => {
+    const events = renumber(
+      makeSessionEvents([{ id: 'host', name: 'Alice' }, { id: 'guest', name: 'Bob' }], 'freeplay'),
+      11,
+    );
+    const padded: GameEvent[] = [
+      ...Array.from({ length: 10 }, (_, i) => ({
+        type: 'session/pause' as const,
+        id: `old-${i}`,
+        ts: i,
+        actorId: 'system' as const,
+        seq: i + 1,
+      })),
+      ...events,
+    ];
+    const online = { meta: { mode: 'online-host' as const } } as never;
+    const result = compactEventLog(padded, online, null, 0, 5);
+    expect(result.events).toHaveLength(padded.length);
+    expect(result.eventBaseState).toBeNull();
   });
 });
 

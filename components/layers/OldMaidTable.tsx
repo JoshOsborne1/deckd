@@ -75,10 +75,9 @@ export function OldMaidTable({ active, topInset, bottomInset }: OldMaidTableProp
   const equippedBackId = useCosmeticsStore((s) => s.equippedBackId);
 
   const state = useGameStore((s) => s.state);
-  const events = useGameStore((s) => s.events);
   const gameAction = useGameStore((s) => s.gameAction);
   const replaySession = useGameStore((s) => s.replaySession);
-  const { viewerId, isRemoteGuest: isGuest, isSharedDevice, lobbySession } = useTableSession(state);
+  const { viewerId, isRemoteGuest: isGuest, isSharedDevice, lobbySession } = useTableSession();
 
   const rules = useMemo(() => getGameRules(state.config.presetId), [state.config.presetId]);
   const ruleActions = useMemo<GameActionSpec[]>(
@@ -99,7 +98,7 @@ export function OldMaidTable({ active, topInset, bottomInset }: OldMaidTableProp
     [state, viewerId],
   );
   const handLocked = state.privacySeat !== null;
-  const hasSession = events.length > 0 && state.phase !== 'idle';
+  const hasSession = state.phase !== 'idle';
   const canInteract = !handLocked && state.phase === 'playing' && isMyTurn;
 
   const pairGroups = useMemo(() => matchingPairs(localHand.map((card) => card.id)), [localHand]);
@@ -119,10 +118,7 @@ export function OldMaidTable({ active, topInset, bottomInset }: OldMaidTableProp
     () => state.players.find((player) => player.id === currentPlayerId)?.name ?? '',
     [currentPlayerId, state.players],
   );
-  const dealTrigger = useMemo(() => {
-    const sessionStart = events.find((event) => event.type === 'session/start');
-    return sessionStart?.meta.id ?? sessionStart?.id ?? state.meta.id ?? null;
-  }, [events, state.meta.id]);
+  const dealTrigger = state.meta.id || null;
 
   const faceFor = useCallback(
     (card: CardInstance): CardFace => selectCardFace(state, card.id, viewerId),

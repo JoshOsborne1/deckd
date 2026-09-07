@@ -6,13 +6,14 @@
  * duplicated header/rail copies previously spread across game tables.
  */
 
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { ChevronLeft, Menu, X } from 'lucide-react-native';
+import ChevronLeft from 'lucide-react-native/icons/chevron-left';
+import Menu from 'lucide-react-native/icons/menu';
+import X from 'lucide-react-native/icons/x';
 import { useGameStore } from '@store/gameStore';
 import { useUiStore } from '@store/uiStore';
 import { useMotion } from '@hooks/useMotion';
-import { selectCurrentPlayerId, selectIsMyTurn } from '@engine/selectors';
 import { TableSurface } from '@components/TableSurface';
 import { colors, fonts, fontSizes, letterSpacing, radii, space } from '@theme';
 import { UtilityDrawer } from './UtilityDrawer';
@@ -52,17 +53,11 @@ export function TableShell({
 }: TableShellProps) {
   const { haptic } = useMotion();
   const setViewMode = useUiStore((s) => s.setViewMode);
-  const state = useGameStore((s) => s.state);
-  const { viewerId, connectionLabel } = useTableSession(state);
+  const currentPlayerId = useGameStore((s) => s.state.currentPlayerId);
+  const currentPlayerName = useGameStore((s) => s.state.players.find((p) => p.id === s.state.currentPlayerId)?.name ?? '');
+  const { viewerId, connectionLabel } = useTableSession();
   const [drawerOpen, setDrawerOpen] = useState(false);
-
-  const currentPlayerId = useMemo(() => selectCurrentPlayerId(state), [state]);
-  const currentPlayerName = useMemo(
-    () => state.players.find((player) => player.id === currentPlayerId)?.name ?? '',
-    [currentPlayerId, state.players],
-  );
-
-  const isMyTurn = viewerId ? selectIsMyTurn(state, viewerId) : false;
+  const isMyTurn = viewerId ? currentPlayerId === viewerId : false;
 
   const handleBack = useCallback(() => {
     haptic('light');

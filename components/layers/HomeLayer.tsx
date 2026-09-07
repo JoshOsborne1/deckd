@@ -72,12 +72,13 @@ export function HomeLayer({
   const avatarSeed = useProfileStore((s) => s.avatarSeed);
   const level = useProfileStore((s) => s.level);
   const streak = useProfileStore((s) => s.streak);
-  const gameState = useGameStore((s) => s.state);
-  const gameEvents = useGameStore((s) => s.events);
-  const hasResumableTable = gameEvents.length > 0 && gameState.phase !== 'ended';
-  const currentRecipeName = gameState.config.presetId
-    ? formatRecipeName(gameState.config.presetId)
-    : 'Freeplay';
+  const gamePhase = useGameStore((s) => s.state.phase);
+  const playerSeatCount = useGameStore((s) => s.state.players.length);
+  const turnsPlayed = useGameStore((s) => s.state.turn);
+  const presetId = useGameStore((s) => s.state.config.presetId);
+  const eventCount = useGameStore((s) => s.events.length);
+  const hasResumableTable = eventCount > 0 && gamePhase !== 'ended';
+  const currentRecipeName = presetId ? formatRecipeName(presetId) : 'Freeplay';
 
   const { progress, reduceMotion } = useSurfaceMorph();
   const { reduceMotion: reduceMotionSystem } = useMotion();
@@ -257,7 +258,7 @@ export function HomeLayer({
                     <Text style={styles.resumeEyebrow}>TABLE IN PROGRESS</Text>
                     <Text style={styles.resumeTitle}>{currentRecipeName}</Text>
                     <Text style={styles.resumeDetail}>
-                      {gameState.players.length} {gameState.players.length === 1 ? 'seat' : 'seats'} · {gameState.turn} turns played
+                      {playerSeatCount} {playerSeatCount === 1 ? 'seat' : 'seats'} · {turnsPlayed} turns played
                     </Text>
                   </View>
                   <Pressable

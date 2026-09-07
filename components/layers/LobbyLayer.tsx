@@ -1,7 +1,11 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Alert, Platform, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import Animated from 'react-native-reanimated';
-import { ChevronLeft, Copy, Crown, Radio, Users } from 'lucide-react-native';
+import ChevronLeft from 'lucide-react-native/icons/chevron-left';
+import Copy from 'lucide-react-native/icons/copy';
+import Crown from 'lucide-react-native/icons/crown';
+import Radio from 'lucide-react-native/icons/radio';
+import Users from 'lucide-react-native/icons/users';
 import * as Clipboard from 'expo-clipboard';
 import { CardButton } from '@components/CardButton';
 import { CardSection } from '@components/CardSection';

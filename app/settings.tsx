@@ -1,7 +1,10 @@
 import { ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Home, Smartphone, Volume2, Wifi } from 'lucide-react-native';
+import House from 'lucide-react-native/icons/house';
+import Smartphone from 'lucide-react-native/icons/smartphone';
+import Volume2 from 'lucide-react-native/icons/volume-2';
+import Wifi from 'lucide-react-native/icons/wifi';
 import { CardButton } from '@components/CardButton';
 import { NAV_BAR_BOTTOM_GUTTER, NAV_BAR_RESERVE } from '@components/GlobalNavBar';
 import { CardSection } from '@components/CardSection';
@@ -52,7 +55,7 @@ export default function SettingsScreen() {
           onPress={back}
           style={styles.back}
         >
-          <Home size={18} color={colors.inkMuted} />
+          <House size={18} color={colors.inkMuted} />
           <Text style={styles.backLabel}>Back</Text>
         </CardButton>
 

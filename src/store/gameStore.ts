@@ -26,6 +26,7 @@ import {
 } from '@engine/index';
 import {
   applySnapshotWithTail,
+  compactEventLog,
   foldRemoteEvents,
 } from '@store/syncLogic';
 
@@ -309,11 +310,18 @@ export const useGameStore = create<GameStoreState>()(
       },
 
       dispatch: (event) => {
-        const { seq, events, state } = get();
+        const { seq, events, state, eventBaseState, eventBaseSeq } = get();
         const nextSeq = seq + 1;
         const full = makeEvent(event, nextSeq, state.meta.id || 'session');
         const nextState = applyEvent(state, full);
-        set({ events: [...events, full], seq: nextSeq, state: nextState });
+        const compacted = compactEventLog([...events, full], nextState, eventBaseState, eventBaseSeq);
+        set({
+          events: compacted.events,
+          seq: nextSeq,
+          state: nextState,
+          eventBaseState: compacted.eventBaseState,
+          eventBaseSeq: compacted.eventBaseSeq,
+        });
         return nextState;
       },
 
