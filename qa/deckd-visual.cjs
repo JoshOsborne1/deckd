@@ -17,8 +17,9 @@
  * Stale-expectation header (2026-09-07): assumes the Slice 4f/4g copy (no
  * tutorial strings, spelled durations, honest store tiles), the Slice 3 nav
  * fan (5 standing cards, taller Table card, single active fill, rail top
- * rule), and the Slice 4e pass veil. Hidden layers stay mounted: only
- * visible-layer elements are asserted.
+ * rule), the Slice 4e pass veil, and the dual-end surface (Dual end token in
+ * hub options for 2-player freeplay/blackjack, HOLD TO PEEK strips). Hidden
+ * layers stay mounted: only visible-layer elements are asserted.
  */
 const { chromium } = require('playwright');
 const fs = require('fs');
@@ -557,6 +558,143 @@ async function libraryPhase(browser, vp) {
 }
 
 // ---------------------------------------------------------------------------
+// Dual-end phase — one phone, two ends, hold-to-peek (§8.3, absorbed the
+// owed-P0 hold-to-peek proof). Playwright drives the real gesture: mouse
+// down on an end strip, hold past HOLD_MS, assert the faces reveal, mouse
+// up, assert the re-veil. Both ends probed independently.
+// ---------------------------------------------------------------------------
+
+async function dualEndPhase(browser, vp) {
+  const context = await browser.newContext({
+    viewport: { width: vp.width, height: vp.height },
+    deviceScaleFactor: 1,
+  });
+  const page = await context.newPage();
+  const errors = [];
+  page.on('pageerror', (error) => errors.push(`pageerror: ${error.message}`));
+  page.on('console', (message) => {
+    if (message.type() === 'error') errors.push(`console: ${message.text()}`);
+  });
+
+  try {
+    await reset(page);
+    // Deal a freeplay table, then enable the dual-end token from the hub.
+    await page.getByRole('button', { name: 'Deal the deck', exact: true }).last().click();
+    await lastVisible(page.getByText('Choose a recipe', { exact: true }));
+    const freeplay = await lastVisible(page.getByRole('button', { name: /^Freeplay\./ }));
+    await freeplay.click();
+    await page.waitForTimeout(600);
+    // 2 players is the default; the Dual end token renders in the options card.
+    const dualToken = await lastVisible(page.getByRole('button', { name: 'Dual end: one phone, two ends' }));
+    await dualToken.click();
+    await page.waitForTimeout(300);
+    const dealNow = await lastVisible(page.getByRole('button', { name: 'Deal now', exact: true }));
+    await dealNow.click();
+    await page.waitForTimeout(1500);
+
+    // The dual-end surface replaces the classic table.
+    const bodyBefore = await page.locator('body').innerText();
+    check(`dualend ${vp.name}: surface mounts (HOLD TO PEEK hint)`, bodyBefore.includes('HOLD TO PEEK YOUR HAND'));
+    check(`dualend ${vp.name}: honesty line present`, bodyBefore.includes('SHOULDER-SURF RESISTANT'));
+    check(`dualend ${vp.name}: both seat names render`, bodyBefore.includes('PLAYER 2'));
+
+    // Face-up card labels must NOT exist before any hold (re-veil default).
+    const faceLabelsBefore = await page.getByRole('button', {
+      name: /^(A|Ace|[2-9]|10|J|Jack|Q|Queen|K|King) of (clubs|diamonds|hearts|spades)$/i,
+    }).count();
+    check(`dualend ${vp.name}: hands veiled at rest`, faceLabelsBefore === 0, `${faceLabelsBefore} labels`);
+
+    // Give BOTH ends a card: draw for the bottom player, pass the turn, then
+    // draw for the top player. Peek needs something to reveal on each end.
+    const drawPile = page.getByRole('button', { name: /Draw pile, \d+ cards left/ });
+    const drawBox1 = await drawPile.last().boundingBox();
+    if (drawBox1 && drawBox1.width > 0) {
+      await page.mouse.click(drawBox1.x + drawBox1.width / 2, drawBox1.y + drawBox1.height / 2);
+      await page.waitForTimeout(500);
+    }
+    const passTurn = await visibleTextBoxPrefix(page, 'PASS TURN');
+    if (passTurn && passTurn.element) {
+      await passTurn.element.click();
+      await page.waitForTimeout(700);
+      const drawBox2 = await drawPile.last().boundingBox();
+      if (drawBox2 && drawBox2.width > 0) {
+        await page.mouse.click(drawBox2.x + drawBox2.width / 2, drawBox2.y + drawBox2.height / 2);
+        await page.waitForTimeout(500);
+      }
+    }
+
+    // Hold the BOTTOM end strip: press, hold, assert reveal, release.
+    // The strip Pressable wraps the whole end; hold on its card row area.
+    const seatBlocks = page.getByText('HOLD TO PEEK YOUR HAND');
+    const blockCount = await seatBlocks.count();
+    let bottomBox = null;
+    for (let i = 0; i < blockCount; i += 1) {
+      const box = await seatBlocks.nth(i).boundingBox().catch(() => null);
+      // The bottom strip's hint sits in the lower half of the viewport.
+      if (box && box.width > 0 && box.y > vp.height * 0.5) { bottomBox = box; break; }
+    }
+    if (!bottomBox) {
+      check(`dualend ${vp.name}: bottom end strip present`, false, 'no strip box');
+    } else {
+      const cx = Math.max(bottomBox.x + bottomBox.width / 2, 10);
+      const cy = Math.min(bottomBox.y + bottomBox.height / 2, vp.height - 20);
+      await page.mouse.move(cx, cy);
+      await page.mouse.down();
+      await page.waitForTimeout(450); // past delayLongPress (300)
+      const duringHold = await page.getByRole('button', {
+        name: /^(A|Ace|[2-9]|10|J|Jack|Q|Queen|K|King) of (clubs|diamonds|hearts|spades)$/i,
+      }).count();
+      await page.waitForTimeout(350); // let the flip spring settle for the proof shot
+      await page.screenshot({ path: `${PREFIX}-dualend-hold-${vp.name}.png`, fullPage: false });
+      await page.mouse.up();
+      await page.waitForTimeout(600);
+      const afterRelease = await page.getByRole('button', {
+        name: /^(A|Ace|[2-9]|10|J|Jack|Q|Queen|K|King) of (clubs|diamonds|hearts|spades)$/i,
+      }).count();
+      check(`dualend ${vp.name}: hold reveals the held end`, duringHold > 0, `${duringHold} labels mid-hold`);
+      check(`dualend ${vp.name}: release re-veils`, afterRelease === 0, `${afterRelease} labels after`);
+      await page.screenshot({ path: `${PREFIX}-dualend-released-${vp.name}.png`, fullPage: false });
+    }
+
+    // Hold the TOP end strip (the rotated far end) the same way.
+    let topBox = null;
+    for (let i = 0; i < blockCount; i += 1) {
+      const box = await seatBlocks.nth(i).boundingBox().catch(() => null);
+      if (box && box.width > 0 && box.y < vp.height * 0.4) { topBox = box; break; }
+    }
+    if (!topBox) {
+      check(`dualend ${vp.name}: top end strip present`, false, 'no top box');
+    } else {
+      const cx = topBox.x + topBox.width / 2;
+      const cy = Math.max(topBox.y + topBox.height / 2, 40);
+      await page.mouse.move(cx, cy);
+      await page.mouse.down();
+      await page.waitForTimeout(450);
+      const duringHoldTop = await page.getByRole('button', {
+        name: /^(A|Ace|[2-9]|10|J|Jack|Q|Queen|K|King) of (clubs|diamonds|hearts|spades)$/i,
+      }).count();
+      await page.waitForTimeout(350); // settle the far-end flip spring
+      await page.screenshot({ path: `${PREFIX}-dualend-top-hold-${vp.name}.png`, fullPage: false });
+      await page.mouse.up();
+      await page.waitForTimeout(500);
+      const afterReleaseTop = await page.getByRole('button', {
+        name: /^(A|Ace|[2-9]|10|J|Jack|Q|Queen|K|King) of (clubs|diamonds|hearts|spades)$/i,
+      }).count();
+      check(`dualend ${vp.name}: far end peeks too`, duringHoldTop > 0, `${duringHoldTop} labels mid-hold`);
+      check(`dualend ${vp.name}: far end re-veils`, afterReleaseTop === 0, `${afterReleaseTop} labels after`);
+    }
+
+    check(`dualend ${vp.name}: zero overflow`, (await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)) <= 0);
+    check(`dualend ${vp.name}: zero browser errors`, errors.length === 0, errors.slice(0, 3).join(' | '));
+    await page.screenshot({ path: `${PREFIX}-dualend-rest-${vp.name}.png`, fullPage: false });
+  } catch (error) {
+    check(`dualend ${vp.name}: completed without harness error`, false, error instanceof Error ? error.message : String(error));
+  } finally {
+    await context.close();
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Deck-proof phase — CardLab gallery (absorbed deckd-deck-proof-qa)
 // ---------------------------------------------------------------------------
 
@@ -807,6 +945,8 @@ async function deckProofPhase(browser) {
   }
 
   await deckProofPhase(browser);
+  await dualEndPhase(browser, { name: '375', width: 375, height: 812 });
+  await dualEndPhase(browser, { name: '1440', width: 1440, height: 900 });
   await browser.close();
   console.log(`VISUAL pass=${pass} fail=${fail}`);
   if (fail > 0) {

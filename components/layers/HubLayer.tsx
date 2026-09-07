@@ -153,6 +153,11 @@ export function HubLayer({
   const [includeJokers, setIncludeJokers] = React.useState(false);
   const [fanStyle, setFanStyle] = React.useState<FanStyle>('wide');
   const [autoReshuffle, setAutoReshuffle] = React.useState(true);
+  // Dual-end board (§8.3): two players share one phone from opposite ends.
+  const [dualEnd, setDualEnd] = React.useState(false);
+  // Mirror for the same deal-time read as the other setup refs.
+  const dualEndRef = React.useRef(dualEnd);
+  dualEndRef.current = dualEnd;
   const [rulesOpen, setRulesOpen] = useState(false);
   const [guestWaiting, setGuestWaiting] = useState(false);
   const launching = useRef(false);
@@ -198,6 +203,11 @@ export function HubLayer({
     [presetId],
   );
 
+  // Dual-end (§8.3) needs exactly two seats and a phone-scale preset with
+  // no wide community board; the token only renders when this is true.
+  const dualEndEligible =
+    playerCount === 2 && ['freeplay', 'blackjack'].includes(activePreset.id);
+
   // FreeCell and Pyramid layouts are hardcoded to a 52-card deck (FreeCell
   // 4×7 + 4×6, Pyramid 28 + 24). Enabling jokers silently drops 2 cards from
   // those deals, so the token is hidden and the flag forced off for them.
@@ -216,6 +226,12 @@ export function HubLayer({
       playerCountRef.current = clamped; // mirror synchronously
       return clamped;
     });
+    // Dual-end eligibility is preset + player-count dependent; a selection
+    // that breaks it silently drops the mode rather than dealing a lie.
+    if (!['freeplay', 'blackjack'].includes(nextPreset.id) || nextPreset.minPlayers > 2) {
+      setDualEnd(false);
+      dualEndRef.current = false;
+    }
   };
 
   const launchTable = () => {
@@ -294,12 +310,21 @@ export function HubLayer({
       name: idx === 0 ? nickname : `Player ${idx + 1}`,
       avatarSeed: idx === 0 ? avatarSeed : `seat-${idx + 1}`,
     }));
+    // Dual-end needs exactly two real seats (blueprint §8.3) and a preset
+    // whose hands stay usable at phone scale with no wide community board.
+    const dualEndEligible = playerCountRef.current === 2
+      && ['freeplay', 'blackjack'].includes(dealPreset.id);
+    if (dualEndRef.current && !dualEndEligible) {
+      dualEndRef.current = false;
+      setDualEnd(false);
+    }
     createSession({
       mode: playerCount === 1 ? 'solo' : 'pass',
       presetId: dealPreset.id,
       players,
       config: { includeJokers: effectiveIncludeJokers, fanStyle, autoReshuffleDiscard: autoReshuffle },
       hostId: 'you',
+      dualEnd: dualEndRef.current && dualEndEligible,
     });
     useProfileStore.getState().bumpGamesPlayed();
     launchTable();
@@ -642,7 +667,9 @@ export function HubLayer({
                   ? 'Ask a rank, then keep fishing when you hit'
                   : activePreset.id === 'old-maid'
                     ? 'Lay down pairs before you draw'
-                : `Pass the deck between ${playerCount} people`}
+                : dualEnd
+                  ? 'Two ends of one phone · hold your end to peek'
+                  : `Pass the deck between ${playerCount} people`}
             </Text>
           </View>
         </Animated.View>
@@ -674,6 +701,11 @@ export function HubLayer({
                   onPress={() => {
                     if (n === 1 && !SOLO_PRESETS.has(activePreset.id)) setPresetId('blackjack');
                     setPlayerCount(n);
+                    // Dual-end is a two-seat surface; any other count drops it.
+                    if (n !== 2) {
+                      setDualEnd(false);
+                      dualEndRef.current = false;
+                    }
                   }}
                   style={{
                     ...styles.playerChip,
@@ -730,6 +762,14 @@ export function HubLayer({
               selected={autoReshuffle}
               onPress={() => setAutoReshuffle((v) => !v)}
             />
+            {dualEndEligible && (
+              <OptionToken
+                label="Dual end"
+                detail="one phone, two ends"
+                selected={dualEnd}
+                onPress={() => setDualEnd((v) => !v)}
+              />
+            )}
           </View>
         </Animated.View>
 

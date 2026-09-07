@@ -22,6 +22,7 @@ import { HandStack } from '@components/HandStack';
 import { SolitaireBoard } from '@components/SolitaireBoard';
 import { BlackjackTable } from '@components/layers/BlackjackTable';
 import { CrazyEightsTable } from '@components/layers/CrazyEightsTable';
+import { DualEndTable } from '@components/layers/DualEndTable';
 import { TableShell } from '@components/table/TableShell';
 import { useTableSession } from '@components/table/useTableSession';
 import { GoFishTable } from '@components/layers/GoFishTable';
@@ -110,6 +111,7 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
     isSharedDevice: isPassMode,
     isSolo,
     isNetworked: isOnline,
+    isDualEnd,
     lobbySession,
   } = useTableSession();
 
@@ -462,6 +464,19 @@ export function TableLayer({ active, topInset, bottomInset }: TableLayerProps) {
   const discardParsed = discardTop ? parseCardId(discardTop.id) : null;
   const discardJoker = discardTop ? parseJokerId(discardTop.id) : null;
   const tableTitle = (state.config.presetId ?? 'table').replace(/-/g, ' ').toUpperCase();
+
+  // --- Dual-end board (blueprint §8.3): both seats on one phone, hold an
+  // end to peek. Takes precedence over the generic surface and per-game
+  // tables: the split composition is the surface for the whole session. ---
+  if (isDualEnd && viewerId) {
+    return (
+      <DualEndTable
+        active={active}
+        topInset={topInset}
+        bottomInset={bottomInset}
+      />
+    );
+  }
 
   // --- Crazy Eights: dedicated physical card-play surface. ---
   if (isCrazyEightsTable && viewerId) {

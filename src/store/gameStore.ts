@@ -41,6 +41,12 @@ export interface CreateSessionInput {
   config?: Partial<SessionConfig>;
   hostId?: PlayerId;
   seed?: string;
+  /**
+   * Dual-end board (blueprint §8.3): two players share one phone from
+   * opposite ends. Overrides the legacy-mode topology with the
+   * `dual-end-board` surface profile while the mode stays `pass`.
+   */
+  dualEnd?: boolean;
 }
 
 export interface GameStoreState {
@@ -174,7 +180,16 @@ export const useGameStore = create<GameStoreState>()(
           });
         }
         const hostId = input.hostId ?? players[0]?.id ?? 'host';
-        const topology = topologyFromLegacyMode(input.mode, hostId, players.map((player) => player.id));
+        const legacyTopology = topologyFromLegacyMode(input.mode, hostId, players.map((player) => player.id));
+        // Dual-end board (§8.3): same shared-device binding as hot-seat, but
+        // the surface profile marks the one-phone-two-ends layout so the
+        // table picks the facing split composition instead of the veil flow.
+        // The virtual house seat is not a human end, so it does not count
+        // toward the two-seat eligibility check.
+        const humanSeatCount = players.filter((player) => player.id !== 'house').length;
+        const topology = input.dualEnd && input.mode === 'pass' && humanSeatCount === 2
+          ? { ...legacyTopology, surfaceProfile: 'dual-end-board' as const }
+          : legacyTopology;
 
         const deckOrder = orderedDeckForPreset(seed, config.includeJokers, preset.id);
         const setup = executeRecipe(preset.recipe, { players, config, deckOrder });

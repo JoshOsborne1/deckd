@@ -12,6 +12,8 @@ export interface TableSessionContext {
   isSharedDevice: boolean;
   isSolo: boolean;
   isNetworked: boolean;
+  /** Dual-end board (§8.3): both seats render on this one phone. */
+  isDualEnd: boolean;
   connectionLabel: string;
   lobbySession: RelaySession | null;
 }
@@ -48,6 +50,7 @@ function deriveTableSession(
   const isRelaySurface = !isSolo
     && !isSharedDevice
     && meta.surfaceProfile === 'personal-table';
+  const isDualEnd = isSharedDevice && meta.surfaceProfile === 'dual-end-board';
   const connectionLabel = !isRelaySurface
     ? 'Local'
     : lobbyStatus === 'connected'
@@ -63,6 +66,7 @@ function deriveTableSession(
     isSharedDevice,
     isSolo,
     isNetworked: isRelaySurface,
+    isDualEnd,
     connectionLabel,
   };
 }
